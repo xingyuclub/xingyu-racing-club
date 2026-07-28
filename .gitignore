@@ -1,0 +1,13 @@
+.superpowers/
+.worktrees/
+node_modules/
+dist/
+coverage/
+# 临时/验证文件
+tmp/
+output/
+*.bak
+verification-*.png
+verify-*.png
+# 音频素材（按需保留）
+public/audio/full-heart-departure.flac

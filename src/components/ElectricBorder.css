@@ -1,0 +1,46 @@
+.electric-border {
+  position: relative;
+  isolation: isolate;
+  border-radius: var(--electric-border-radius);
+}
+
+.electric-border-canvas,
+.electric-border-glow {
+  position: absolute;
+  inset: -6px;
+  width: calc(100% + 12px);
+  height: calc(100% + 12px);
+  pointer-events: none;
+  border-radius: calc(var(--electric-border-radius) + 6px);
+}
+
+.electric-border-canvas {
+  z-index: 2;
+}
+
+.electric-border-glow {
+  z-index: 0;
+  border: 2px solid var(--electric-border-color);
+  opacity: 0.42;
+}
+
+.electric-border-glow--soft {
+  filter: blur(12px);
+  opacity: 0.3;
+}
+
+.electric-border-glow--sharp {
+  filter: blur(2px);
+}
+
+.electric-border-content {
+  position: relative;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .electric-border-canvas {
+    display: none;
+  }
+}

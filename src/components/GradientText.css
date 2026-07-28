@@ -1,0 +1,51 @@
+.animated-gradient-text {
+  position: relative;
+  display: inline-block;
+  color: transparent;
+  background-image: linear-gradient(var(--gradient-angle), var(--gradient-colors));
+  background-size: var(--gradient-size);
+  background-position: 0% 50%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: gradient-text-flow var(--gradient-speed) linear infinite var(--gradient-direction);
+}
+
+.animated-gradient-text[data-paused="true"] {
+  animation-play-state: paused;
+}
+
+.gradient-text-content {
+  position: relative;
+  z-index: 1;
+  color: inherit;
+}
+
+.animated-gradient-text.with-border {
+  padding: 0.15em 0.3em;
+}
+
+.gradient-border {
+  position: absolute;
+  inset: 0;
+  border: 1px solid currentColor;
+  border-radius: 0.35em;
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+@keyframes gradient-text-flow {
+  from {
+    background-position: 0% 50%;
+  }
+
+  to {
+    background-position: 100% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animated-gradient-text {
+    animation: none;
+    background-position: 50% 50%;
+  }
+}
