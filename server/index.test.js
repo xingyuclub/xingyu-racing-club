@@ -139,7 +139,7 @@ describe('config admin API', () => {
     const configResponse = await agent.get('/api/admin/config').expect(200);
     const nextConfig = structuredClone(configResponse.body);
     nextConfig.team.motto = '已保存';
-    nextConfig.roster[0].points = 999;
+    nextConfig.roster[0].basePoints = 999;
     nextConfig.roster[0].wins = 5;
 
     await agent.put('/api/admin/config').send(nextConfig).expect(204);
@@ -149,7 +149,7 @@ describe('config admin API', () => {
     expect(publicResponse.body.leaderboard[0]).toMatchObject({
       id: nextConfig.roster[0].id,
       rank: 1,
-      points: 999,
+      points: 1017,
       wins: 5,
     });
   });

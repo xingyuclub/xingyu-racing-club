@@ -159,22 +159,22 @@ describe('config store', () => {
     const initial = await store.read();
     const next = structuredClone(initial);
     next.team.motto = 'captured motto';
-    next.roster[0].points = 17;
+    next.roster[0].basePoints = 17;
     next.dailyScores[0].rows[0].teamRace[0] = 9;
 
     const pendingWrite = store.write(next);
     next.team.motto = 'mutated later';
-    next.roster[0].points = 999;
+    next.roster[0].basePoints = 999;
     next.dailyScores[0].rows[0].teamRace[0] = 99;
 
     const saved = await pendingWrite;
     const stored = JSON.parse(await readFile(join(dataDir, activeFile), 'utf8'));
 
     expect(saved.team.motto).toBe('captured motto');
-    expect(saved.roster[0].points).toBe(17);
+    expect(saved.roster[0].basePoints).toBe(17);
     expect(saved.dailyScores[0].rows[0].teamRace[0]).toBe(9);
     expect(stored.team.motto).toBe('captured motto');
-    expect(stored.roster[0].points).toBe(17);
+    expect(stored.roster[0].basePoints).toBe(17);
     expect(stored.dailyScores[0].rows[0].teamRace[0]).toBe(9);
   });
 
@@ -395,6 +395,20 @@ describe('config store', () => {
       detail:
         'dailyScores[0].rows[0].teamRace must contain exactly 3 non-negative finite numbers',
     },
+    {
+      name: 'duplicate score date',
+      mutate(config) {
+        config.dailyScores.push(structuredClone(config.dailyScores[0]));
+      },
+      detail: 'dailyScores[1].date must be unique',
+    },
+    {
+      name: 'duplicate member on one date',
+      mutate(config) {
+        config.dailyScores[0].rows.push(structuredClone(config.dailyScores[0].rows[0]));
+      },
+      detail: 'dailyScores[0].rows[30].id must be unique within its date',
+    },
   ])('rejects $name', async ({ mutate, detail }) => {
     const store = await createConfigStore({ dataDir });
     const invalid = await store.read();
@@ -480,6 +494,16 @@ describe('config store', () => {
       (config) => (config.roster[0].wins = Number.POSITIVE_INFINITY),
       'roster[0].wins must be a non-negative finite number',
     ],
+    [
+      'an invalid opening score',
+      (config) => (config.roster[0].basePoints = -1),
+      'roster[0].basePoints must be a non-negative finite number',
+    ],
+    [
+      'a derived member points field',
+      (config) => (config.roster[0].points = 99),
+      'roster[0].points is derived and must not be stored',
+    ],
     ['invalid albums', (config) => (config.albums = null), 'albums must be an array'],
     [
       'a duplicate album id',
@@ -533,9 +557,19 @@ describe('config store', () => {
       'news[0].body must be a non-empty string',
     ],
     [
-      'an invalid score round field',
-      (config) => (config.dailyScores[0].weekday = ''),
-      'dailyScores[0].weekday must be a non-empty string',
+      'an invalid score date',
+      (config) => (config.dailyScores[0].date = '2026-02-30'),
+      'dailyScores[0].date must use a valid YYYY-MM-DD date',
+    ],
+    [
+      'a derived score round field',
+      (config) => (config.dailyScores[0].weekday = '周五'),
+      'dailyScores[0].weekday is derived and must not be stored',
+    ],
+    [
+      'a derived score row field',
+      (config) => (config.dailyScores[0].rows[0].total = 99),
+      'dailyScores[0].rows[0].total is derived and must not be stored',
     ],
     [
       'an invalid race value',

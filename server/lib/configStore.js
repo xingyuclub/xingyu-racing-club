@@ -5,6 +5,12 @@ import { createSeedConfig } from '../../src/data/siteConfig.js';
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim().length > 0;
 const isNonNegativeFinite = (value) => Number.isFinite(value) && value >= 0;
+const isValidDateKey = (value) => {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+};
 const rawTopLevelKeys = ['team', 'stats', 'roster', 'albums', 'dailyScores', 'news', 'music'];
 const rawTopLevelKeySet = new Set(rawTopLevelKeys);
 
@@ -120,10 +126,13 @@ function validateConfig(config) {
       requireUniqueString(member.number, `${path}.number`, seenMemberNumbers, details);
       requireStrings(member, ['name', 'role'], path, details);
       requireString(member, ['avatar', 'videoUrl'], path, details);
-      for (const field of ['points', 'wins']) {
+      for (const field of ['basePoints', 'wins']) {
         if (!isNonNegativeFinite(member[field])) {
           details.push(`${path}.${field} must be a non-negative finite number`);
         }
+      }
+      if ('points' in member) {
+        details.push(`${path}.points is derived and must not be stored`);
       }
       if (isNonEmptyString(member.id)) memberIds.add(member.id);
     }
@@ -196,6 +205,7 @@ function validateConfig(config) {
   if (!Array.isArray(config.dailyScores)) {
     details.push('dailyScores must be an array');
   } else {
+    const seenDates = new Set();
     for (let roundIndex = 0; roundIndex < config.dailyScores.length; roundIndex += 1) {
       const round = config.dailyScores[roundIndex];
       const roundPath = `dailyScores[${roundIndex}]`;
@@ -203,12 +213,22 @@ function validateConfig(config) {
         details.push(`${roundPath} must be an object`);
         continue;
       }
-      requireStrings(round, ['date', 'weekday'], roundPath, details);
+      if (!isValidDateKey(round.date)) {
+        details.push(`${roundPath}.date must use a valid YYYY-MM-DD date`);
+      } else if (seenDates.has(round.date)) {
+        details.push(`${roundPath}.date must be unique`);
+      } else {
+        seenDates.add(round.date);
+      }
+      if ('weekday' in round) {
+        details.push(`${roundPath}.weekday is derived and must not be stored`);
+      }
       if (!Array.isArray(round.rows)) {
         details.push(`${roundPath}.rows must be an array`);
         continue;
       }
 
+      const seenRowIds = new Set();
       for (let rowIndex = 0; rowIndex < round.rows.length; rowIndex += 1) {
         const row = round.rows[rowIndex];
         const path = `${roundPath}.rows[${rowIndex}]`;
@@ -218,6 +238,15 @@ function validateConfig(config) {
         }
         if (!memberIds.has(row.id)) {
           details.push(`${path}.id must reference an existing roster member`);
+        } else if (seenRowIds.has(row.id)) {
+          details.push(`${path}.id must be unique within its date`);
+        } else {
+          seenRowIds.add(row.id);
+        }
+        for (const field of ['name', 'score', 'total']) {
+          if (field in row) {
+            details.push(`${path}.${field} is derived and must not be stored`);
+          }
         }
         for (const field of ['teamRace', 'openRace']) {
           const race = row[field];
