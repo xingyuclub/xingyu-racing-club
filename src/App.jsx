@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { teamData } from './data/teamData.js';
+import { createSeedConfig, hydrateSiteData } from './data/siteConfig.js';
 import { Hero } from './components/Hero.jsx';
 import { StatsBar } from './components/StatsBar.jsx';
 import { FeaturedMembers } from './components/FeaturedMembers.jsx';
@@ -13,8 +13,12 @@ import { PhotoModal } from './components/PhotoModal.jsx';
 import { ScoreDetailsModal } from './components/ScoreDetailsModal.jsx';
 import { MusicPlayer } from './components/MusicPlayer.jsx';
 import { useRevealOnScroll } from './hooks/useRevealOnScroll.js';
+import { useSiteConfig } from './hooks/useSiteConfig.js';
+
+const fallbackSiteData = hydrateSiteData(createSeedConfig());
 
 export default function App() {
+  const siteData = useSiteConfig(fallbackSiteData);
   const [selectedMember, setSelectedMember] = useState(null);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [showScoreDetails, setShowScoreDetails] = useState(false);
@@ -41,12 +45,12 @@ export default function App() {
     return (
       <>
         <main className="site-shell album-shell">
-          <AlbumPage albums={teamData.albums} onBack={closeAlbum} onOpenPhoto={setSelectedPhoto} />
+          <AlbumPage albums={siteData.albums} onBack={closeAlbum} onOpenPhoto={setSelectedPhoto} />
           <PhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} />
         </main>
         <MusicPlayer
-          src="/audio/launch-now.mp3"
-          cover="/images/music-avatar.png"
+          src={siteData.music.src}
+          cover={siteData.music.cover}
         />
       </>
     );
@@ -55,29 +59,29 @@ export default function App() {
   return (
     <>
       <main className="site-shell">
-        <Hero team={teamData.team} />
-        <StatsBar stats={teamData.stats} />
-        <FeaturedMembers members={teamData.featuredMembers} onSelect={setSelectedMember} />
+        <Hero team={siteData.team} />
+        <StatsBar stats={siteData.stats} />
+        <FeaturedMembers members={siteData.featuredMembers} onSelect={setSelectedMember} />
         <GalleryPreview
-          photos={teamData.gallery}
+          photos={siteData.gallery}
           onOpenPhoto={setSelectedPhoto}
           onOpenAlbum={openAlbum}
         />
-        <Roster members={teamData.roster} onSelect={setSelectedMember} />
-        <Leaderboard rows={teamData.leaderboard} onOpenDetails={() => setShowScoreDetails(true)} />
-        <NewsFeed items={teamData.news} />
+        <Roster members={siteData.roster} onSelect={setSelectedMember} />
+        <Leaderboard rows={siteData.leaderboard} onOpenDetails={() => setShowScoreDetails(true)} />
+        <NewsFeed items={siteData.news} />
         <VideoModal member={selectedMember} onClose={() => setSelectedMember(null)} />
         <PhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} />
         {showScoreDetails && (
           <ScoreDetailsModal
-            dailyScores={teamData.dailyScores}
+            dailyScores={siteData.dailyScores}
             onClose={() => setShowScoreDetails(false)}
           />
         )}
       </main>
       <MusicPlayer
-        src="/audio/launch-now.mp3"
-        cover="/images/music-avatar.png"
+        src={siteData.music.src}
+        cover={siteData.music.cover}
       />
     </>
   );

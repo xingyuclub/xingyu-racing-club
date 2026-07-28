@@ -11,3 +11,9 @@ verification-*.png
 verify-*.png
 # 音频素材（按需保留）
 public/audio/full-heart-departure.flac
+server/config/admin.local.json
+server/data/site-config.json
+server/data/site-config.json.bak
+server/data/site-config.json.next
+server/data/site-config.json.bak.next
+server/storage/uploads/

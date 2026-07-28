@@ -10,6 +10,7 @@ let mediaPlay;
 let mediaPause;
 
 beforeEach(() => {
+  vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
   mediaPlay = vi
     .spyOn(HTMLMediaElement.prototype, 'play')
     .mockImplementation(() => new Promise(() => {}));
@@ -20,6 +21,7 @@ afterEach(() => {
   window.location.hash = '';
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('teamData', () => {
@@ -78,6 +80,31 @@ describe('teamData', () => {
 });
 
 describe('App', () => {
+  it('renders the server configuration after it loads', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ...teamData,
+        stats: teamData.stats.map((item, index) =>
+          index === 0 ? { ...item, label: '实时配置' } : item,
+        ),
+        music: { src: '/uploads/song.mp3', cover: '/uploads/cover.png' },
+      }),
+    }));
+
+    render(<App />);
+
+    expect(await screen.findByText('实时配置')).toBeInTheDocument();
+  });
+
+  it('uses initial data when the configuration endpoint fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: '欢迎来到星屿车队' })).toBeInTheDocument();
+  });
+
   it('renders all main sections from configuration', () => {
     const { container } = render(<App />);
 
@@ -172,7 +199,7 @@ describe('App', () => {
     expect(roster).toHaveClass('is-settling');
 
     act(() => vi.advanceTimersByTime(160));
-    expect(readSpeed()).not.toBeCloseTo(baseSpeed, 1);
+    expect(readSpeed()).toBeLessThan(acceleratedSpeed);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1600);
