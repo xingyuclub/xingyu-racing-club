@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a password-protected local/LAN admin page that edits all current Xingyu H5 content, uploads media, and makes saved changes available to the frontend on refresh.
+**Goal:** Build a password-protected local/LAN admin page that edits all current Xingyu H5 content, imports and exports date-based score workbooks, uploads media, and makes saved changes available to the frontend on refresh.
 
-**Architecture:** An Express service owns runtime JSON configuration, local uploads, authenticated admin APIs, and production static-file delivery. The React H5 fetches the public configuration and derives gallery, featured members, leaderboard, and daily-score display fields from a single raw configuration. The `/admin` React route uses structured forms and the same service APIs.
+**Architecture:** An Express service owns runtime JSON configuration, local uploads, authenticated admin APIs, and production static-file delivery. The React H5 derives current points from each member's opening balance plus date-based six-race score rows. The `/admin` React route uses structured forms; a browser-only Excel module creates the template/export and validates imports before they update the unsaved draft.
 
-**Tech Stack:** React 19, Vite 6, Vitest, Express, Multer, Supertest, Node.js `fs/promises`, HttpOnly cookie sessions.
+**Tech Stack:** React 19, Vite 6, Vitest, ExcelJS, Express, Multer, Supertest, Node.js `fs/promises`, HttpOnly cookie sessions.
 
 ---
 
@@ -18,6 +18,10 @@
 - Create: `src/admin/adminApi.js` - authenticated admin API client.
 - Create: `src/admin/AdminApp.jsx` - login state and admin shell.
 - Create: `src/admin/ConfigEditor.jsx` - structured configuration editor and save flow.
+- Create: `src/admin/ScoreEditor.jsx` - Excel-style daily score grid and import preview.
+- Create: `src/admin/ScoreEditor.test.jsx` - direct editing and import confirmation tests.
+- Create: `src/admin/scoreWorkbook.js` - workbook generation, parsing, validation and date replacement.
+- Create: `src/admin/scoreWorkbook.test.js` - workbook round-trip and invalid-file tests.
 - Create: `src/admin/UploadField.jsx` - reusable upload input and preview.
 - Create: `src/admin/UploadLibrary.jsx` - uploaded-file list and deletion actions.
 - Create: `src/admin/admin.css` - compact responsive administrator UI.
@@ -35,7 +39,7 @@
 - Modify: `src/App.jsx` - consume loaded site data and configured music paths.
 - Modify: `src/App.test.jsx` - test configuration loading and fallback while retaining existing interaction coverage.
 - Modify: `src/main.jsx` - render `AdminApp` for `/admin`, otherwise render H5.
-- Modify: `agent.md` - record implementation state, commands and verification result.
+- Modify: `AGENTS.md` - record implementation state, commands and verification result.
 
 ### Task 1: Create the Single Runtime Configuration Model
 
@@ -66,21 +70,28 @@ describe('site configuration', () => {
     expect(config).not.toHaveProperty('featuredMembers');
   });
 
-  it('derives gallery, featured members, ranks and daily score display values', () => {
+  it('derives scores and current points from opening balances in date order', () => {
     const config = createSeedConfig();
-    config.roster[0] = { ...config.roster[0], points: 7, wins: 1 };
-    config.roster[1] = { ...config.roster[1], points: 99, wins: 2 };
+    config.roster = config.roster.slice(0, 2).map((member, index) => ({
+      ...member,
+      basePoints: index === 0 ? 10 : 30,
+    }));
+    config.dailyScores = [
+      { date: '2026-07-29', rows: [{ id: config.roster[0].id, teamRace: [1, 1, 1], openRace: [0, 0, 0] }] },
+      { date: '2026-07-28', rows: [{ id: config.roster[0].id, teamRace: [2, 2, 2], openRace: [1, 1, 1] }] },
+    ];
     const data = hydrateSiteData(config);
 
-    expect(data.gallery).toHaveLength(config.albums.flatMap((album) => album.photos).length);
-    expect(data.featuredMembers).toEqual(config.roster.slice(0, 8));
-    expect(data.leaderboard[0]).toMatchObject({ id: config.roster[1].id, rank: 1 });
+    expect(data.dailyScores.map((round) => round.date)).toEqual(['2026-07-28', '2026-07-29']);
     expect(data.dailyScores[0].rows[0]).toMatchObject({
       id: config.roster[0].id,
       name: config.roster[0].name,
-      total: 7,
-      score: 18,
+      score: 9,
+      total: 19,
     });
+    expect(data.dailyScores[1].rows[0].total).toBe(22);
+    expect(data.leaderboard[0]).toMatchObject({ id: config.roster[1].id, points: 30, rank: 1 });
+    expect(data.roster.find((member) => member.id === config.roster[0].id).points).toBe(22);
   });
 });
 ```
@@ -100,15 +111,32 @@ import { teamData } from './teamData.js';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const sum = (values) => values.reduce((total, value) => total + Number(value || 0), 0);
+const weekdayLabels = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+const formatWeekday = (dateKey) => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return weekdayLabels[new Date(year, month - 1, day).getDay()];
+};
 
 export function createSeedConfig() {
   const { team, stats, roster, albums, dailyScores, news } = clone(teamData);
+  const sortedScores = [...dailyScores].sort((left, right) => left.date.localeCompare(right.date));
+  const rawRoster = roster.map(({ points, ...member }) => {
+    const firstRow = sortedScores.flatMap((round) => round.rows).find((row) => row.id === member.id);
+    return {
+      ...member,
+      basePoints: Math.max(0, Number(firstRow?.total ?? points) - Number(firstRow?.score ?? 0)),
+    };
+  });
   return {
     team,
     stats,
-    roster,
+    roster: rawRoster,
     albums,
-    dailyScores,
+    dailyScores: dailyScores.map((round) => ({
+      date: round.date,
+      rows: round.rows.map(({ id, teamRace, openRace }) => ({ id, teamRace, openRace })),
+    })),
     news,
     music: {
       src: '/audio/launch-now.mp3',
@@ -120,7 +148,21 @@ export function createSeedConfig() {
 export function hydrateSiteData(rawConfig) {
   const config = clone(rawConfig);
   const membersById = new Map(config.roster.map((member) => [member.id, member]));
-  const leaderboard = [...config.roster]
+  const totals = new Map(config.roster.map((member) => [member.id, Number(member.basePoints || 0)]));
+  const dailyScores = [...config.dailyScores]
+    .sort((left, right) => left.date.localeCompare(right.date))
+    .map((round) => ({
+      date: round.date,
+      weekday: formatWeekday(round.date),
+      rows: round.rows.map((row) => {
+        const score = sum([...row.teamRace, ...row.openRace]);
+        const total = (totals.get(row.id) || 0) + score;
+        totals.set(row.id, total);
+        return { ...row, name: membersById.get(row.id)?.name || '', score, total };
+      }),
+    }));
+  const roster = config.roster.map((member) => ({ ...member, points: totals.get(member.id) || 0 }));
+  const leaderboard = [...roster]
     .sort((left, right) => right.points - left.points || right.wins - left.wins || left.number.localeCompare(right.number))
     .map((member, index) => ({
       id: member.id,
@@ -132,30 +174,16 @@ export function hydrateSiteData(rawConfig) {
 
   return {
     ...config,
-    featuredMembers: config.roster.slice(0, 8),
+    roster,
+    featuredMembers: roster.slice(0, 8),
     gallery: config.albums.flatMap((album) => album.photos),
     leaderboard,
-    dailyScores: config.dailyScores.map((round) => ({
-      ...round,
-      rows: round.rows.map((row) => {
-        const member = membersById.get(row.id);
-        const teamRace = [...row.teamRace];
-        const openRace = [...row.openRace];
-        return {
-          ...row,
-          name: member?.name || row.name,
-          teamRace,
-          openRace,
-          score: sum([...teamRace, ...openRace]),
-          total: member?.points ?? row.total,
-        };
-      }),
-    })),
+    dailyScores,
   };
 }
 ```
 
-Keep `teamData.js` unchanged. The seed function strips only `gallery`, `leaderboard`, and `featuredMembers` by destructuring the copied object.
+Add a timezone-safe `formatWeekday(dateKey)` that parses `YYYY-MM-DD` components and returns `周日` through `周六`. Keep `teamData.js` unchanged. The seed function migrates the current display total to `basePoints` by subtracting the first stored day's score, and strips `weekday`, `name`, `score`, and `total` from raw daily rows.
 
 - [ ] **Step 4: Run the focused test and complete the project test suite.**
 
@@ -227,10 +255,10 @@ Implement validation with an `errors` array and throw an `Error` carrying `error
 
 - `team.name`, `team.label`, `team.motto`, `team.heroImage` are non-empty strings.
 - `stats` has exactly four items; the `单身贵族` value is an object with non-negative numeric `male` and `female`, all other values are non-empty strings or finite numbers.
-- every `roster` entry has a unique non-empty `id`, unique non-empty `number`, non-empty `name` and `role`, plus non-negative finite `points` and `wins`.
+- every `roster` entry has a unique non-empty `id`, unique non-empty `number`, non-empty `name` and `role`, plus non-negative finite `basePoints` and `wins`; raw `points` is rejected so current points have one source.
 - every album has non-empty `id`, `name`, `date`, `coverSrc`; every photo has non-empty `id`, `src`, `title`, `date`, `alt`, and media type is absent, `image`, or `video`.
 - every news item has non-empty `id`, `title`, `category`, `date`, `imageSrc`, `imageAlt`, `summary`, and `body`.
-- every daily row references an existing roster ID and has exactly three non-negative finite values in each of `teamRace` and `openRace`.
+- every daily record has a unique strict `YYYY-MM-DD` date; every row references an existing roster ID once per date and has exactly three non-negative finite values in each of `teamRace` and `openRace`.
 - `music.src` and `music.cover` are non-empty strings.
 
 Before the first read, seed missing JSON with `createSeedConfig()`. When writing, copy existing JSON to the backup path if it exists, write formatted JSON to `temporaryPath`, then rename the temporary file to `configPath`. Never keep client-provided `gallery`, `leaderboard`, or `featuredMembers` in the stored configuration.
@@ -264,10 +292,10 @@ git commit -m "feat: add validated local config storage"
 
 - [ ] **Step 1: Install minimal dependencies and define executable scripts.**
 
-Install the production dependencies `express` and `multer`, plus the development dependency `supertest`:
+Install the production dependencies `express`, `multer`, and `exceljs`, plus the development dependency `supertest`:
 
 ```powershell
-npm install express multer
+npm install express multer exceljs
 npm install --save-dev supertest
 ```
 
@@ -381,10 +409,14 @@ Add a test that mocks `fetch` with a changed config and verifies the public page
 it('renders the server configuration after it loads', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
     ok: true,
-    json: async () => ({ ...teamData, team: { ...teamData.team, motto: '实时配置' }, music: { src: '/uploads/song.mp3', cover: '/uploads/cover.png' } }),
+    json: async () => ({
+      ...teamData,
+      stats: teamData.stats.map((item, index) => index === 0 ? { ...item, label: '实时排名' } : item),
+      music: { src: '/uploads/song.mp3', cover: '/uploads/cover.png' },
+    }),
   }));
   render(<App />);
-  expect(await screen.findByText('实时配置')).toBeInTheDocument();
+  expect(await screen.findByText('实时排名')).toBeInTheDocument();
 });
 
 it('uses initial data when the configuration endpoint fails', async () => {
@@ -454,12 +486,138 @@ git add src/App.jsx src/App.test.jsx src/hooks/useSiteConfig.js vite.config.js
 git commit -m "feat: load h5 content from config API"
 ```
 
-### Task 5: Build the `/admin` Structured Form and Upload Library
+### Task 5: Build the Date-Based Excel Score Boundary
+
+**Files:**
+- Create: `src/admin/scoreWorkbook.js`
+- Create: `src/admin/scoreWorkbook.test.js`
+
+- [ ] **Step 1: Write failing workbook round-trip and validation tests.**
+
+Create a two-member raw configuration with `basePoints` and two dates. Test the public API directly with ArrayBuffers:
+
+```js
+import { describe, expect, it } from 'vitest';
+import ExcelJS from 'exceljs';
+import { createScoreWorkbookBuffer, mergeScoreImport, parseScoreWorkbookBuffer } from './scoreWorkbook.js';
+
+const replacementRow = { id: 'member-01', teamRace: [6, 0, 0], openRace: [0, 0, 0] };
+const config = {
+  roster: [
+    { id: 'member-01', number: '01', name: '成员 01', basePoints: 10 },
+    { id: 'member-02', number: '02', name: '成员 02', basePoints: 20 },
+  ],
+  dailyScores: [
+    { date: '2026-07-28', rows: [{ id: 'member-01', teamRace: [1, 2, 3], openRace: [0, 0, 0] }] },
+    { date: '2026-07-29', rows: [{ id: 'member-02', teamRace: [2, 2, 2], openRace: [1, 1, 1] }] },
+  ],
+};
+
+const duplicateWorkbook = async () => {
+  const buffer = await createScoreWorkbookBuffer(config, { template: false });
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  const sheet = workbook.getWorksheet('积分明细');
+  sheet.insertRow(5, sheet.getRow(4).values);
+  return workbook.xlsx.writeBuffer();
+};
+
+it('exports and imports daily scores and opening balances without derived fields', async () => {
+  const buffer = await createScoreWorkbookBuffer(config, { template: false });
+  const imported = await parseScoreWorkbookBuffer(buffer, config.roster);
+
+  expect(imported.dailyScores).toEqual(config.dailyScores);
+  expect(imported.basePointsById).toEqual(new Map([
+    [config.roster[0].id, config.roster[0].basePoints],
+    [config.roster[1].id, config.roster[1].basePoints],
+  ]));
+});
+
+it('replaces only dates present in the imported workbook', () => {
+  const next = mergeScoreImport(config, {
+    dailyScores: [{ date: '2026-07-29', rows: [replacementRow] }],
+    basePointsById: new Map([[config.roster[0].id, 20]]),
+  });
+
+  expect(next.dailyScores.find((round) => round.date === '2026-07-28')).toEqual(config.dailyScores[0]);
+  expect(next.dailyScores.find((round) => round.date === '2026-07-29').rows).toEqual([replacementRow]);
+  expect(next.roster[0].basePoints).toBe(20);
+});
+
+it('reports the sheet, row and field for duplicate or unknown members', async () => {
+  const buffer = await duplicateWorkbook();
+  await expect(parseScoreWorkbookBuffer(buffer, config.roster)).rejects.toMatchObject({
+    code: 'INVALID_SCORE_WORKBOOK',
+    details: expect.arrayContaining([
+      expect.objectContaining({ sheet: '积分明细', row: 5, field: '队员编号' }),
+    ]),
+  });
+});
+```
+
+- [ ] **Step 2: Run the workbook test to verify it fails.**
+
+Run: `npm test -- src/admin/scoreWorkbook.test.js`
+
+Expected: FAIL because `scoreWorkbook.js` does not exist.
+
+- [ ] **Step 3: Implement workbook generation, parsing and merge rules.**
+
+Export these constants and functions from `scoreWorkbook.js`:
+
+```js
+export const SCORE_SHEET_NAME = '积分明细';
+export const BASE_SHEET_NAME = '队员期初积分';
+export const SCORE_HEADERS = ['日期', '队员编号', '队员昵称', '队内赛1', '队内赛2', '队内赛3', '开黑赛1', '开黑赛2', '开黑赛3', '当日得分', '累计总分'];
+export const BASE_HEADERS = ['队员编号', '队员昵称', '期初积分'];
+
+export async function createScoreWorkbookBuffer(config, { template = false } = {}) {}
+export async function parseScoreWorkbookBuffer(buffer, roster) {}
+export function mergeScoreImport(config, imported) {}
+export async function downloadScoreWorkbook(config, { template = false } = {}) {}
+```
+
+Use ExcelJS. Both sheets use row 1 as a merged title, row 2 as a short instruction, row 3 as the exact header row, and data from row 4. Freeze the first three rows, enable filters on row 3, use a dark navy title/header with white text, pale blue editable cells, thin borders, `yyyy-mm-dd` date formatting, and practical fixed widths so text is not clipped.
+
+For a template, write one blank-date score row per roster member with six zeroes. For an export, flatten all `dailyScores` in ascending date/member-number order. Column J formula is:
+
+```text
+=IF(OR(A4="",B4=""),"",SUM(D4:I4))
+```
+
+Column K adds the member's opening balance to all scores through the row's date:
+
+```text
+=IF(OR(A4="",B4=""),"",VLOOKUP(B4,'队员期初积分'!$A$4:$C$203,3,FALSE)+SUMIFS($J$4:$J$2003,$B$4:$B$2003,B4,$A$4:$A$2003,"<="&A4))
+```
+
+The parser ignores columns J and K. It accepts only the two fixed sheet names and exact row-3 headers. Convert Excel `Date`, serial date, or trimmed `YYYY-MM-DD` cell values to a strict date key. Empty race cells become zero; non-finite or negative values are errors. Resolve members by `roster.number`, use `date + member.id` as the detail unique key, and collect every error as `{ sheet, row, field, message }`. Throw one error with `code = 'INVALID_SCORE_WORKBOOK'` and `details` when any error exists.
+
+`mergeScoreImport` deep-clones the config, replaces complete dates that appear in `imported.dailyScores`, preserves all other dates, updates only members present in `basePointsById`, and returns dates sorted ascending. `downloadScoreWorkbook` creates an object URL from the buffer, clicks a temporary `<a download>`, then revokes the URL.
+
+- [ ] **Step 4: Run workbook tests and verify a rendered sample manually.**
+
+Run: `npm test -- src/admin/scoreWorkbook.test.js`
+
+Expected: PASS for round-trip, date replacement, duplicate rows, unknown members, invalid dates and negative scores.
+
+Generate one workbook from `createSeedConfig()`, open it in Excel, and confirm both sheets, formulas, date formatting, frozen rows, filters and editable-cell styling are visible.
+
+- [ ] **Step 5: Commit the workbook boundary.**
+
+```powershell
+git add src/admin/scoreWorkbook.js src/admin/scoreWorkbook.test.js
+git commit -m "feat: add daily score workbook import export"
+```
+
+### Task 6: Build the `/admin` Structured Form and Upload Library
 
 **Files:**
 - Create: `src/admin/adminApi.js`
 - Create: `src/admin/AdminApp.jsx`
 - Create: `src/admin/ConfigEditor.jsx`
+- Create: `src/admin/ScoreEditor.jsx`
+- Create: `src/admin/ScoreEditor.test.jsx`
 - Create: `src/admin/UploadField.jsx`
 - Create: `src/admin/UploadLibrary.jsx`
 - Create: `src/admin/admin.css`
@@ -495,13 +653,13 @@ it('logs in, edits the team motto, uploads a cover, and saves the full draft', a
 });
 ```
 
-Add a test that receives a 401 from the configuration request and returns to the login form, plus a test that an upload error is visible and does not replace the existing field value.
+Add a test that receives a 401 from the configuration request and returns to the login form, plus a test that an upload error is visible and does not replace the existing field value. In `ScoreEditor.test.jsx`, test direct numeric editing, template/export button calls, an invalid import error list, import preview counts, cancel, and confirmation calling `onChange` with the merged draft.
 
 - [ ] **Step 2: Run the admin test to verify it fails.**
 
-Run: `npm test -- src/admin/AdminApp.test.jsx`
+Run: `npm test -- src/admin/AdminApp.test.jsx src/admin/ScoreEditor.test.jsx`
 
-Expected: FAIL because the admin components do not exist.
+Expected: FAIL because the admin and score editor components do not exist.
 
 - [ ] **Step 3: Implement the API client and authentication shell.**
 
@@ -515,10 +673,10 @@ Expected: FAIL because the admin components do not exist.
 
 1. `基础信息` - `team.name`, `team.label`, `team.motto`, `team.heroImage`, `music.src`, `music.cover`.
 2. `统计数据` - four labels/values, with numeric `male` and `female` inputs for the `单身贵族` object.
-3. `成员管理` - add, delete, move up/down and edit `id`, `number`, `name`, `role`, `points`, `wins`, `avatar`, `videoUrl`.
+3. `成员管理` - add, delete, move up/down and edit `id`, `number`, `name`, `role`, `basePoints`, `wins`, `avatar`, `videoUrl`. Label `basePoints` as `期初积分` and explain only in the field description that it is the accumulated score before the first maintained date.
 4. `新闻管理` - add, delete, move up/down and edit all documented news fields.
 5. `相册管理` - add/delete/move albums and nested photos; each photo edits `id`, `src`, `title`, `date`, `alt`, `featured`, `mediaType`, and `videoUrl`.
-6. `每日成绩` - add/delete dates and rows; use a member `<select>` for `row.id`, show the selected member name as read-only, edit exactly three numeric inputs each for `teamRace` and `openRace`.
+6. `星屿积分榜` - render `ScoreEditor` with the current `roster` and `dailyScores` and replace the draft only through its `onChange` callback.
 7. `素材管理` - render `UploadLibrary` and refresh it after an upload or deletion.
 
 Generate client-only IDs with `crypto.randomUUID()` when adding items. Do not let an editor delete the final four stats entries; render four fixed stat editors. Show a save bar with `保存全部配置`, disabled while saving. On success show `已保存，前台刷新后可见最新内容`; on server validation failure show every returned detail as a list.
@@ -526,6 +684,8 @@ Generate client-only IDs with `crypto.randomUUID()` when adding items. Do not le
 `UploadField` must have a labelled file input such as `首屏图片上传`, call `uploadFile(file)`, set the field to returned `path` only after success, and show image preview, video element, or audio element based on the selected field type. It must retain the prior value on failure.
 
 `UploadLibrary` must render each file's name, type, byte size and copyable `/uploads/...` path. Its delete action must prompt with `window.confirm`, call `deleteUpload(name)`, remove the item only after a 204 response, and never delete a configuration reference automatically.
+
+`ScoreEditor` flattens `dailyScores` into an editable table with date, member select, six numeric race inputs, read-only calculated daily score and read-only calculated cumulative total. It supports add row, delete row, template download, current-data export and a hidden `.xlsx` file input labelled `导入积分 Excel`. Import errors render as a list. A valid import renders a preview with added rows, updated rows, affected dates and updated opening balances; `取消导入` leaves the draft unchanged and `确认导入` applies `mergeScoreImport` to the draft. Keep the wide score grid inside its own horizontal scroll region so the admin page itself never overflows.
 
 - [ ] **Step 5: Route `/admin` and add compact responsive styles.**
 
@@ -543,7 +703,7 @@ Import `./admin/admin.css` once from `AdminApp.jsx`. Style the admin page as a d
 
 - [ ] **Step 6: Run all admin and existing frontend tests.**
 
-Run: `npm test -- src/admin/AdminApp.test.jsx src/App.test.jsx`
+Run: `npm test -- src/admin/AdminApp.test.jsx src/admin/ScoreEditor.test.jsx src/admin/scoreWorkbook.test.js src/App.test.jsx`
 
 Expected: PASS for login, expired session, upload failure, save, and existing H5 interaction coverage.
 
@@ -558,11 +718,11 @@ git add src/admin src/main.jsx
 git commit -m "feat: add structured config admin"
 ```
 
-### Task 6: Document Setup, Verify Production Serving and Record Handoff
+### Task 7: Document Setup, Verify Production Serving and Record Handoff
 
 **Files:**
 - Create: `docs/config-admin-guide.md`
-- Modify: `agent.md`
+- Modify: `AGENTS.md`
 - Verify: `package.json`, `server/index.js`, `vite.config.js`
 
 - [ ] **Step 1: Write the local operator guide.**
@@ -578,6 +738,8 @@ npm run dev
 ```
 
 State that the H5 opens at `http://127.0.0.1:5173/`, the admin opens at `http://127.0.0.1:5173/admin`, and production uses `npm run serve` at `http://127.0.0.1:3000/` with admin at `/admin`. Explain the locations of `server/data/site-config.json`, its `.bak` backup, and `server/storage/uploads/`. State clearly that credentials are plaintext local configuration and must not be exposed publicly.
+
+Document the score workflow: maintain `期初积分` once per member, use `下载模板` for date-based entry, upload through `导入积分 Excel`, review the import preview, confirm it, then click `保存全部配置`. Explain that imported dates replace those complete dates, other dates remain, and the old horizontal weekly workbook is reference-only and cannot be imported directly.
 
 - [ ] **Step 2: Run automated verification.**
 
@@ -609,7 +771,7 @@ Use the local browser to capture `/` at widths 390 and 1280, then `/admin` at wi
 
 - [ ] **Step 5: Update the project handoff and commit.**
 
-Update `agent.md` with:
+Update `AGENTS.md` with:
 
 - implementation completion and affected directories;
 - the dev and production URLs;
@@ -620,7 +782,7 @@ Update `agent.md` with:
 Then commit:
 
 ```powershell
-git add docs/config-admin-guide.md agent.md
+git add docs/config-admin-guide.md AGENTS.md
 git commit -m "docs: add config admin setup guide"
 ```
 
@@ -628,13 +790,15 @@ git commit -m "docs: add config admin setup guide"
 
 ### Spec coverage
 
-- Local/LAN single-password access: Tasks 3 and 6.
+- Local/LAN single-password access: Tasks 3 and 7.
 - JSON configuration and immediate frontend refresh: Tasks 1, 2 and 4.
-- Images, videos and audio uploads: Task 3 API plus Task 5 form fields.
-- All requested content modules: Task 5 structured editor.
+- Images, videos and audio uploads: Task 3 API plus Task 6 form fields.
+- All requested content modules: Task 6 structured editor.
+- Date-based Excel template, import preview, export and partial-date replacement: Tasks 5 and 6.
+- Opening balances, derived daily/cumulative totals and leaderboard ordering: Tasks 1, 2 and 5.
 - Derived data without duplicate maintenance: Task 1 hydration boundary.
 - Atomic backup, validation and safe deletion: Tasks 2 and 3.
-- Tests, build and browser checks: Tasks 1 through 6.
+- Tests, build and browser checks: Tasks 1 through 7.
 
 ### Placeholder scan
 
@@ -642,4 +806,4 @@ The plan contains no unresolved placeholders, deferred implementation, or unspec
 
 ### Type consistency
 
-Raw JSON is always `team`, `stats`, `roster`, `albums`, `dailyScores`, `news`, and `music`. The frontend-only derived keys are always `gallery`, `leaderboard`, and `featuredMembers`. The public API returns hydrated data; authenticated reads and writes use raw data.
+Raw JSON is always `team`, `stats`, `roster`, `albums`, `dailyScores`, `news`, and `music`. Raw roster entries use `basePoints`, raw daily rows use only `id`, `teamRace`, and `openRace`; `points`, `weekday`, `name`, `score`, and `total` are hydrated fields. The frontend-only derived collections are `gallery`, `leaderboard`, and `featuredMembers`. The public API returns hydrated data; authenticated reads and writes use raw data.
