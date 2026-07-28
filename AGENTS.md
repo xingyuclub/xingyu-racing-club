@@ -9,7 +9,9 @@
 
 ## 当前结构
 - 入口：`src/App.jsx`
-- 主要数据：`src/data/teamData.js`
+- 默认数据：`src/data/teamData.js`；运行时配置：`server/data/site-config.json`
+- 配置后台：`src/admin/ConfigEditor.jsx`、`src/admin/ScoreEditor.jsx`
+- 积分派生与 Excel：`src/data/siteConfig.js`、`src/admin/scoreWorkbook.js`
 - 主要模块：`Hero`、`StatsBar`、`FeaturedMembers`、`GalleryPreview`、`Roster`、`Leaderboard`、`NewsFeed`、`AlbumPage`、`MusicPlayer`
 - 交互弹窗：成员视频、照片预览、资讯详情、积分详情
 
@@ -25,21 +27,31 @@
 - 轮播支持 hover 暂停、拖拽加速、松手后缓慢回到基础速度
 - 相册仍保留 `文件夹 -> 照片` 的两级进入方式
 - 项目文件已从 `技术标\.worktrees\xingyu-racing-club` 迁移到当前 `H5` 根目录
-- 配置后台已完成需求澄清和设计确认，设计文档见 `docs/superpowers/specs/2026-07-28-xingyu-config-admin-design.md`，后台实现尚未开始
-- 配置后台实施计划已完成，见 `docs/superpowers/plans/2026-07-28-xingyu-config-admin-implementation.md`，待选择实施方式后执行
+- 本地配置后台与 API 已实现，设计和实施记录见 `docs/superpowers/specs/2026-07-28-xingyu-config-admin-design.md`、`docs/superpowers/plans/2026-07-28-xingyu-config-admin-implementation.md`
+- 星屿积分榜后台已采用“按日期纵向明细 + 队员期初积分”模型，支持 Excel 式在线编辑、模板下载、`.xlsx` 导入预览确认和当前数据导出
+- 原始配置只保存期初积分、日期、成员 ID 和六局成绩；星期、当日得分、累计总分及首页排行榜均在运行时派生
+- Excel 中出现的日期整体覆盖，未出现的日期保留；旧周表仅作参考，不能直接导入
+- 旧配置中的成员 `points` 会自动迁移为 `basePoints`，原运行时文件会保存为 `.bak`
 
 ## 已知风险 / 待补
 - 很多素材还是占位图或待替换视频，真实头像、视频、相册素材还没补齐
 - 车队名里有特殊 Unicode 字符，改文案时要注意别误伤配置
 - 圆柱滚动属于当前重点交互，后续改样式时要保留：持续丝滑、hover 暂停、拖拽控制、点击详情
-- 配置后台尚未实现，当前前台仍直接读取 `src/data/teamData.js`
+- 配置后台只适合本机或受信任局域网，`server/config/admin.local.json` 不可提交或部署到公网
+- ExcelJS 约 940 KB，仅在后台使用积分导入导出时动态加载；首页不会主动加载该代码块
+- 当前运行时配置只有迁移后的期初积分，尚未录入每日积分；前台日期弹窗会在录入并保存后显示每日明细
 
 ## 验证状态
-- 2026-07-28 本轮已验证：`npm test` 通过
-- 2026-07-28 本轮已验证：`npm run build` 通过
+- 2026-07-28 本轮最终验证：`npm test` 共 7 个测试文件、132 项测试通过
+- 2026-07-28 本轮最终验证：`npm run build` 通过，ExcelJS 保持为独立动态代码块
 - 2026-07-28 本轮已验证：390、477、1280 视口无页面级横向溢出，积分查询弹窗可打开并显示 30 行数据
 - 2026-07-28 本轮已生成浏览器验证截图：`output/verification-2026-07-28-*.png`，该目录按规则不进入 Git
 - 2026-07-28 已完成配置后台设计文档自检；本轮仅修改文档，未重新运行前端测试
+- 2026-07-28 已读取并核对 `星屿杯积分明细.xlsx` 的周表结构，完成按日期 Excel 维护补充设计；本轮仅修改文档，未重新运行前端测试
+- 2026-07-28 已验证后台 1280、390 视口：期初积分、Excel 工具栏、在线新增明细均可用，宽表只在自身区域横向滚动，页面无横向溢出
+- 2026-07-28 已验证前台 1280、390 视口：日期积分弹窗可打开且完整显示，页面无横向溢出
+- 2026-07-28 已生成并独立检查 `output/星屿积分填写模板.xlsx`：两张工作表、表头、公式、样式和公式错误扫描均通过
+- 2026-07-28 本轮浏览器与 Excel 验证截图位于 `output/verification-2026-07-28-*.png`，该目录不进入 Git
 - 当前如有改动，先跑测试再看浏览器效果
 
 ## 维护规则
@@ -56,4 +68,19 @@
 - `src/components/StatsBar.jsx`
 - `src/components/Roster.jsx`
 - `src/components/Leaderboard.jsx`
+- `src/components/ScoreDetailsModal.jsx`
+- `src/admin/ConfigEditor.jsx`
+- `src/admin/ScoreEditor.jsx`
+- `src/admin/scoreWorkbook.js`
+- `src/data/siteConfig.js`
+- `server/lib/configStore.js`
+- `docs/config-admin-guide.md`
 - `src/App.test.jsx`
+
+## 项目 Skill 调用规则
+- 写代码、改代码、重构、修 bug、做 code review 时，默认遵守 `karpathy-guidelines`：先想再写、简洁优先、精准改动、目标驱动，并在交付前说明验证结果。
+- 新做页面、重做视觉风格、搭建设计系统、调整配色/字体/布局时，优先调用 `ui-ux-pro-max` 生成或校准设计系统，再进入实现。
+- 对已有前端页面做高端化、视觉打磨、交互细节、响应式、可访问性、动效和 UI polish 时，优先调用 `impeccable`，必要时使用它的 `polish`、`adapt`、`animate`、`layout`、`critique`、`audit` 等流程。
+- 遇到大体量上下文时调用 `headroom`：例如长构建/测试日志、大 JSON、200 条以上搜索结果、超长源码片段、上下文快满、用户要求“精简/压缩/省 token/太长了”。短输出、小改动和普通说明不需要调用。
+- 需要 React 动效组件时，可以参考 `react-bits` 这类组件库，但不要把它当成项目 Skill；只有在明确需要具体动效组件时才引入依赖或复制组件代码。
+- Skill 只在任务相关时使用；普通文案、小数据、窄范围修复不需要为了调用 Skill 而扩大改动范围。
