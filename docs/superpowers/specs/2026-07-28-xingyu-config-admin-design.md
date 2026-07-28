@@ -50,7 +50,7 @@ src/
 - `albums`：相册、封面和照片/视频条目
 - `dailyScores`：日期、星期、成员每日分项成绩和总分
 - `news`：资讯标题、分类、日期、图片、摘要和正文
-- `music`：音乐文件、封面和显示信息。当前初始值来自 `App.jsx` 中的 `/audio/launch-now.mp3` 和 `/images/music-avatar.png`，实施时迁移到 JSON。
+- `music`：音乐文件和封面。当前初始值来自 `App.jsx` 中的 `/audio/launch-now.mp3` 和 `/images/music-avatar.png`，实施时迁移到 JSON。
 
 以下内容不由后台单独保存：
 

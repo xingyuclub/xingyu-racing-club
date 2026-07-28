@@ -26,6 +26,7 @@
 - 相册仍保留 `文件夹 -> 照片` 的两级进入方式
 - 项目文件已从 `技术标\.worktrees\xingyu-racing-club` 迁移到当前 `H5` 根目录
 - 配置后台已完成需求澄清和设计确认，设计文档见 `docs/superpowers/specs/2026-07-28-xingyu-config-admin-design.md`，后台实现尚未开始
+- 配置后台实施计划已完成，见 `docs/superpowers/plans/2026-07-28-xingyu-config-admin-implementation.md`，待选择实施方式后执行
 
 ## 已知风险 / 待补
 - 很多素材还是占位图或待替换视频，真实头像、视频、相册素材还没补齐
