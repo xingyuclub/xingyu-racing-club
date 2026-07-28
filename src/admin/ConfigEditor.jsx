@@ -3,10 +3,11 @@ import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import { listUploads, saveConfig } from './adminApi.js';
 import { UploadField } from './UploadField.jsx';
 import { UploadLibrary } from './UploadLibrary.jsx';
+import { ScoreEditor } from './ScoreEditor.jsx';
 
 const clone = (value) => structuredClone(value);
-const labels = { name:'名称', label:'英文标识', motto:'车队口号', heroImage:'首屏图片', src:'素材路径', cover:'封面', id:'ID', number:'编号', role:'角色', points:'积分', wins:'胜场', avatar:'头像', videoUrl:'视频地址', title:'标题', category:'分类', date:'日期', imageSrc:'资讯图片', imageAlt:'图片说明', summary:'摘要', body:'正文', coverSrc:'相册封面', photos:'照片', alt:'替代文本', featured:'精选', mediaType:'媒体类型', weekday:'星期', rows:'成绩行', teamRace:'队内赛', openRace:'开黑赛', value:'数值' };
-const empty = { roster:{ id:'',number:'',name:'',role:'队员',points:0,wins:0,avatar:'',videoUrl:'' }, news:{ id:'',title:'',category:'',date:'',imageSrc:'',imageAlt:'',summary:'',body:'' }, albums:{ id:'',name:'',date:'',coverSrc:'',photos:[] }, photos:{ id:'',src:'',title:'',date:'',alt:'',featured:false,mediaType:'image',videoUrl:'' }, dailyScores:{ date:'',weekday:'',rows:[] }, rows:{ id:'',teamRace:[0,0,0],openRace:[0,0,0] } };
+const labels = { name:'名称', label:'英文标识', motto:'车队口号', heroImage:'首屏图片', src:'素材路径', cover:'封面', id:'ID', number:'编号', role:'角色', basePoints:'期初积分', wins:'胜场', avatar:'头像', videoUrl:'视频地址', title:'标题', category:'分类', date:'日期', imageSrc:'资讯图片', imageAlt:'图片说明', summary:'摘要', body:'正文', coverSrc:'相册封面', photos:'照片', alt:'替代文本', featured:'精选', mediaType:'媒体类型', value:'数值' };
+const empty = { roster:{ id:'',number:'',name:'',role:'队员',basePoints:0,wins:0,avatar:'',videoUrl:'' }, news:{ id:'',title:'',category:'',date:'',imageSrc:'',imageAlt:'',summary:'',body:'' }, albums:{ id:'',name:'',date:'',coverSrc:'',photos:[] }, photos:{ id:'',src:'',title:'',date:'',alt:'',featured:false,mediaType:'image',videoUrl:'' } };
 function setAt(root, path, value) { const next=clone(root); let node=next; path.slice(0,-1).forEach((key)=>node=node[key]); node[path.at(-1)]=value; return next; }
 
 function Field({ value, path, fieldKey, draft, setDraft, roster, refresh }) {
@@ -30,8 +31,8 @@ export function ConfigEditor({ initialConfig, onAuthError }) {
   const [draft,setDraft]=useState(()=>clone(initialConfig)); const [files,setFiles]=useState([]); const [status,setStatus]=useState(''); const [saving,setSaving]=useState(false);
   const loadFiles=()=>listUploads().then((next)=>setFiles(Array.isArray(next)?next:[])).catch((e)=>{if(!onAuthError(e))setStatus(e.message)});
   useEffect(() => { loadFiles(); }, []);
-  const save=async()=>{setSaving(true);setStatus('');try{await saveConfig(draft);setStatus('已保存，前台刷新后可见最新内容');}catch(e){if(!onAuthError(e))setStatus([e.message,...e.details].join('\n'));}finally{setSaving(false)}};
-  const sections=[['基础信息',{team:draft.team,music:draft.music}],['统计数据',draft.stats],['成员管理',draft.roster],['新闻管理',draft.news],['相册管理',draft.albums],['每日成绩',draft.dailyScores]];
+  const save=async()=>{setSaving(true);setStatus('');try{await saveConfig(draft);setStatus('已保存，前台刷新后可见最新内容');}catch(e){if(!onAuthError(e))setStatus([e.message,...(e.details||[])].join('\n'));}finally{setSaving(false)}};
+  const sections=[['基础信息',{team:draft.team,music:draft.music}],['统计数据',draft.stats],['成员管理',draft.roster],['新闻管理',draft.news],['相册管理',draft.albums]];
   const appendUpload=(file)=>setFiles((current)=>current.some((item)=>item.name===file.name)?current:[...current,file]);
-  return <>{sections.map(([title,value],index)=><section className="admin-section" key={title}><h2>{title}</h2><Tree value={value} path={index===0?[]:[['stats','roster','news','albums','dailyScores'][index-1]]} fieldKey={index===0?'base':['stats','roster','news','albums','dailyScores'][index-1]} fixed={title==='统计数据'} {...{draft,setDraft,roster:draft.roster,refresh:appendUpload}} /></section>)}<section className="admin-section"><h2>素材管理</h2><UploadLibrary files={files} setFiles={setFiles} onError={(e)=>setStatus(e.message)} /></section><div className="save-bar">{status && <p className={status.startsWith('已保存')?'admin-success':'admin-error'}>{status}</p>}<button disabled={saving} onClick={save}>保存全部配置</button></div></>;
+  return <>{sections.map(([title,value],index)=><section className="admin-section" key={title}><h2>{title}</h2><Tree value={value} path={index===0?[]:[['stats','roster','news','albums'][index-1]]} fieldKey={index===0?'base':['stats','roster','news','albums'][index-1]} fixed={title==='统计数据'} {...{draft,setDraft,roster:draft.roster,refresh:appendUpload}} /></section>)}<section className="admin-section"><h2>星屿积分榜</h2><ScoreEditor config={draft} onChange={setDraft} /></section><section className="admin-section"><h2>素材管理</h2><UploadLibrary files={files} setFiles={setFiles} onError={(e)=>setStatus(e.message)} /></section><div className="save-bar">{status && <p className={status.startsWith('已保存')?'admin-success':'admin-error'}>{status}</p>}<button disabled={saving} onClick={save}>保存全部配置</button></div></>;
 }

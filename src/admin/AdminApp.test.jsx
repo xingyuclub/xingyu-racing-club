@@ -21,6 +21,9 @@ it('logs in, edits the team motto, uploads a cover, and saves the draft', async 
   await user.type(screen.getByLabelText('密码'), 'test-password');
   await user.click(screen.getByRole('button', { name: '登录' }));
   const motto = await screen.findByLabelText('车队口号');
+  expect(screen.getByRole('heading', { name: '星屿积分榜' })).toBeInTheDocument();
+  expect(screen.getByLabelText('导入积分 Excel')).toBeInTheDocument();
+  expect(screen.getAllByLabelText('期初积分')).toHaveLength(config.roster.length);
   await user.clear(motto);
   await user.type(motto, '新的口号');
   await user.upload(screen.getByLabelText('首屏图片上传'), new File(['image'], 'cover.png', { type: 'image/png' }));
