@@ -113,6 +113,37 @@ describe('config store', () => {
     await expectNoTempFiles();
   });
 
+  it('migrates an existing points-based config and backs up its original bytes', async () => {
+    const firstStore = await createConfigStore({ dataDir });
+    const current = await firstStore.read();
+    const legacy = structuredClone(current);
+    legacy.roster = legacy.roster.map(({ basePoints, ...member }) => ({
+      ...member,
+      points: basePoints,
+    }));
+    legacy.dailyScores = legacy.dailyScores.map((round) => ({
+      ...round,
+      weekday: '周五',
+      rows: round.rows.map((row) => {
+        const score = [...row.teamRace, ...row.openRace].reduce((total, value) => total + value, 0);
+        const member = legacy.roster.find((item) => item.id === row.id);
+        member.points += score;
+        return { ...row, name: member.name, score, total: member.points };
+      }),
+    }));
+    const legacyJson = `${JSON.stringify(legacy, null, 2)}\n`;
+    await writeFile(join(dataDir, activeFile), legacyJson);
+
+    const migratedStore = await createConfigStore({ dataDir });
+    const migrated = await migratedStore.read();
+
+    expect(migrated.roster[0]).toHaveProperty('basePoints', current.roster[0].basePoints);
+    expect(migrated.roster[0]).not.toHaveProperty('points');
+    expect(migrated.dailyScores[0]).not.toHaveProperty('weekday');
+    expect(migrated.dailyScores[0].rows[0]).toEqual(current.dailyScores[0].rows[0]);
+    await expect(readFile(join(dataDir, backupFile), 'utf8')).resolves.toBe(legacyJson);
+  });
+
   it('writes a formatted configuration and backs up the prior file', async () => {
     const store = await createConfigStore({ dataDir });
     const initial = await store.read();

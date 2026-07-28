@@ -1,6 +1,6 @@
 import * as defaultFileSystem from 'node:fs/promises';
 import { join } from 'node:path';
-import { createSeedConfig } from '../../src/data/siteConfig.js';
+import { createSeedConfig, migrateRawConfig } from '../../src/data/siteConfig.js';
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim().length > 0;
@@ -13,6 +13,18 @@ const isValidDateKey = (value) => {
 };
 const rawTopLevelKeys = ['team', 'stats', 'roster', 'albums', 'dailyScores', 'news', 'music'];
 const rawTopLevelKeySet = new Set(rawTopLevelKeys);
+
+function rejectUnexpectedTopLevelKeys(config) {
+  if (!isObject(config)) return;
+  const details = Object.keys(config)
+    .filter((key) => !rawTopLevelKeySet.has(key))
+    .map((key) => `unexpected top-level key "${key}"; remove it from the config root`);
+  if (!details.length) return;
+  const error = new Error('Invalid configuration');
+  error.code = 'INVALID_CONFIG';
+  error.details = details;
+  throw error;
+}
 
 function selectRawConfig(config) {
   if (!isObject(config)) return config;
@@ -392,8 +404,11 @@ export async function createConfigStore({ dataDir, fileSystem: providedFileSyste
     async read() {
       try {
         const config = JSON.parse(await fileSystem.readFile(configPath, 'utf8'));
-        validateConfig(config);
-        return config;
+        rejectUnexpectedTopLevelKeys(config);
+        const migrated = migrateRawConfig(config);
+        validateConfig(migrated);
+        if (JSON.stringify(migrated) !== JSON.stringify(config)) return write(migrated);
+        return migrated;
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
 

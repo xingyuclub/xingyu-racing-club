@@ -11,6 +11,10 @@ const formatWeekday = (dateKey) => {
 };
 
 const createRawMember = (member, sortedScores) => {
+  if (Number.isFinite(member.basePoints)) {
+    const { points, ...rawMember } = member;
+    return rawMember;
+  }
   const firstRound = sortedScores.find((round) => round.rows.some((row) => row.id === member.id));
   const firstRow = firstRound?.rows.find((row) => row.id === member.id);
   const firstScore = firstRow ? sum([...firstRow.teamRace, ...firstRow.openRace]) : 0;
@@ -23,8 +27,8 @@ const createRawMember = (member, sortedScores) => {
   };
 };
 
-export function createSeedConfig() {
-  const { team, stats, roster, albums, dailyScores, news } = clone(teamData);
+export function migrateRawConfig(input) {
+  const { team, stats, roster, albums, dailyScores, news, music } = clone(input);
   const sortedScores = [...dailyScores].sort((left, right) => left.date.localeCompare(right.date));
 
   return {
@@ -41,11 +45,18 @@ export function createSeedConfig() {
       })),
     })),
     news,
+    music,
+  };
+}
+
+export function createSeedConfig() {
+  return migrateRawConfig({
+    ...teamData,
     music: {
       src: '/audio/launch-now.mp3',
       cover: '/images/music-avatar.png',
     },
-  };
+  });
 }
 
 export function hydrateSiteData(rawConfig) {
