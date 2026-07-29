@@ -36,6 +36,7 @@
 - 新视觉仅覆盖首页、相册页、公开弹窗和音乐浮窗；功能、数据和配置后台不变
 - 产品事实已记录到 `PRODUCT.md`，持久视觉规则已记录到 `DESIGN.md`；UI 实现尚未开始
 - 用户要求原版 UI 完整保留；Pit Wall 新版必须在独立 `codex/pit-wall-ui-redesign` 分支或工作树中实现，完成后提供原版与新版两个 URL 二选一
+- Pit Wall 实施计划已写入 `docs/superpowers/plans/2026-07-29-xingyu-pit-wall-ui-redesign-implementation.md`；计划要求测试先行、独立工作树实施、五档视口验收和双地址交付
 
 ## 已知风险 / 待补
 - 很多素材还是占位图或待替换视频，真实头像、视频、相册素材还没补齐
@@ -62,6 +63,7 @@
 - 2026-07-29 已完成公开 H5 UI/UX 需求访谈、三方向可视化比较和 Pit Wall 方案分段确认
 - 2026-07-29 已完成 `PRODUCT.md`、`DESIGN.md` 和 UI/UX 设计文档自检；本轮仅修改文档，未运行前端测试或构建
 - 2026-07-29 用户确认采用独立分支双地址对比方式，原版必须保持可运行且不受新版实现影响
+- 2026-07-29 已完成 Pit Wall 详细实施计划和自检；本轮仅修改计划与交接文档，未修改前端代码，未重复运行测试或构建
 - 当前如有改动，先跑测试再看浏览器效果
 
 ## 维护规则
@@ -75,6 +77,7 @@
 - `PRODUCT.md`
 - `DESIGN.md`
 - `docs/superpowers/specs/2026-07-29-xingyu-pit-wall-ui-redesign-design.md`
+- `docs/superpowers/plans/2026-07-29-xingyu-pit-wall-ui-redesign-implementation.md`
 - `src/App.jsx`
 - `src/data/teamData.js`
 - `src/components/Hero.jsx`
