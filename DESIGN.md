@@ -7,6 +7,8 @@ description: 以数字化车队维修区为核心的专业赛车团队视觉系�
 
 # Design System: 星屿车队 H5
 
+> 适用范围：本文件定义独立 `codex/pit-wall-ui-redesign` 分支中的 Pit Wall 新版。当前 UI 在用户完成双版本对比并明确选择新版前，始终作为原版基准保留。
+
 ## Overview
 
 **Creative North Star: "Pit Wall / 车队维修区"**
