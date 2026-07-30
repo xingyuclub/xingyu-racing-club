@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import App from './App.jsx';
 import { teamData } from './data/teamData.js';
+import { createSeedConfig, hydrateSiteData } from './data/siteConfig.js';
 import { VideoModal } from './components/VideoModal.jsx';
 import { PhotoModal } from './components/PhotoModal.jsx';
 
@@ -95,6 +96,30 @@ describe('App', () => {
     render(<App />);
 
     expect(await screen.findByText('实时配置')).toBeInTheDocument();
+  });
+
+  it('refreshes server configuration when the page regains focus', async () => {
+    const seedConfig = createSeedConfig();
+    const initialConfig = hydrateSiteData(seedConfig);
+    const updatedConfig = hydrateSiteData({
+      ...seedConfig,
+      team: { ...seedConfig.team, heroImage: '/images/updated-hero.png' },
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => initialConfig })
+      .mockResolvedValueOnce({ ok: true, json: async () => updatedConfig });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { container } = render(<App />);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    window.dispatchEvent(new Event('focus'));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(container.querySelector('.hero-media').style.getPropertyValue('--hero-image')).toBe(
+      'url("/images/updated-hero.png")',
+    );
   });
 
   it('uses initial data when the configuration endpoint fails', async () => {

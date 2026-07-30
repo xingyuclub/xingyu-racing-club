@@ -6,16 +6,22 @@ export function useSiteConfig(fallback) {
   useEffect(() => {
     let active = true;
 
-    fetch('/api/config')
-      .then((response) => {
-        if (!response.ok) throw new Error(`Config request failed: ${response.status}`);
-        return response.json();
-      })
-      .then((nextConfig) => active && setConfig(nextConfig))
-      .catch(() => active && setConfig(fallback));
+    const loadConfig = () => {
+      fetch('/api/config', { cache: 'no-store' })
+        .then((response) => {
+          if (!response.ok) throw new Error(`Config request failed: ${response.status}`);
+          return response.json();
+        })
+        .then((nextConfig) => active && setConfig(nextConfig))
+        .catch(() => active && setConfig(fallback));
+    };
+
+    loadConfig();
+    window.addEventListener('focus', loadConfig);
 
     return () => {
       active = false;
+      window.removeEventListener('focus', loadConfig);
     };
   }, [fallback]);
 
