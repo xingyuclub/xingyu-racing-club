@@ -111,9 +111,14 @@ describe('App', () => {
     expect(screen.getByText('欢迎来到星屿车队')).toBeInTheDocument();
     expect(screen.queryByText('以星为序，向屿而行')).not.toBeInTheDocument();
     expect(screen.queryByText('RACING CLUB')).not.toBeInTheDocument();
-    expect(container.querySelector('.hero-brand')).toHaveTextContent('欢迎来到星屿车队');
-    expect(container.querySelector('.hero-brand')).toHaveClass('hero-brand--centered');
-    expect(container.querySelector('.hero-brand')).toHaveClass('animated-gradient-text');
+    const brandBar = container.querySelector('.hero-brand-bar');
+    const heroSection = container.querySelector('.hero-section');
+
+    expect(brandBar).toHaveTextContent('欢迎来到星屿车队');
+    expect(brandBar).toContainElement(container.querySelector('.hero-brand'));
+    expect(brandBar).not.toHaveClass('animated-gradient-text');
+    expect(brandBar.nextElementSibling).toBe(heroSection);
+    expect(heroSection.firstElementChild).toHaveClass('hero-media');
     expect(container.querySelector('.hero-motto')).not.toBeInTheDocument();
     expect(screen.queryByText('RACING CLUB / 2026 SEASON')).not.toBeInTheDocument();
     expect(screen.queryByText('09 / 30')).not.toBeInTheDocument();
