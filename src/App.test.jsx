@@ -6,6 +6,7 @@ import { teamData } from './data/teamData.js';
 import { createSeedConfig, hydrateSiteData } from './data/siteConfig.js';
 import { VideoModal } from './components/VideoModal.jsx';
 import { PhotoModal } from './components/PhotoModal.jsx';
+import { FeaturedMembers } from './components/FeaturedMembers.jsx';
 
 let mediaPlay;
 let mediaPause;
@@ -82,10 +83,12 @@ describe('teamData', () => {
 
 describe('App', () => {
   it('renders the server configuration after it loads', async () => {
+    const configuredTeamName = '欢迎来到星⁡⁠屿';
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
         ...teamData,
+        team: { ...teamData.team, name: configuredTeamName, heroLines: [configuredTeamName] },
         stats: teamData.stats.map((item, index) =>
           index === 0 ? { ...item, label: '实时配置' } : item,
         ),
@@ -96,6 +99,7 @@ describe('App', () => {
     render(<App />);
 
     expect(await screen.findByText('实时配置')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: configuredTeamName })).toBeInTheDocument();
   });
 
   it('refreshes server configuration when the page regains focus', async () => {
@@ -117,9 +121,7 @@ describe('App', () => {
     window.dispatchEvent(new Event('focus'));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect(container.querySelector('.hero-media').style.getPropertyValue('--hero-image')).toBe(
-      'url("/images/updated-hero.png")',
-    );
+    expect(container.querySelector('.hero-media')).toHaveAttribute('src', '/images/updated-hero.png');
   });
 
   it('uses initial data when the configuration endpoint fails', async () => {
@@ -127,23 +129,28 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: '欢迎来到星屿车队' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: teamData.team.heroLines.join('\n') })).toBeInTheDocument();
   });
 
   it('renders all main sections from configuration', () => {
     const { container } = render(<App />);
 
-    expect(screen.getByText('欢迎来到星屿车队')).toBeInTheDocument();
     expect(screen.queryByText('以星为序，向屿而行')).not.toBeInTheDocument();
     expect(screen.queryByText('RACING CLUB')).not.toBeInTheDocument();
     const brandBar = container.querySelector('.hero-brand-bar');
+    const heroBrand = container.querySelector('.hero-brand');
     const heroSection = container.querySelector('.hero-section');
 
-    expect(brandBar).toHaveTextContent('欢迎来到星屿车队');
-    expect(brandBar).toContainElement(container.querySelector('.hero-brand'));
+    expect(brandBar).toContainElement(heroBrand);
+    expect(heroBrand).toHaveAttribute('aria-label', teamData.team.heroLines.join('\n'));
+    expect(heroBrand.querySelectorAll('.hero-brand-line')).toHaveLength(teamData.team.heroLines.length);
+    expect(heroBrand.querySelector('.text-type__cursor')).toHaveTextContent('|');
     expect(brandBar).not.toHaveClass('animated-gradient-text');
     expect(brandBar.nextElementSibling).toBe(heroSection);
     expect(heroSection.firstElementChild).toHaveClass('hero-media');
+    expect(heroSection.firstElementChild.tagName).toBe('IMG');
+    expect(heroSection.firstElementChild).toHaveAttribute('src', teamData.team.heroImage);
+    expect(heroSection.firstElementChild).toHaveAttribute('alt', '');
     expect(container.querySelector('.hero-motto')).not.toBeInTheDocument();
     expect(screen.queryByText('RACING CLUB / 2026 SEASON')).not.toBeInTheDocument();
     expect(screen.queryByText('09 / 30')).not.toBeInTheDocument();
@@ -156,12 +163,12 @@ describe('App', () => {
   it('promotes the welcome heading and keeps the slogan non-heading', () => {
     render(<App />);
 
-    expect(screen.getByRole('heading', { name: '欢迎来到星屿车队' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: teamData.team.heroLines.join('\n') })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: teamData.team.motto })).not.toBeInTheDocument();
   });
 
   it('renders 8 featured member buttons and 30 roster cards', () => {
-    render(<App />);
+    const { container } = render(<App />);
 
     expect(screen.getAllByRole('button', { name: /查看成员 \d+ 高光视频/ })).toHaveLength(8);
     const roster = screen.getByTestId('roster-grid');
@@ -173,9 +180,10 @@ describe('App', () => {
     expect(within(roster).getByRole('button', { name: '查看成员 01 卡片详情' })).toBeInTheDocument();
   });
 
-  it('renders animated borders around stat cards and the leaderboard', () => {
+  it('renders stat card borders without the outer electric frame', () => {
     const { container } = render(<App />);
 
+    expect(container.querySelectorAll('.stats-bar .electric-border')).toHaveLength(0);
     expect(container.querySelectorAll('.stats-bar .star-border-container')).toHaveLength(4);
     expect(container.querySelector('.leaderboard-frame .electric-border-canvas')).toBeInTheDocument();
   });
@@ -283,6 +291,18 @@ describe('App', () => {
 
     await user.click(screen.getByRole('button', { name: '切换至成员 03' }));
     expect(container.querySelector('.driver-card.is-active')).toHaveTextContent('成员 03');
+  });
+
+  it('auto-advances the featured carousel when reduced motion is enabled', () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true })));
+    const { container } = render(
+      <FeaturedMembers members={teamData.featuredMembers} onSelect={vi.fn()} />,
+    );
+
+    act(() => vi.advanceTimersByTime(4000));
+
+    expect(container.querySelector('.driver-card.is-active')).toHaveTextContent('成员 02');
   });
 
   it('switches to the next driver after a left swipe', () => {

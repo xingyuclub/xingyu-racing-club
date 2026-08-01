@@ -99,6 +99,7 @@ const dailyScores = [
 export const teamData = {
   team: {
     name: '⁢⁣ˣʸ༩·星⁡⁠屿',
+    heroLines: ['欢迎来到星屿车队', 'Wellcome To RACING CLUB'],
     label: 'RACING CLUB',
     motto: '以星为序，向屿而行',
     heroImage: '/images/hero-home.png',

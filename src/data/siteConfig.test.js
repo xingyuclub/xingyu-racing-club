@@ -78,6 +78,19 @@ describe('site configuration', () => {
     expect(data.leaderboard[0]).toMatchObject({ id: config.roster[1].id, points: 30, rank: 1 });
   });
 
+  it('derives the public member count stat from the roster length', () => {
+    const config = createSeedConfig();
+    config.roster = config.roster.slice(0, 1);
+    config.stats = config.stats.map((item) =>
+      item.label === '队员数量' ? { ...item, value: '30' } : item,
+    );
+
+    const data = hydrateSiteData(config);
+
+    expect(data.stats.find((item) => item.label === '队员数量').value).toBe('1');
+    expect(config.stats.find((item) => item.label === '队员数量').value).toBe('30');
+  });
+
   it('sorts tied leaderboard members by wins and then member number', () => {
     const config = createSeedConfig();
     config.dailyScores = [];

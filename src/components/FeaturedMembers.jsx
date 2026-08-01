@@ -18,17 +18,16 @@ export function FeaturedMembers({ members, onSelect }) {
   const [isDragging, setIsDragging] = useState(false);
   const pointerStart = useRef(null);
   const didSwipe = useRef(false);
-  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
   useEffect(() => {
-    if (reduceMotion || isDragging || members.length < 2) return undefined;
+    if (isDragging || members.length < 2) return undefined;
 
     const timer = window.setInterval(() => {
       setActiveIndex((index) => (index + 1) % members.length);
     }, 4000);
 
     return () => window.clearInterval(timer);
-  }, [interactionKey, isDragging, members.length, reduceMotion]);
+  }, [interactionKey, isDragging, members.length]);
 
   const selectIndex = (index) => {
     setActiveIndex((index + members.length) % members.length);
@@ -90,10 +89,7 @@ export function FeaturedMembers({ members, onSelect }) {
               className="driver-portrait"
               style={member.avatar ? { '--member-image': `url("${member.avatar}")` } : undefined}
               aria-hidden="true"
-            >
-              <span className="driver-number">{member.number}</span>
-              <span className="portrait-label">DRIVER PROFILE</span>
-            </span>
+            />
             <span className="driver-footer">
               <span className="member-meta">
                 <span>{member.role}</span>

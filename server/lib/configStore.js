@@ -85,6 +85,13 @@ function validateConfig(config) {
   }
 
   requireStrings(config.team, ['name', 'label', 'motto', 'heroImage'], 'team', details);
+  if (!Array.isArray(config.team?.heroLines) || config.team.heroLines.length === 0) {
+    details.push('team.heroLines must contain at least one sentence');
+  } else {
+    config.team.heroLines.forEach((line, index) => {
+      if (!isNonEmptyString(line)) details.push(`team.heroLines[${index}] must be a non-empty string`);
+    });
+  }
 
   if (!Array.isArray(config.stats) || config.stats.length !== 4) {
     details.push('stats must contain exactly 4 entries');

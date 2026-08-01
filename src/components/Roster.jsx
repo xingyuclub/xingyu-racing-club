@@ -262,7 +262,6 @@ export function Roster({ members, onSelect = () => {} }) {
               >
                 <span className="roster-avatar" data-testid="roster-avatar" aria-hidden="true">
                   {member.avatar ? <img src={member.avatar} alt="" /> : null}
-                  <span className="roster-number">{member.number}</span>
                   <span className="roster-mark" />
                 </span>
                 <span className="roster-identity">

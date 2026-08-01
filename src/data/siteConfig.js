@@ -30,9 +30,17 @@ const createRawMember = (member, sortedScores) => {
 export function migrateRawConfig(input) {
   const { team, stats, roster, albums, dailyScores, news, music } = clone(input);
   const sortedScores = [...dailyScores].sort((left, right) => left.date.localeCompare(right.date));
+  const normalizedTeam = team && typeof team === 'object'
+    ? {
+        ...team,
+        heroLines: Array.isArray(team.heroLines) && team.heroLines.length
+          ? team.heroLines
+          : [team.name],
+      }
+    : team;
 
   return {
-    team,
+    team: normalizedTeam,
     stats,
     roster: roster.map((member) => createRawMember(member, sortedScores)),
     albums,
@@ -105,9 +113,13 @@ export function hydrateSiteData(rawConfig) {
       points: member.points,
       wins: member.wins,
     }));
+  const stats = config.stats.map((item) =>
+    item.label === '队员数量' ? { ...item, value: String(roster.length) } : item,
+  );
 
   return {
     ...config,
+    stats,
     roster,
     featuredMembers: roster.slice(0, 8),
     gallery: config.albums.flatMap((album) => album.photos),

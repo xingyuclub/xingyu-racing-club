@@ -67,12 +67,14 @@ export function ElectricBorder({
     let elapsed = 0;
     let width = 0;
     let height = 0;
+    const overscan = 16;
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
     const resize = () => {
       const rect = container.getBoundingClientRect();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      width = rect.width;
-      height = rect.height;
+      width = rect.width + overscan * 2;
+      height = rect.height + overscan * 2;
       canvas.width = Math.ceil(width * dpr);
       canvas.height = Math.ceil(height * dpr);
       canvas.style.width = `${width}px`;
@@ -97,8 +99,18 @@ export function ElectricBorder({
       const radius = Math.min(borderRadius, Math.min(width, height) / 2);
       for (let index = 0; index <= sampleCount; index += 1) {
         const progress = index / sampleCount;
-        const point = roundedRectPoint(progress, width, height, radius, thickness + 3);
-        const wave = Math.sin(progress * 38 + elapsed * 5) * chaos * 3;
+        const point = roundedRectPoint(
+          progress,
+          width,
+          height,
+          radius,
+          overscan + thickness + 3,
+        );
+        const wave = (
+          Math.sin(progress * 41 + elapsed * 5) +
+          Math.sin(progress * 97 - elapsed * 7) * 0.45 +
+          Math.sin(progress * 211 + elapsed * 11) * 0.2
+        ) * chaos * 18;
         const x = point.x + Math.cos(progress * 19 + elapsed * 3) * wave;
         const y = point.y + Math.sin(progress * 17 + elapsed * 3.4) * wave;
         if (index === 0) context.moveTo(x, y);
@@ -106,13 +118,19 @@ export function ElectricBorder({
       }
       context.closePath();
       context.stroke();
-      frameId = window.requestAnimationFrame(draw);
+      if (!reduceMotion) frameId = window.requestAnimationFrame(draw);
     };
 
     resize();
-    const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(resize) : null;
+    const resizeObserver = typeof ResizeObserver === 'function'
+      ? new ResizeObserver(() => {
+          resize();
+          if (reduceMotion) draw(0);
+        })
+      : null;
     resizeObserver?.observe(container);
-    frameId = window.requestAnimationFrame(draw);
+    if (reduceMotion) draw(0);
+    else frameId = window.requestAnimationFrame(draw);
 
     return () => {
       window.cancelAnimationFrame(frameId);

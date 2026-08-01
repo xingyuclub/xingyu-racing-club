@@ -202,7 +202,7 @@ export function ScoreEditor({ config, onChange }) {
                       onChange={(event) => updateRow(rowIndex, (item) => { item.id = event.target.value; })}
                     >
                       {config.roster.map((member) => (
-                        <option value={member.id} key={member.id}>{member.number} {member.name}</option>
+                        <option value={member.id} key={member.id}>{member.name}</option>
                       ))}
                     </select>
                   </td>
