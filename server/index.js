@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import multer from 'multer';
 import * as fileSystem from 'node:fs/promises';
@@ -7,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { createConfigStore } from './lib/configStore.js';
 import { createAuth } from './lib/auth.js';
 import { hydrateSiteData } from '../src/data/siteConfig.js';
+import { createScoreRecognitionRouter } from './lib/scoreRecognitionRoutes.js';
+import OpenAI from 'openai';
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const defaultRootDir = resolve(dirname(currentFilePath), '..');
@@ -41,6 +44,26 @@ function getUploadDefinition(mime, originalName) {
   return allowedUploadByPair.get(`${mime}::${extension}`) ?? null;
 }
 
+function decodeOriginalName(originalName) {
+  const value = String(originalName || '');
+  const decoded = Buffer.from(value, 'latin1').toString('utf8');
+  return decoded.includes('\ufffd') ? value : decoded;
+}
+
+function safeOriginalBasename(originalName) {
+  const normalizedName = decodeOriginalName(originalName).replaceAll('\\', '/');
+  const name = basename(normalizedName);
+  const extension = extname(name).toLowerCase();
+  const base = name
+    .slice(0, name.length - extension.length)
+    .replace(/[<>:"/|?*\u0000-\u001f]/g, '_')
+    .replace(/[. ]+$/g, '')
+    .trim()
+    .slice(0, 96);
+
+  return base || 'file';
+}
+
 async function removeFileIfPresent(path) {
   try {
     await fileSystem.rm(path, { force: true });
@@ -62,6 +85,28 @@ export async function createApp(options = {}) {
 
   const auth = await createAuth({ credentialsPath });
   const store = await createConfigStore({ dataDir });
+
+  const scoreRecognitionDataDir = options.scoreRecognitionDataDir ?? join(dataDir, 'score-recognition');
+  const scoreRecognitionStorageDir = options.scoreRecognitionStorageDir ?? join(rootDir, 'server', 'storage', 'score-recognition');
+  const sseConnections = new Set();
+  const notifyConfigUpdate = () => {
+    const version = String(Date.now());
+    for (const res of sseConnections) {
+      res.write('event: config-updated\n');
+      res.write('data: ' + JSON.stringify({ version }) + '\n\n');
+    }
+  };
+  const aiClient = options.aiClient ?? (process.env.OPENAI_API_KEY
+    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    : null);
+  const scoreRecognitionRouter = createScoreRecognitionRouter({
+    configStore: store,
+    dataDir: scoreRecognitionDataDir,
+    storageDir: scoreRecognitionStorageDir,
+    aiClient,
+    model: process.env.OPENAI_VISION_MODEL || 'gpt-4o',
+    onConfigUpdate: notifyConfigUpdate,
+  });
   const resolvedUploadDir = resolve(uploadDir);
   const fallbackIndexPath = join(distDir, 'index.html');
 
@@ -114,7 +159,8 @@ export async function createApp(options = {}) {
         callback(null, uploadDir);
       },
       filename(_request, file, callback) {
-        callback(null, `${randomUUID()}${extname(file.originalname).toLowerCase()}`);
+        const extension = extname(file.originalname);
+        callback(null, `${randomUUID()}--${safeOriginalBasename(file.originalname)}${extension}`);
       },
     }),
     limits: {
@@ -150,6 +196,26 @@ export async function createApp(options = {}) {
     }
   });
 
+  // 公网部署时屏蔽后台：通过 Host 头判断来源
+  // 本地(127.0.0.1/localhost)和局域网(192.168.*/10.*/172.*)可访问后台
+  // 来自公网穿透域名的请求一律拒绝 /api/login 与 /api/admin
+  const isLocalHost = (host) => {
+    if (!host) return false;
+    const h = host.split(':')[0].toLowerCase();
+    return h === '127.0.0.1' || h === 'localhost' || h === '0.0.0.0' ||
+      h.startsWith('192.168.') || h.startsWith('10.') || h.startsWith('172.');
+  };
+  const isFromTunnel = (request) => !isLocalHost(request.headers.host);
+  const blockTunnelAccess = (request, response, next) => {
+    if (isFromTunnel(request)) {
+      response.status(404).json({ error: 'Not Found' });
+      return;
+    }
+    next();
+  };
+  app.use('/api/login', blockTunnelAccess);
+  app.use('/api/admin', blockTunnelAccess);
+
   app.post('/api/login', (request, response) => {
     const token = auth.login(request.body?.username, request.body?.password);
     if (!token) {
@@ -171,7 +237,17 @@ export async function createApp(options = {}) {
     response.status(204).end();
   });
 
+  app.get('/api/config/events', (request, response) => {
+    response.setHeader('Content-Type', 'text/event-stream');
+    response.setHeader('Cache-Control', 'no-cache');
+    response.setHeader('Connection', 'keep-alive');
+    response.flushHeaders();
+    sseConnections.add(response);
+    request.on('close', () => sseConnections.delete(response));
+  });
+
   app.use('/api/admin', auth.requireSession);
+  app.use('/api/admin/score-recognition', scoreRecognitionRouter);
 
   app.get('/api/admin/config', async (_request, response, next) => {
     try {
@@ -184,6 +260,7 @@ export async function createApp(options = {}) {
   app.put('/api/admin/config', async (request, response, next) => {
     try {
       await store.write(request.body);
+      notifyConfigUpdate();
       response.status(204).end();
     } catch (error) {
       next(error);

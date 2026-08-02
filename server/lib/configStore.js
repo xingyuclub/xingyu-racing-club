@@ -1,6 +1,8 @@
 import * as defaultFileSystem from 'node:fs/promises';
 import { join } from 'node:path';
 import { createSeedConfig, migrateRawConfig } from '../../src/data/siteConfig.js';
+import { sanitizeNewsBodyHtml } from './newsRichText.js';
+import { normalizeNickname } from '../../src/data/scoreRules.js';
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim().length > 0;
@@ -11,7 +13,7 @@ const isValidDateKey = (value) => {
   const date = new Date(year, month - 1, day);
   return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
 };
-const rawTopLevelKeys = ['team', 'stats', 'roster', 'albums', 'dailyScores', 'news', 'music'];
+const rawTopLevelKeys = ['team', 'stats', 'roster', 'scoreMembers', 'albums', 'dailyScores', 'weekendScores', 'memberAliases', 'news', 'music'];
 const rawTopLevelKeySet = new Set(rawTopLevelKeys);
 
 function rejectUnexpectedTopLevelKeys(config) {
@@ -84,7 +86,20 @@ function validateConfig(config) {
     }
   }
 
-  requireStrings(config.team, ['name', 'label', 'motto', 'heroImage'], 'team', details);
+  requireStrings(config.team, ['name', 'label', 'motto'], 'team', details);
+  if (!isObject(config.team?.heroMedia)) {
+    details.push('team.heroMedia must be an object');
+  } else {
+    if (typeof config.team.heroMedia.src !== 'string') {
+      details.push('team.heroMedia.src must be a string');
+    }
+    if (!['image', 'video'].includes(config.team.heroMedia.type)) {
+      details.push('team.heroMedia.type must be image or video');
+    }
+  }
+  if (typeof config.team?.heroFallbackImage !== 'string') {
+    details.push('team.heroFallbackImage must be a string');
+  }
   if (!Array.isArray(config.team?.heroLines) || config.team.heroLines.length === 0) {
     details.push('team.heroLines must contain at least one sentence');
   } else {
@@ -157,6 +172,37 @@ function validateConfig(config) {
     }
   }
 
+  const scoreMemberIds = new Set();
+  const seenScoreMemberIds = new Set();
+  const seenScoreMemberNames = new Set();
+  if (!Array.isArray(config.scoreMembers)) {
+    details.push('scoreMembers must be an array');
+  } else {
+    for (let index = 0; index < config.scoreMembers.length; index += 1) {
+      const member = config.scoreMembers[index];
+      const path = `scoreMembers[${index}]`;
+      if (!isObject(member)) {
+        details.push(`${path} must be an object`);
+        continue;
+      }
+
+      requireUniqueString(member.id, `${path}.id`, seenScoreMemberIds, details);
+      requireStrings(member, ['name'], path, details);
+      const normalizedName = normalizeNickname(member.name);
+      if (normalizedName && seenScoreMemberNames.has(normalizedName)) {
+        details.push(`${path}.name must be unique after normalization`);
+      } else if (normalizedName) {
+        seenScoreMemberNames.add(normalizedName);
+      }
+      for (const field of ['basePoints', 'wins']) {
+        if (!isNonNegativeFinite(member[field])) {
+          details.push(`${path}.${field} must be a non-negative finite number`);
+        }
+      }
+      if (isNonEmptyString(member.id)) scoreMemberIds.add(member.id);
+    }
+  }
+
   const seenAlbumIds = new Set();
   const seenPhotoIds = new Set();
   if (!Array.isArray(config.albums)) {
@@ -218,6 +264,9 @@ function validateConfig(config) {
         path,
         details,
       );
+      if (item.bodyHtml !== undefined && typeof item.bodyHtml !== 'string') {
+        details.push(`${path}.bodyHtml must be a string`);
+      }
     }
   }
 
@@ -255,8 +304,8 @@ function validateConfig(config) {
           details.push(`${path} must be an object`);
           continue;
         }
-        if (!memberIds.has(row.id)) {
-          details.push(`${path}.id must reference an existing roster member`);
+        if (!scoreMemberIds.has(row.id)) {
+          details.push(`${path}.id must reference an existing score member`);
         } else if (seenRowIds.has(row.id)) {
           details.push(`${path}.id must be unique within its date`);
         } else {
@@ -287,6 +336,65 @@ function validateConfig(config) {
     }
   }
 
+  if (config.weekendScores != null) {
+    if (!Array.isArray(config.weekendScores)) {
+      details.push('weekendScores must be an array');
+    } else {
+      for (let roundIndex = 0; roundIndex < config.weekendScores.length; roundIndex += 1) {
+        const round = config.weekendScores[roundIndex];
+        const roundPath = `weekendScores[${roundIndex}]`;
+        if (!isObject(round)) {
+          details.push(`${roundPath} must be an object`);
+          continue;
+        }
+        if (!isValidDateKey(round.date)) {
+          details.push(`${roundPath}.date must use a valid YYYY-MM-DD date`);
+        }
+        if (!Array.isArray(round.rows)) {
+          details.push(`${roundPath}.rows must be an array`);
+          continue;
+        }
+        for (let rowIndex = 0; rowIndex < round.rows.length; rowIndex += 1) {
+          const row = round.rows[rowIndex];
+          const path = `${roundPath}.rows[${rowIndex}]`;
+          if (!isObject(row)) {
+            details.push(`${path} must be an object`);
+            continue;
+          }
+          if (!scoreMemberIds.has(row.id)) {
+            details.push(`${path}.id must reference an existing score member`);
+          }
+          for (const field of ['points', 'score', 'total']) {
+            if (field in row && row[field] != null && !isNonNegativeFinite(row[field])) {
+              details.push(`${path}.${field} must be a non-negative finite number or null`);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (config.memberAliases != null) {
+    if (!Array.isArray(config.memberAliases)) {
+      details.push('memberAliases must be an array');
+    } else {
+      for (let aliasIndex = 0; aliasIndex < config.memberAliases.length; aliasIndex += 1) {
+        const alias = config.memberAliases[aliasIndex];
+        const path = `memberAliases[${aliasIndex}]`;
+        if (!isObject(alias)) {
+          details.push(`${path} must be an object`);
+          continue;
+        }
+        if (!memberIds.has(alias.memberId)) {
+          details.push(`${path}.memberId must reference an existing roster member`);
+        }
+        if (!isNonEmptyString(alias.value)) {
+          details.push(`${path}.value must be a non-empty string`);
+        }
+      }
+    }
+  }
+
   requireStrings(config.music, ['src', 'cover'], 'music', details);
 
   if (details.length > 0) {
@@ -295,6 +403,26 @@ function validateConfig(config) {
     error.details = details;
     throw error;
   }
+}
+
+function sanitizeNews(config) {
+  return {
+    ...config,
+    news: config.news.map((item, index) => {
+      if (item.bodyHtml === undefined) return item;
+      if (!item.bodyHtml.trim()) return { ...item, bodyHtml: '' };
+
+      const richText = sanitizeNewsBodyHtml(item.bodyHtml);
+      if (!richText.text) {
+        const error = new Error('Invalid configuration');
+        error.code = 'INVALID_CONFIG';
+        error.details = [`news[${index}].bodyHtml must contain readable text`];
+        throw error;
+      }
+
+      return { ...item, bodyHtml: richText.html, body: richText.text };
+    }),
+  };
 }
 
 export async function createConfigStore({ dataDir, fileSystem: providedFileSystem = {} }) {
@@ -398,7 +526,9 @@ export async function createConfigStore({ dataDir, fileSystem: providedFileSyste
   }
 
   async function write(config) {
-    const snapshot = structuredClone(selectRawConfig(config));
+    const rawSnapshot = structuredClone(selectRawConfig(config));
+    validateConfig(rawSnapshot);
+    const snapshot = sanitizeNews(rawSnapshot);
     validateConfig(snapshot);
     const serializedConfig = `${JSON.stringify(snapshot, null, 2)}\n`;
 
@@ -414,8 +544,10 @@ export async function createConfigStore({ dataDir, fileSystem: providedFileSyste
         rejectUnexpectedTopLevelKeys(config);
         const migrated = migrateRawConfig(config);
         validateConfig(migrated);
-        if (JSON.stringify(migrated) !== JSON.stringify(config)) return write(migrated);
-        return migrated;
+        const sanitized = sanitizeNews(migrated);
+        validateConfig(sanitized);
+        if (JSON.stringify(sanitized) !== JSON.stringify(config)) return write(sanitized);
+        return sanitized;
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
 

@@ -17,3 +17,5 @@ server/data/site-config.json.bak
 server/data/site-config.json.next
 server/data/site-config.json.bak.next
 server/storage/uploads/
+tools/
+logs/

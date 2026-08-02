@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -19,10 +19,11 @@ vi.mock('./scoreWorkbook.js', () => ({
 const createConfig = () => {
   const config = createSeedConfig();
   config.roster = config.roster.slice(0, 2);
+  config.scoreMembers = config.scoreMembers.slice(0, 2);
   config.dailyScores = [{
     date: '2026-07-28',
     rows: [{
-      id: config.roster[0].id,
+      id: config.scoreMembers[0].id,
       teamRace: [1, 2, 3],
       openRace: [0, 0, 0],
     }],
@@ -62,6 +63,84 @@ describe('ScoreEditor', () => {
     expect(next.dailyScores[0].rows[0].teamRace[0]).toBe(6);
   });
 
+  it('uses score members instead of roster members in the score table', () => {
+    const config = createConfig();
+    config.roster[0].name = '后台名称';
+    config.scoreMembers[0].name = 'Excel名称';
+
+    render(<ScoreEditor config={config} onChange={() => {}} />);
+
+    expect(screen.getByRole('option', { name: 'Excel名称' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: '后台名称' })).not.toBeInTheDocument();
+  });
+
+  it('defaults to the latest score date and only shows the selected date', async () => {
+    const user = userEvent.setup();
+    const config = createConfig();
+    config.dailyScores.push({
+      date: '2026-07-29',
+      rows: [{
+        id: config.scoreMembers[1].id,
+        teamRace: [4, 0, 0],
+        openRace: [0, 0, 0],
+      }],
+    });
+
+    render(<ScoreEditorHarness initialConfig={config} onChange={() => {}} />);
+
+    expect(screen.getByLabelText('筛选日期')).toHaveValue('2026-07-29');
+    expect(screen.getAllByTestId('score-editor-row')).toHaveLength(1);
+    expect(within(screen.getByTestId('score-editor-row')).getByRole('option', {
+      name: config.scoreMembers[1].name,
+      selected: true,
+    })).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText('筛选日期'));
+    await user.type(screen.getByLabelText('筛选日期'), '2026-07-28');
+
+    expect(screen.getAllByTestId('score-editor-row')).toHaveLength(1);
+    expect(within(screen.getByTestId('score-editor-row')).getByRole('option', {
+      name: config.scoreMembers[0].name,
+      selected: true,
+    })).toBeInTheDocument();
+  });
+
+  it('manages roster names without showing Excel-only score members', async () => {
+    const user = userEvent.setup();
+    const config = createConfig();
+    config.roster[0].name = '后台队员';
+    config.scoreMembers[0].name = 'Excel历史人物';
+    const onChange = vi.fn();
+
+    render(<ScoreEditorHarness initialConfig={config} onChange={onChange} />);
+    await user.click(screen.getByRole('tab', { name: '队员管理' }));
+
+    expect(screen.getByDisplayValue('后台队员')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('Excel历史人物')).not.toBeInTheDocument();
+
+    const input = screen.getByRole('textbox', { name: '队员 1 名称' });
+    await user.clear(input);
+    await user.type(input, '新后台名称');
+
+    expect(onChange.mock.calls.at(-1)[0].roster[0].name).toBe('新后台名称');
+  });
+
+  it('adds and removes roster members from the score member manager', async () => {
+    const user = userEvent.setup();
+    const config = createConfig();
+    const onChange = vi.fn();
+
+    render(<ScoreEditorHarness initialConfig={config} onChange={onChange} />);
+    await user.click(screen.getByRole('tab', { name: '队员管理' }));
+    await user.click(screen.getByRole('button', { name: '新增队员' }));
+
+    expect(onChange.mock.calls.at(-1)[0].roster).toHaveLength(3);
+    expect(screen.getByRole('textbox', { name: '队员 3 名称' })).toHaveValue('新队员');
+
+    await user.click(screen.getByRole('button', { name: '删除队员 3' }));
+    expect(onChange.mock.calls.at(-1)[0].roster).toHaveLength(2);
+  });
+
   it('downloads a blank template and the current score data', async () => {
     const user = userEvent.setup();
     const config = createConfig();
@@ -80,7 +159,7 @@ describe('ScoreEditor', () => {
     const onChange = vi.fn();
     const imported = {
       dailyScores: [{ date: '2026-07-29', rows: [config.dailyScores[0].rows[0]] }],
-      basePointsById: new Map([[config.roster[0].id, 20]]),
+      basePointsById: new Map([[config.scoreMembers[0].id, 20]]),
       summary: { dates: 1, rows: 1, basePoints: 1 },
     };
     parseScoreWorkbookBuffer.mockResolvedValue(imported);

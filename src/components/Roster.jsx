@@ -51,18 +51,33 @@ export function Roster({ members, onSelect = () => {} }) {
     cylinder.style.setProperty('--rotation', `${nextRotation.toFixed(3)}deg`);
     cylinder.style.setProperty('--speed', `${nextSpeed.toFixed(3)}deg/s`);
 
+    let centeredIndex = 0;
+    let centeredOffset = Number.POSITIVE_INFINITY;
+
+    members.forEach((member, index) => {
+      const offset = Math.abs(getCircularOffset(index, nextRotation, members.length));
+      if (offset < centeredOffset) {
+        centeredIndex = index;
+        centeredOffset = offset;
+      }
+    });
+
     members.forEach((member, index) => {
       const card = cardRefs.current[index];
       if (!card) return;
 
       const offset = getCircularOffset(index, nextRotation, members.length);
       const opacity = Math.max(0, 1 - Math.abs(offset) / VISIBLE_SPAN);
-      const scale = 0.82 + opacity * 0.18;
+      const centerRange = 180 / members.length;
+      const centerFocus = Math.max(0, 1 - Math.abs(offset) / centerRange);
+      const scale = 0.82 + opacity * 0.18 + centerFocus * 0.12;
       const isVisible = opacity > 0.06;
 
       card.style.setProperty('--card-opacity', opacity.toFixed(3));
       card.style.setProperty('--card-scale', scale.toFixed(3));
-      card.style.zIndex = String(Math.round(100 - Math.abs(offset)));
+      card.style.setProperty('--card-lift', `${(centerFocus * 46).toFixed(3)}px`);
+      card.style.zIndex = index === centeredIndex ? '500' : String(Math.round(100 - Math.abs(offset)));
+      card.classList.toggle('is-centered', index === centeredIndex);
       card.classList.toggle('is-visible', isVisible);
       if (isVisible) {
         card.removeAttribute('aria-hidden');
@@ -159,7 +174,8 @@ export function Roster({ members, onSelect = () => {} }) {
     setPhaseState(hoveredRef.current ? 'paused' : 'settling');
   };
 
-  const handlePointerEnter = () => {
+  const handlePointerEnter = (event) => {
+    if (event.pointerType && event.pointerType !== 'mouse') return;
     hoveredRef.current = true;
     targetSpeedRef.current = 0;
     speedRef.current = 0;
@@ -167,7 +183,8 @@ export function Roster({ members, onSelect = () => {} }) {
     if (!draggingRef.current) setPhaseState('paused');
   };
 
-  const handlePointerLeave = () => {
+  const handlePointerLeave = (event) => {
+    if (event.pointerType && event.pointerType !== 'mouse') return;
     handlePointerEnd();
     hoveredRef.current = false;
     hoveredCardRef.current = null;
@@ -178,7 +195,8 @@ export function Roster({ members, onSelect = () => {} }) {
     }
   };
 
-  const handleCardEnter = (index) => {
+  const handleCardEnter = (event, index) => {
+    if (event.pointerType && event.pointerType !== 'mouse') return;
     if (hoveredCardRef.current !== null) {
       cardRefs.current[hoveredCardRef.current]?.classList.remove('is-hovered');
     }
@@ -186,7 +204,8 @@ export function Roster({ members, onSelect = () => {} }) {
     cardRefs.current[index]?.classList.add('is-hovered');
   };
 
-  const handleCardLeave = (index) => {
+  const handleCardLeave = (event, index) => {
+    if (event.pointerType && event.pointerType !== 'mouse') return;
     if (hoveredCardRef.current !== index) return;
     hoveredCardRef.current = null;
     cardRefs.current[index]?.classList.remove('is-hovered');
@@ -234,7 +253,9 @@ export function Roster({ members, onSelect = () => {} }) {
           {members.map((member, index) => {
             const offset = getCircularOffset(index, 0, members.length);
             const opacity = Math.max(0, 1 - Math.abs(offset) / VISIBLE_SPAN);
-            const scale = 0.82 + opacity * 0.18;
+            const centerRange = 180 / members.length;
+            const centerFocus = Math.max(0, 1 - Math.abs(offset) / centerRange);
+            const scale = 0.82 + opacity * 0.18 + centerFocus * 0.12;
             const isVisible = opacity > 0.06;
 
             return (
@@ -242,13 +263,13 @@ export function Roster({ members, onSelect = () => {} }) {
                 ref={(node) => {
                   cardRefs.current[index] = node;
                 }}
-                className={`roster-card${isVisible ? ' is-visible' : ''}`}
+                className={`roster-card${index === 0 ? ' is-centered' : ''}${isVisible ? ' is-visible' : ''}`}
                 data-testid="roster-card"
                 key={member.id}
                 type="button"
                 onClick={(event) => handleCardClick(event, member)}
-                onPointerEnter={() => handleCardEnter(index)}
-                onPointerLeave={() => handleCardLeave(index)}
+                onPointerEnter={(event) => handleCardEnter(event, index)}
+                onPointerLeave={(event) => handleCardLeave(event, index)}
                 aria-label={`查看${member.name} 卡片详情`}
                 aria-hidden={isVisible ? undefined : 'true'}
                 tabIndex={isVisible ? 0 : -1}
@@ -257,11 +278,12 @@ export function Roster({ members, onSelect = () => {} }) {
                   '--card-angle': `${(360 / members.length) * index}deg`,
                   '--card-opacity': opacity.toFixed(3),
                   '--card-scale': scale.toFixed(3),
-                  zIndex: Math.round(100 - Math.abs(offset)),
+                  '--card-lift': `${(centerFocus * 46).toFixed(3)}px`,
+                  zIndex: index === 0 ? 500 : Math.round(100 - Math.abs(offset)),
                 }}
               >
                 <span className="roster-avatar" data-testid="roster-avatar" aria-hidden="true">
-                  {member.avatar ? <img src={member.avatar} alt="" /> : null}
+                  {member.avatar ? <img src={member.avatar} alt="" draggable="false" /> : null}
                   <span className="roster-mark" />
                 </span>
                 <span className="roster-identity">

@@ -68,7 +68,7 @@ export default function App() {
           onOpenAlbum={openAlbum}
         />
         <Roster members={siteData.roster} onSelect={setSelectedMember} />
-        <Leaderboard rows={siteData.leaderboard} onOpenDetails={() => setShowScoreDetails(true)} />
+        <Leaderboard rows={siteData.leaderboard} scoreDate={siteData.latestScoreDate} onOpenDetails={() => setShowScoreDetails(true)} />
         <NewsFeed items={siteData.news} />
         <VideoModal member={selectedMember} onClose={() => setSelectedMember(null)} />
         <PhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} />

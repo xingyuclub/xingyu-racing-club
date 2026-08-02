@@ -73,7 +73,7 @@ export function FeaturedMembers({ members, onSelect }) {
       >
         {members.map((member, index) => (
           <button
-            className={`driver-card ${getPosition(index, activeIndex, members.length)}`}
+            className={`driver-card carousel-card ${getPosition(index, activeIndex, members.length)}`}
             key={member.id}
             type="button"
             onClick={() => {

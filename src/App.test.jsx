@@ -1,12 +1,17 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { readFileSync } from 'node:fs';
 import { vi } from 'vitest';
 import App from './App.jsx';
 import { teamData } from './data/teamData.js';
 import { createSeedConfig, hydrateSiteData } from './data/siteConfig.js';
+import { Hero } from './components/Hero.jsx';
 import { VideoModal } from './components/VideoModal.jsx';
 import { PhotoModal } from './components/PhotoModal.jsx';
 import { FeaturedMembers } from './components/FeaturedMembers.jsx';
+import { NewsFeed } from './components/NewsFeed.jsx';
+
+const globalStyles = readFileSync('src/styles/global.css', 'utf8');
 
 let mediaPlay;
 let mediaPause;
@@ -51,7 +56,7 @@ describe('teamData', () => {
 
     expect(teamData.stats[0].value).toBe('1st');
     expect(teamData.stats[1].value).toBe('3rd');
-    expect(teamData.team.heroImage).toBe('/images/hero-home.png');
+    expect(teamData.team.heroMedia).toEqual({ src: '/images/hero-home.png', type: 'image' });
     expect(teamData.team.label).toBe('RACING CLUB');
     expect(single.value).toEqual({ male: 12, female: 8 });
     expect(teamData.gallery.filter((photo) => photo.featured)).toHaveLength(5);
@@ -107,7 +112,7 @@ describe('App', () => {
     const initialConfig = hydrateSiteData(seedConfig);
     const updatedConfig = hydrateSiteData({
       ...seedConfig,
-      team: { ...seedConfig.team, heroImage: '/images/updated-hero.png' },
+      team: { ...seedConfig.team, heroMedia: { src: '/images/updated-hero.png', type: 'image' } },
     });
     const fetchMock = vi
       .fn()
@@ -144,12 +149,16 @@ describe('App', () => {
     expect(brandBar).toContainElement(heroBrand);
     expect(heroBrand).toHaveAttribute('aria-label', teamData.team.heroLines.join('\n'));
     expect(heroBrand.querySelectorAll('.hero-brand-line')).toHaveLength(teamData.team.heroLines.length);
-    expect(heroBrand.querySelector('.text-type__cursor')).toHaveTextContent('|');
-    expect(brandBar).not.toHaveClass('animated-gradient-text');
+    expect(heroBrand.querySelectorAll('.animated-gradient-text')).toHaveLength(teamData.team.heroLines.length);
+    expect(heroBrand.querySelectorAll('.gradient-text-content')).toHaveLength(teamData.team.heroLines.length);
+    expect(heroBrand.querySelector('.gradient-text-content').style.backgroundImage)
+      .toContain('linear-gradient');
+    expect(heroBrand.querySelector('.text-type')).not.toBeInTheDocument();
+    expect(heroBrand.querySelector('.text-type__cursor')).not.toBeInTheDocument();
     expect(brandBar.nextElementSibling).toBe(heroSection);
     expect(heroSection.firstElementChild).toHaveClass('hero-media');
     expect(heroSection.firstElementChild.tagName).toBe('IMG');
-    expect(heroSection.firstElementChild).toHaveAttribute('src', teamData.team.heroImage);
+    expect(heroSection.firstElementChild).toHaveAttribute('src', teamData.team.heroMedia.src);
     expect(heroSection.firstElementChild).toHaveAttribute('alt', '');
     expect(container.querySelector('.hero-motto')).not.toBeInTheDocument();
     expect(screen.queryByText('RACING CLUB / 2026 SEASON')).not.toBeInTheDocument();
@@ -180,12 +189,118 @@ describe('App', () => {
     expect(within(roster).getByRole('button', { name: '查看成员 01 卡片详情' })).toBeInTheDocument();
   });
 
+  it('renders a click-to-play muted looping hero video', () => {
+    const config = hydrateSiteData({
+      ...createSeedConfig(),
+      team: {
+        ...createSeedConfig().team,
+        heroMedia: { src: '/uploads/hero.mp4', type: 'video' },
+        heroFallbackImage: '/uploads/fallback.png',
+      },
+    });
+
+    render(<Hero team={config.team} />);
+
+    const video = document.querySelector('video.hero-media');
+    expect(video).toHaveAttribute('src', '/uploads/hero.mp4');
+    expect(video).not.toHaveAttribute('autoplay');
+    expect(video).toHaveAttribute('preload', 'none');
+    expect(video.muted).toBe(true);
+    expect(video).toHaveAttribute('loop');
+    expect(video).toHaveAttribute('playsinline');
+    expect(video).not.toHaveAttribute('controls');
+    expect(document.querySelector('.hero-play-button')).toBeInTheDocument();
+  });
+
+  it('shows a poster image and play button until the video starts playing', () => {
+    const seed = createSeedConfig();
+    const config = hydrateSiteData({
+      ...seed,
+      team: {
+        ...seed.team,
+        heroMedia: { src: '/uploads/hero.mp4', type: 'video' },
+        heroFallbackImage: '',
+      },
+    });
+
+  it('switches a failed hero video to its fallback image', () => {
+    const seed = createSeedConfig();
+    const config = hydrateSiteData({
+      ...seed,
+      team: {
+        ...seed.team,
+        heroMedia: { src: '/uploads/hero.mp4', type: 'video' },
+        heroFallbackImage: '/uploads/fallback.png',
+      },
+    });
+
+  });
+
+  it('switches to fallback when clicking play fails to load the video', async () => {
+    const seed = createSeedConfig();
+    const config = hydrateSiteData({
+      ...seed,
+      team: {
+        ...seed.team,
+        heroMedia: { src: '/uploads/hero.mp4', type: 'video' },
+        heroFallbackImage: '/uploads/fallback.png',
+      },
+    });
+
+    const { container } = render(<Hero team={config.team} />);
+
+    fireEvent.click(container.querySelector('.hero-play-button'));
+
+    await waitFor(() => {
+      expect(container.querySelector('.hero-media')).toHaveAttribute('src', '/uploads/fallback.png');
+    });
+  });
+
+
+  it('renders the fallback image when the hero primary media is empty', () => {
+    const seed = createSeedConfig();
+    const config = hydrateSiteData({
+      ...seed,
+      team: {
+        ...seed.team,
+        heroMedia: { src: '', type: 'image' },
+        heroFallbackImage: '/uploads/fallback.png',
+      },
+    });
+
+    const { container } = render(<Hero team={config.team} />);
+
+    expect(container.querySelector('.hero-media')).toHaveAttribute('src', '/uploads/fallback.png');
+    expect(container.querySelector('.hero-section')).not.toHaveClass('hero-section--empty');
+  });
+
+  it('uses the empty hero placeholder when the fallback image also fails', () => {
+    const seed = createSeedConfig();
+    const team = {
+      ...seed.team,
+      heroMedia: { src: '', type: 'image' },
+      heroFallbackImage: '/uploads/missing.png',
+    };
+
+    const { container } = render(<Hero team={team} />);
+    fireEvent.error(container.querySelector('img.hero-media'));
+
+    expect(container.querySelector('img.hero-media')).not.toBeInTheDocument();
+    expect(container.querySelector('.hero-section')).toHaveClass('hero-section--empty');
+  });
+
   it('renders stat card borders without the outer electric frame', () => {
     const { container } = render(<App />);
 
     expect(container.querySelectorAll('.stats-bar .electric-border')).toHaveLength(0);
-    expect(container.querySelectorAll('.stats-bar .star-border-container')).toHaveLength(4);
-    expect(container.querySelector('.leaderboard-frame .electric-border-canvas')).toBeInTheDocument();
+    const statShells = container.querySelectorAll('.stats-bar .star-border-container');
+    expect(statShells).toHaveLength(4);
+    statShells.forEach((shell) => {
+      expect(shell.style.getPropertyValue('--stat-accent')).not.toBe('');
+      expect(shell.querySelector('.stat-number')).toBeInTheDocument();
+      expect(shell.querySelector('.stat-label')).toBeInTheDocument();
+    });
+    expect(container.querySelector('.leaderboard-frame .electric-border-canvas')).not.toBeInTheDocument();
   });
 
   it('arranges the full roster around an auto-rolling cylinder', () => {
@@ -203,6 +318,34 @@ describe('App', () => {
     expect(cards[1]).toHaveStyle({ '--card-angle': '12deg' });
     expect(cards[6]).toHaveClass('is-visible');
     expect(cards[7]).toHaveAttribute('aria-hidden', 'true');
+    expect(cards.filter((card) => card.classList.contains('is-centered'))).toEqual([cards[0]]);
+  });
+
+  it('keeps touch swipes interactive without entering the desktop hover pause state', () => {
+    render(<App />);
+
+    const roster = screen.getByTestId('roster-grid');
+    const cylinder = within(roster).getByTestId('roster-cylinder');
+    const card = within(roster).getAllByTestId('roster-card')[0];
+    const initialRotation = Number.parseFloat(cylinder.style.getPropertyValue('--rotation'));
+    const touchPointerEvent = (type, clientX = 0) => {
+      const event = new MouseEvent(type, { bubbles: true, clientX });
+      Object.defineProperties(event, {
+        pointerId: { value: 7 },
+        pointerType: { value: 'touch' },
+      });
+      return event;
+    };
+
+    fireEvent(card, touchPointerEvent('pointerover'));
+    fireEvent(roster, touchPointerEvent('pointerdown', 260));
+    fireEvent(roster, touchPointerEvent('pointermove', 140));
+    fireEvent(roster, touchPointerEvent('pointerup', 140));
+
+    expect(Number.parseFloat(cylinder.style.getPropertyValue('--rotation'))).not.toBe(initialRotation);
+    expect(card).not.toHaveClass('is-hovered');
+    expect(roster).not.toHaveClass('is-paused');
+    expect(roster).toHaveClass('is-settling');
   });
 
   it('accelerates the roster cylinder in the swipe direction and eases back to base speed', async () => {
@@ -293,6 +436,23 @@ describe('App', () => {
     expect(container.querySelector('.driver-card.is-active')).toHaveTextContent('成员 03');
   });
 
+  it('keeps primary member covers clear while preserving positional depth', () => {
+    const style = document.createElement('style');
+    style.textContent = globalStyles;
+    document.head.append(style);
+    const rules = Array.from(style.sheet.cssRules);
+    const ruleStyle = (selector) => rules.find((rule) => rule.selectorText === selector)?.style;
+
+    expect(ruleStyle('.driver-portrait::after').opacity).toBe('1');
+    expect(ruleStyle('.driver-card.is-next').opacity).toBe('0.72');
+    expect(ruleStyle('.roster-card').filter).toBe('none');
+    expect(ruleStyle('.roster-card').opacity).toContain('--card-opacity');
+    expect(ruleStyle('.roster-avatar').opacity).toBe('1');
+    expect(ruleStyle('.roster-card::before')).toBeUndefined();
+
+    style.remove();
+  });
+
   it('auto-advances the featured carousel when reduced motion is enabled', () => {
     vi.useFakeTimers();
     vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true })));
@@ -303,6 +463,16 @@ describe('App', () => {
     act(() => vi.advanceTimersByTime(4000));
 
     expect(container.querySelector('.driver-card.is-active')).toHaveTextContent('成员 02');
+  });
+
+  it('keeps featured card transitions smooth when reduced motion is enabled', () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true })));
+    const { container } = render(
+      <FeaturedMembers members={teamData.featuredMembers} onSelect={vi.fn()} />,
+    );
+
+    const activeCard = container.querySelector('.driver-card.is-active');
+    expect(activeCard).toHaveClass('carousel-card');
   });
 
   it('switches to the next driver after a left swipe', () => {
@@ -320,6 +490,7 @@ describe('App', () => {
     render(<App />);
 
     expect(screen.getAllByTestId('featured-photo')).toHaveLength(5);
+    expect(screen.getAllByTestId('featured-photo')[0].querySelector('img')).toHaveClass('photo-card-image--contain');
     expect(screen.getByRole('button', { name: '查看视频车队记录 02' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '查看更多相册' }));
 
@@ -329,6 +500,7 @@ describe('App', () => {
 
     await user.click(screen.getAllByTestId('album-folder')[0]);
     expect(screen.getAllByTestId('album-photo')).toHaveLength(teamData.albums[0].photos.length);
+    expect(screen.getAllByTestId('album-photo')[0].querySelector('img')).not.toHaveClass('photo-card-image--contain');
   });
 
   it('opens and closes a configured photo preview', async () => {
@@ -405,6 +577,10 @@ describe('App', () => {
     );
 
     expect(container.querySelector('video')).toHaveAttribute('autoplay');
+  });
+
+  it('gives the member video dialog a larger desktop viewing area', () => {
+    expect(globalStyles).toMatch(/\.member-video-modal\s*\{[^}]*width:\s*min\(100%,\s*960px\)/s);
   });
 
   it('renders a playable video when an album item has a video URL', () => {
@@ -636,5 +812,36 @@ describe('App', () => {
 
     await user.click(screen.getByRole('button', { name: '关闭资讯弹窗' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('renders rich news content with links and multiple inline images', async () => {
+    const user = userEvent.setup();
+    const item = {
+      ...teamData.news[0],
+      bodyHtml: '<h2>比赛规则</h2><p style="color:#ff0000;font-family:SimHei;font-size:20px"><strong>重点</strong></p><ul><li>第一局</li></ul><a href="https://example.com" target="_blank" rel="noopener noreferrer">规则链接</a><img src="/uploads/a.jpg" alt="正文图一"><img src="/uploads/b.jpg" alt="正文图二">',
+    };
+    render(<NewsFeed items={[item]} />);
+
+    await user.click(screen.getByRole('button', { name: `查看资讯 ${item.title}` }));
+    const dialog = screen.getByRole('dialog');
+
+    expect(within(dialog).getByRole('heading', { name: '比赛规则' })).toBeInTheDocument();
+    expect(within(dialog).getByText('重点').closest('p')).toHaveAttribute('style', expect.stringContaining('font-family:SimHei'));
+    expect(within(dialog).getByRole('list')).toHaveTextContent('第一局');
+    expect(within(dialog).getByRole('link', { name: '规则链接' })).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(within(dialog).getByRole('img', { name: '正文图一' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('img', { name: '正文图二' })).toBeInTheDocument();
+    expect(dialog.querySelector('.news-article-content')).toBeInTheDocument();
+    expect(within(dialog).getByText(item.date)).toHaveAttribute('datetime', item.date);
+  });
+
+  it('falls back to the legacy plain news body', async () => {
+    const user = userEvent.setup();
+    render(<NewsFeed items={[teamData.news[0]]} />);
+
+    await user.click(screen.getByRole('button', { name: `查看资讯 ${teamData.news[0].title}` }));
+
+    expect(screen.getByRole('dialog')).toHaveTextContent(teamData.news[0].body);
+    expect(screen.getByRole('dialog').querySelector('.news-article-legacy')).toBeInTheDocument();
   });
 });

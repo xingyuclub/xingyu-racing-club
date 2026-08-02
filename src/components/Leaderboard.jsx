@@ -1,12 +1,17 @@
-import ElectricBorder from './ElectricBorder.jsx';
+const formatDate = (dateKey) => {
+  if (!dateKey) return '';
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return `${year}年${month}月${day}日`;
+};
 
-export function Leaderboard({ rows, onOpenDetails }) {
+export function Leaderboard({ rows, onOpenDetails, scoreDate }) {
   return (
     <section className="section-block" aria-labelledby="leaderboard-title" data-reveal>
       <div className="section-heading section-heading--action-right">
         <div className="section-heading-copy">
           <p className="eyebrow">SEASON POINTS</p>
           <h2 id="leaderboard-title">星屿积分榜</h2>
+          {scoreDate && <p className="leaderboard-date">截至 {formatDate(scoreDate)}</p>}
         </div>
         <button className="text-action text-action--stacked" type="button" onClick={onOpenDetails}>
           <img
@@ -18,7 +23,7 @@ export function Leaderboard({ rows, onOpenDetails }) {
           查找
         </button>
       </div>
-      <ElectricBorder className="leaderboard-frame" color="#4690ff" speed={0.9} chaos={0.12} thickness={2} borderRadius={12}>
+      <div className="leaderboard-frame">
         <div className="leaderboard">
           {rows.slice(0, 10).map((row, index) => (
             <article
@@ -38,7 +43,7 @@ export function Leaderboard({ rows, onOpenDetails }) {
             </article>
           ))}
         </div>
-      </ElectricBorder>
+      </div>
     </section>
   );
 }

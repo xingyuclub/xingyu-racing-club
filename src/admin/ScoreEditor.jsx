@@ -6,6 +6,9 @@ import {
   mergeScoreImport,
   parseScoreWorkbookBuffer,
 } from './scoreWorkbook.js';
+import { ScoreRecognition } from './ScoreRecognition.jsx';
+import { WeekendScoreEditor } from './WeekendScoreEditor.jsx';
+import { RecognitionHistory } from './RecognitionHistory.jsx';
 
 const clone = (value) => structuredClone(value);
 
@@ -26,12 +29,24 @@ const replaceDailyScores = (config, rows) => {
 };
 
 const totalKey = (date, id) => `${date}|${id}`;
+const nextNumericValue = (values, format = String) => {
+  const used = new Set(values.map((value) => String(value || '').trim()));
+  let value = 1;
+  while (used.has(format(value))) value += 1;
+  return format(value);
+};
 
 export function ScoreEditor({ config, onChange }) {
   const [errors, setErrors] = useState([]);
+  const [tab, setTab] = useState('scores');
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(false);
   const rows = useMemo(() => flattenScores(config.dailyScores), [config.dailyScores]);
+  const [selectedDate, setSelectedDate] = useState(() =>
+    config.dailyScores.map((round) => round.date).sort().at(-1) || '');
+  const visibleRows = useMemo(() => rows
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => row.date === selectedDate), [rows, selectedDate]);
   const totals = useMemo(() => {
     const hydrated = hydrateSiteData(config);
     return new Map(hydrated.dailyScores.flatMap((round) => round.rows.map((row) => [
@@ -48,16 +63,45 @@ export function ScoreEditor({ config, onChange }) {
   };
 
   const addRow = () => {
-    if (!config.roster.length) return;
-    const date = rows.at(-1)?.date || new Date().toISOString().slice(0, 10);
+    if (!config.scoreMembers.length) return;
+    const date = selectedDate || rows.at(-1)?.date || new Date().toISOString().slice(0, 10);
     const used = new Set(rows.filter((row) => row.date === date).map((row) => row.id));
-    const member = config.roster.find((item) => !used.has(item.id)) || config.roster[0];
+    const member = config.scoreMembers.find((item) => !used.has(item.id)) || config.scoreMembers[0];
     updateRows([...rows, {
       date,
       id: member.id,
       teamRace: [0, 0, 0],
       openRace: [0, 0, 0],
     }]);
+    setSelectedDate(date);
+  };
+
+  const updateRosterName = (index, name) => {
+    const next = clone(config);
+    next.roster[index].name = name;
+    onChange(next);
+  };
+  const addRosterMember = () => {
+    const next = clone(config);
+    next.roster.push({
+      id: nextNumericValue(next.roster.map((member) => member.id)),
+      number: nextNumericValue(
+        next.roster.map((member) => member.number),
+        (value) => String(value).padStart(2, '0'),
+      ),
+      name: '新队员',
+      role: '队员',
+      basePoints: 0,
+      wins: 0,
+      avatar: '',
+      videoUrl: '',
+    });
+    onChange(next);
+  };
+  const removeRosterMember = (index) => {
+    const next = clone(config);
+    next.roster.splice(index, 1);
+    onChange(next);
   };
 
   const download = async (template) => {
@@ -77,7 +121,7 @@ export function ScoreEditor({ config, onChange }) {
     setPreview(null);
     setBusy(true);
     try {
-      const imported = await parseScoreWorkbookBuffer(await file.arrayBuffer(), config.roster);
+      const imported = await parseScoreWorkbookBuffer(await file.arrayBuffer(), config.scoreMembers);
       const existing = new Set(rows.map((row) => totalKey(row.date, row.id)));
       const importedRows = imported.dailyScores.flatMap((round) =>
         round.rows.map((row) => ({ ...row, date: round.date })));
@@ -92,7 +136,71 @@ export function ScoreEditor({ config, onChange }) {
 
   return (
     <div className="score-editor">
+      <div className="score-editor-tabs" role="tablist">
+        <button role="tab" aria-selected={tab === 'scores'} className={tab === 'scores' ? 'is-active' : ''} onClick={() => setTab('scores')}>积分明细</button>
+        <button role="tab" aria-selected={tab === 'recognition'} className={tab === 'recognition' ? 'is-active' : ''} onClick={() => setTab('recognition')}>截图识别</button>
+        <button role="tab" aria-selected={tab === 'weekend'} className={tab === 'weekend' ? 'is-active' : ''} onClick={() => setTab('weekend')}>周末录入</button>
+        <button role="tab" aria-selected={tab === 'history'} className={tab === 'history' ? 'is-active' : ''} onClick={() => setTab('history')}>识别记录</button>
+        <button role="tab" aria-selected={tab === 'members'} className={tab === 'members' ? 'is-active' : ''} onClick={() => setTab('members')}>队员管理</button>
+      </div>
+      {tab === 'recognition' && <ScoreRecognition onCommitted={onChange} />}
+      {tab === 'weekend' && <WeekendScoreEditor config={config} onChange={onChange} />}
+      {tab === 'history' && <RecognitionHistory />}
+      {tab === 'members' && (
+        <div className="score-roster-manager">
+          <div className="score-roster-toolbar">
+            <button type="button" onClick={addRosterMember}>
+              <Plus aria-hidden="true" size={16} />
+              新增队员
+            </button>
+          </div>
+          <div className="score-roster-table-wrap">
+          <table className="score-roster-table">
+            <thead>
+              <tr><th>姓名</th><th>ID</th><th>角色</th><th><span className="sr-only">操作</span></th></tr>
+            </thead>
+            <tbody>
+              {config.roster.map((member, index) => (
+                <tr key={member.id}>
+                  <td>
+                    <input
+                      type="text"
+                      aria-label={`队员 ${index + 1} 名称`}
+                      value={member.name}
+                      onChange={(event) => updateRosterName(index, event.target.value)}
+                    />
+                  </td>
+                  <td>{member.id}</td>
+                  <td>{member.role}</td>
+                  <td>
+                    <button
+                      className="score-delete"
+                      type="button"
+                      title={`删除队员 ${index + 1}`}
+                      aria-label={`删除队员 ${index + 1}`}
+                      onClick={() => removeRosterMember(index)}
+                    >
+                      <Trash2 aria-hidden="true" size={16} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        </div>
+      )}
+      {tab === 'scores' && <>
       <div className="score-editor-toolbar">
+        <label className="score-date-filter">
+          <span>筛选日期</span>
+          <input
+            type="date"
+            aria-label="筛选日期"
+            value={selectedDate}
+            onChange={(event) => setSelectedDate(event.target.value)}
+          />
+        </label>
         <button type="button" disabled={busy} onClick={() => download(true)}>
           <Download aria-hidden="true" size={16} />
           下载模板
@@ -179,7 +287,7 @@ export function ScoreEditor({ config, onChange }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, rowIndex) => {
+            {visibleRows.map(({ row, index: rowIndex }) => {
               const calculated = totals.get(totalKey(row.date, row.id)) || { score: 0, total: 0 };
               const raceGroups = [
                 ['队内赛', 'teamRace'],
@@ -201,7 +309,7 @@ export function ScoreEditor({ config, onChange }) {
                       value={row.id}
                       onChange={(event) => updateRow(rowIndex, (item) => { item.id = event.target.value; })}
                     >
-                      {config.roster.map((member) => (
+                      {config.scoreMembers.map((member) => (
                         <option value={member.id} key={member.id}>{member.name}</option>
                       ))}
                     </select>
@@ -239,6 +347,8 @@ export function ScoreEditor({ config, onChange }) {
           </tbody>
         </table>
       </div>
+      </>
+      }
     </div>
   );
 }

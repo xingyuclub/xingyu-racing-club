@@ -1,23 +1,21 @@
 .animated-gradient-text {
   position: relative;
   display: inline-block;
-  color: transparent;
-  background-image: linear-gradient(var(--gradient-angle), var(--gradient-colors));
-  background-size: var(--gradient-size);
-  background-position: 0% 50%;
-  background-clip: text;
-  -webkit-background-clip: text;
-  animation: gradient-text-flow var(--gradient-speed) linear infinite var(--gradient-direction);
 }
 
-.animated-gradient-text[data-paused="true"] {
+.animated-gradient-text[data-paused="true"] .gradient-text-content {
   animation-play-state: paused;
 }
 
 .gradient-text-content {
   position: relative;
   z-index: 1;
-  color: inherit;
+  display: inline-block;
+  color: transparent;
+  background-position: 0% 50%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: gradient-text-flow var(--gradient-speed) linear infinite var(--gradient-direction);
 }
 
 .animated-gradient-text.with-border {
@@ -44,7 +42,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animated-gradient-text {
+  .gradient-text-content {
     animation: none;
     background-position: 50% 50%;
   }

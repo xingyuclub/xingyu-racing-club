@@ -139,7 +139,7 @@ describe('config admin API', () => {
     const configResponse = await agent.get('/api/admin/config').expect(200);
     const nextConfig = structuredClone(configResponse.body);
     nextConfig.team.motto = '已保存';
-    nextConfig.roster[0].basePoints = 999;
+    nextConfig.scoreMembers[0].basePoints = 999;
     nextConfig.roster[0].wins = 5;
 
     await agent.put('/api/admin/config').send(nextConfig).expect(204);
@@ -147,10 +147,9 @@ describe('config admin API', () => {
     const publicResponse = await request(fixture.app).get('/api/config').expect(200);
     expect(publicResponse.body.team.motto).toBe('已保存');
     expect(publicResponse.body.leaderboard[0]).toMatchObject({
-      id: nextConfig.roster[0].id,
+      id: nextConfig.scoreMembers[0].id,
       rank: 1,
       points: 1017,
-      wins: 5,
     });
   });
 
@@ -187,7 +186,7 @@ describe('config admin API', () => {
       type: 'image',
       size: fileBytes.length,
     });
-    expect(response.body.name).toMatch(/^[0-9a-f-]{36}\.png$/);
+    expect(response.body.name).toMatch(/^[0-9a-f-]{36}--avatar\.PNG$/);
     expect(response.body.path).toBe(`/uploads/${response.body.name}`);
 
     const stored = await request(fixture.app)
@@ -196,6 +195,76 @@ describe('config admin API', () => {
       .parse(binaryParser)
       .expect(200);
     expect(stored.body).toEqual(fileBytes);
+  });
+
+  it('preserves unicode characters in the uploaded original filename', async () => {
+    const fixture = await createFixture();
+    tempRoots.push(fixture.rootDir);
+    const { agent } = await loginAsAdmin(fixture.app);
+
+    const response = await agent
+      .post('/api/admin/upload')
+      .attach('file', Buffer.from([0xff, 0xd8, 0xff]), {
+        filename: '青山头像.jpg',
+        contentType: 'image/jpeg',
+      })
+      .expect(201);
+
+    expect(response.body.name).toMatch(/^[0-9a-f-]{36}--青山头像\.jpg$/);
+  });
+
+  it('strips path separators and reserved characters from the original filename', async () => {
+    const fixture = await createFixture();
+    tempRoots.push(fixture.rootDir);
+    const { agent } = await loginAsAdmin(fixture.app);
+
+    const response = await agent
+      .post('/api/admin/upload')
+      .attach('file', Buffer.from([0x89, 0x50, 0x4e, 0x47]), {
+        filename: 'C:\\Users\\test\\my<avatar>.png',
+        contentType: 'image/png',
+      })
+      .expect(201);
+
+    expect(response.body.name).not.toMatch(/[\\/:<>|?*]/);
+    expect(response.body.name).toMatch(/^([0-9a-f-]{36})--my_avatar_\.png$/);
+    expect(response.body.name).not.toContain('Users');
+  });
+
+  it('does not overwrite an earlier file that had the same original name', async () => {
+    const fixture = await createFixture();
+    tempRoots.push(fixture.rootDir);
+    const { agent } = await loginAsAdmin(fixture.app);
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+
+    const first = await agent
+      .post('/api/admin/upload')
+      .attach('file', png, { filename: 'avatar.png', contentType: 'image/png' })
+      .expect(201);
+    const second = await agent
+      .post('/api/admin/upload')
+      .attach('file', png, { filename: 'avatar.png', contentType: 'image/png' })
+      .expect(201);
+
+    expect(first.body.name).not.toBe(second.body.name);
+    expect(first.body.name).toMatch(/avatar\.png$/);
+    expect(second.body.name).toMatch(/avatar\.png$/);
+  });
+
+  it('falls back to the generic name when the original cleans to empty', async () => {
+    const fixture = await createFixture();
+    tempRoots.push(fixture.rootDir);
+    const { agent } = await loginAsAdmin(fixture.app);
+
+    const response = await agent
+      .post('/api/admin/upload')
+      .attach('file', Buffer.from([0x89, 0x50, 0x4e, 0x47]), {
+        filename: '..png',
+        contentType: 'image/png',
+      })
+      .expect(201);
+
+    expect(response.body.name).toMatch(/^[0-9a-f-]{36}--file\.png$/);
   });
 
   it('rejects unsupported uploads and mismatched extension and mime pairs', async () => {
@@ -346,5 +415,157 @@ describe('config admin API', () => {
 
     expect(info.isFile()).toBe(true);
     expect(storedBytes).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  });
+});
+
+describe('score recognition API', () => {
+  const tempRoots = [];
+
+  afterEach(async () => {
+    await Promise.all(tempRoots.splice(0).map((rootDir) => rm(rootDir, { recursive: true, force: true })));
+  });
+
+  function createFakeAiClient(matches) {
+    return {
+      chat: {
+        completions: {
+          create: async () => ({
+            choices: [{ message: { content: JSON.stringify({ matches }) } }],
+          }),
+        },
+      },
+    };
+  }
+
+  async function createRecognitionFixture({ aiClient } = {}) {
+    const rootDir = await mkdtemp(join(tmpdir(), 'score-recog-api-'));
+    tempRoots.push(rootDir);
+    const dataDir = join(rootDir, 'server', 'data');
+    const uploadDir = join(rootDir, 'server', 'storage', 'uploads');
+    const distDir = join(rootDir, 'dist');
+    const credentialsPath = join(rootDir, 'server', 'config', 'admin.local.json');
+    await mkdir(dataDir, { recursive: true });
+    await mkdir(uploadDir, { recursive: true });
+    await mkdir(distDir, { recursive: true });
+    await mkdir(dirname(credentialsPath), { recursive: true });
+    await writeFile(credentialsPath, JSON.stringify({ username: 'admin', password: 'test-password' }) + '\n');
+
+    const app = await createApp({ rootDir, dataDir, uploadDir, credentialsPath, distDir, dev: true, aiClient });
+    return { app, rootDir };
+  }
+
+  const jpgBytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+
+  it('rejects unauthenticated access to recognition endpoints', async () => {
+    const { app } = await createRecognitionFixture();
+    await request(app).get('/api/admin/score-recognition/batches').expect(401);
+    await request(app).post('/api/admin/score-recognition/batches').expect(401);
+  });
+
+  it('uploads screenshots, processes them with AI, and commits the result', async () => {
+    const matches = [{
+      title: '队内赛',
+      date: '2026-08-01',
+      time: '10:00:00',
+      participants: [{ nickname: '成员 01', rank: 1 }],
+    }];
+    const { app } = await createRecognitionFixture({ aiClient: createFakeAiClient(matches) });
+    const { agent } = await loginAsAdmin(app);
+
+    const upload = await agent
+      .post('/api/admin/score-recognition/batches')
+      .field('date', '2026-08-01')
+      .attach('files', jpgBytes, { filename: 'shot.jpg', contentType: 'image/jpeg' })
+      .expect(201);
+    const batchId = upload.body.id;
+
+    const draft = await agent.post('/api/admin/score-recognition/batches/' + batchId + '/process').expect(200);
+    expect(draft.body.races).toHaveLength(1);
+    expect(draft.body.races[0].type).toBe('team');
+
+    const commit = await agent
+      .post('/api/admin/score-recognition/batches/' + batchId + '/commit')
+      .send({ rosterVersion: draft.body.rosterVersion })
+      .expect(200);
+    expect(commit.body.committed).toBe(true);
+    expect(commit.body.config.dailyScores.find((r) => r.date === '2026-08-01')).toBeTruthy();
+  });
+
+  it('rejects unsupported screenshot file types', async () => {
+    const { app } = await createRecognitionFixture();
+    const { agent } = await loginAsAdmin(app);
+    await agent
+      .post('/api/admin/score-recognition/batches')
+      .field('date', '2026-08-01')
+      .attach('files', Buffer.from('not an image'), { filename: 'doc.txt', contentType: 'text/plain' })
+      .expect(400);
+  });
+
+  it('requires a valid batch date', async () => {
+    const { app } = await createRecognitionFixture();
+    const { agent } = await loginAsAdmin(app);
+    await agent
+      .post('/api/admin/score-recognition/batches')
+      .field('date', 'invalid')
+      .expect(400);
+  });
+
+  it('lists and reads batches after creation', async () => {
+    const { app } = await createRecognitionFixture();
+    const { agent } = await loginAsAdmin(app);
+    const created = await agent
+      .post('/api/admin/score-recognition/batches')
+      .field('date', '2026-08-01')
+      .attach('files', jpgBytes, { filename: 'a.jpg', contentType: 'image/jpeg' })
+      .expect(201);
+
+    const list = await agent.get('/api/admin/score-recognition/batches').expect(200);
+    expect(list.body).toHaveLength(1);
+
+    const detail = await agent.get('/api/admin/score-recognition/batches/' + created.body.id).expect(200);
+    expect(detail.body.id).toBe(created.body.id);
+  });
+});
+
+describe('public tunnel admin block', () => {
+  const tempRoots = [];
+
+  afterEach(async () => {
+    await Promise.all(tempRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  });
+
+  it('blocks /api/login and /api/admin when Host is a public tunnel domain', async () => {
+    const fixture = await createFixture({ dev: true });
+    tempRoots.push(fixture.rootDir);
+
+    await request(fixture.app)
+      .post('/api/login')
+      .set('Host', 'abc123.r6.cpolar.cn')
+      .send({ username: 'admin', password: 'test-password' })
+      .expect(404);
+
+    await request(fixture.app)
+      .get('/api/admin/config')
+      .set('Host', 'some-tunnel.trycloudflare.com')
+      .expect(404);
+  });
+
+  it('still allows local access via 127.0.0.1 and localhost', async () => {
+    const fixture = await createFixture({ dev: true });
+    tempRoots.push(fixture.rootDir);
+
+    await request(fixture.app)
+      .post('/api/login')
+      .send({ username: 'admin', password: 'wrong' })
+      .expect(401);
+
+    await request(fixture.app).get('/api/admin/config').expect(401);
+  });
+
+  it('keeps public API accessible even from a tunnel Host', async () => {
+    const fixture = await createFixture({ dev: true });
+    tempRoots.push(fixture.rootDir);
+
+    await request(fixture.app).get('/api/config').set('Host', 'tunnel.cpolar.cn').expect(200);
   });
 });

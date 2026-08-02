@@ -22,3 +22,25 @@ export function uploadFile(file) {
   body.append('file', file);
   return call('/api/admin/upload', { method: 'POST', body });
 }
+
+export function listRecognitionBatches() {
+  return call('/api/admin/score-recognition/batches');
+}
+export function getRecognitionBatch(id) {
+  return call('/api/admin/score-recognition/batches/' + encodeURIComponent(id));
+}
+export function uploadRecognitionBatch(date, files) {
+  const body = new FormData();
+  body.append('date', date);
+  files.forEach((file) => body.append('files', file));
+  return call('/api/admin/score-recognition/batches', { method: 'POST', body });
+}
+export function processRecognitionBatch(id) {
+  return call('/api/admin/score-recognition/batches/' + encodeURIComponent(id) + '/process', { method: 'POST' });
+}
+export function commitRecognitionBatch(id, rosterVersion) {
+  return call('/api/admin/score-recognition/batches/' + encodeURIComponent(id) + '/commit', json('POST', { rosterVersion }));
+}
+export function retryRecognitionBatch(id) {
+  return call('/api/admin/score-recognition/batches/' + encodeURIComponent(id) + '/retry', { method: 'POST' });
+}

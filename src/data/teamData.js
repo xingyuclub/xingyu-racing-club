@@ -102,7 +102,8 @@ export const teamData = {
     heroLines: ['欢迎来到星屿车队', 'Wellcome To RACING CLUB'],
     label: 'RACING CLUB',
     motto: '以星为序，向屿而行',
-    heroImage: '/images/hero-home.png',
+    heroMedia: { src: '/images/hero-home.png', type: 'image' },
+    heroFallbackImage: '',
   },
   stats: [
     { label: '车队排名', value: '1st' },

@@ -1,14 +1,9 @@
 import { teamData } from './teamData.js';
-
-const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+import { projectScores } from '../../server/lib/scoreLedger.js';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const sum = (values) => values.reduce((total, value) => total + Number(value || 0), 0);
-
-const formatWeekday = (dateKey) => {
-  const [year, month, day] = dateKey.split('-').map(Number);
-  return WEEKDAYS[new Date(year, month - 1, day).getDay()];
-};
+const inferMediaType = (src) => /\.(mp4|webm)(?:$|[?#])/i.test(String(src || '')) ? 'video' : 'image';
 
 const createRawMember = (member, sortedScores) => {
   if (Number.isFinite(member.basePoints)) {
@@ -28,30 +23,48 @@ const createRawMember = (member, sortedScores) => {
 };
 
 export function migrateRawConfig(input) {
-  const { team, stats, roster, albums, dailyScores, news, music } = clone(input);
+  const { team, stats, roster, scoreMembers, albums, dailyScores, weekendScores, memberAliases, news, music } = clone(input);
   const sortedScores = [...dailyScores].sort((left, right) => left.date.localeCompare(right.date));
+  const normalizedRoster = roster.map((member) => createRawMember(member, sortedScores));
+  const normalizedScoreMembers = Array.isArray(scoreMembers)
+    ? scoreMembers
+    : normalizedRoster.map(({ id, name, basePoints = 0, wins = 0 }) => ({
+        id,
+        name,
+        basePoints,
+        wins,
+      }));
   const normalizedTeam = team && typeof team === 'object'
-    ? {
-        ...team,
-        heroLines: Array.isArray(team.heroLines) && team.heroLines.length
-          ? team.heroLines
-          : [team.name],
-      }
+    ? (() => {
+        const { heroImage, ...teamWithoutLegacyMedia } = team;
+        const heroMedia = team.heroMedia && typeof team.heroMedia === 'object'
+          ? team.heroMedia
+          : { src: heroImage || '', type: inferMediaType(heroImage) };
+        return {
+          ...teamWithoutLegacyMedia,
+          heroLines: Array.isArray(team.heroLines) && team.heroLines.length
+            ? team.heroLines
+            : [team.name],
+          heroMedia,
+          heroFallbackImage: Object.hasOwn(team, 'heroFallbackImage')
+            ? team.heroFallbackImage
+            : '',
+        };
+      })()
     : team;
 
   return {
     team: normalizedTeam,
     stats,
-    roster: roster.map((member) => createRawMember(member, sortedScores)),
+    roster: normalizedRoster,
+    scoreMembers: normalizedScoreMembers,
     albums,
     dailyScores: sortedScores.map((round) => ({
       date: round.date,
-      rows: round.rows.map(({ id, teamRace, openRace }) => ({
-        id,
-        teamRace,
-        openRace,
-      })),
+      rows: round.rows.map(({ id, teamRace, openRace }) => ({ id, teamRace, openRace })),
     })),
+    weekendScores: Array.isArray(weekendScores) ? weekendScores : [],
+    memberAliases: Array.isArray(memberAliases) ? memberAliases : [],
     news,
     music,
   };
@@ -60,70 +73,54 @@ export function migrateRawConfig(input) {
 export function createSeedConfig() {
   return migrateRawConfig({
     ...teamData,
-    music: {
-      src: '/audio/launch-now.mp3',
-      cover: '/images/music-avatar.png',
-    },
+    music: { src: '/audio/launch-now.mp3', cover: '/images/music-avatar.png' },
   });
 }
 
 export function hydrateSiteData(rawConfig) {
   const config = clone(rawConfig);
-  const membersById = new Map(config.roster.map((member) => [member.id, member]));
-  const totals = new Map(
-    config.roster.map((member) => [member.id, Number(member.basePoints ?? member.points ?? 0)]),
-  );
-  const dailyScores = [...config.dailyScores]
-    .sort((left, right) => left.date.localeCompare(right.date))
-    .map((round) => ({
-      date: round.date,
-      weekday: formatWeekday(round.date),
-      rows: round.rows.map((row) => {
-        const teamRace = [...row.teamRace];
-        const openRace = [...row.openRace];
-        const score = sum([...teamRace, ...openRace]);
-        const total = (totals.get(row.id) || 0) + score;
-        totals.set(row.id, total);
+  const scoreMembersById = new Map(config.scoreMembers.map((member) => [member.id, member]));
+  const { totals, dailyDetail } = projectScores({
+    dailyScores: config.dailyScores,
+    weekendScores: config.weekendScores,
+    roster: config.scoreMembers,
+  });
 
-        return {
-          id: row.id,
-          name: membersById.get(row.id)?.name || '',
-          teamRace,
-          openRace,
-          score,
-          total,
-        };
-      }),
-    }));
-  const roster = config.roster.map((member) => ({
-    ...member,
-    points: totals.get(member.id) || 0,
+  const dailyScores = dailyDetail.map((round) => ({
+    date: round.date,
+    weekday: round.weekday,
+    rows: round.rows.map((row) => ({
+      id: row.id,
+      name: scoreMembersById.get(row.id)?.name || '',
+      teamRace: row.teamRace,
+      openRace: row.openRace,
+      score: row.score,
+      total: row.total,
+    })),
   }));
-  const leaderboard = [...roster]
+  const roster = config.roster;
+  const latestRound = dailyScores.at(-1);
+  const latestDate = latestRound?.date || '';
+  const leaderboard = (latestRound?.rows || [])
+    .slice()
     .sort(
       (left, right) =>
-        right.points - left.points ||
-        right.wins - left.wins ||
-        left.number.localeCompare(right.number, undefined, { numeric: true }),
+        right.total - left.total || left.name.localeCompare(right.name),
     )
-    .map((member, index) => ({
-      id: member.id,
+    .slice(0, 10)
+    .map((row, index) => ({
+      id: row.id,
       rank: index + 1,
-      name: member.name,
-      points: member.points,
-      wins: member.wins,
+      name: row.name,
+      points: row.total,
     }));
-  const stats = config.stats.map((item) =>
-    item.label === '队员数量' ? { ...item, value: String(roster.length) } : item,
-  );
-
   return {
     ...config,
-    stats,
     roster,
     featuredMembers: roster.slice(0, 8),
     gallery: config.albums.flatMap((album) => album.photos),
     leaderboard,
+    latestScoreDate: latestDate,
     dailyScores,
   };
 }

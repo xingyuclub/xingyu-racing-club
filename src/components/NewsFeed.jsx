@@ -61,7 +61,7 @@ export function NewsFeed({ items }) {
       </section>
       {selectedNews && (
         <div
-          className="modal-backdrop"
+          className="modal-backdrop news-modal-backdrop"
           role="presentation"
           onClick={(event) => {
             if (event.target === event.currentTarget) setSelectedNews(null);
@@ -81,11 +81,21 @@ export function NewsFeed({ items }) {
             >
               <X aria-hidden="true" size={20} />
             </button>
-            <p className="eyebrow">{selectedNews.category}</p>
+            <div className="news-modal-meta">
+              <p className="eyebrow">{selectedNews.category}</p>
+              <time dateTime={selectedNews.date}>{selectedNews.date}</time>
+            </div>
             <h2 id="news-modal-title">{selectedNews.title}</h2>
-            <img src={selectedNews.imageSrc} alt={selectedNews.imageAlt} />
-            <p>{selectedNews.summary}</p>
-            <p>{selectedNews.body || selectedNews.summary}</p>
+            <img className="news-cover-image" src={selectedNews.imageSrc} alt={selectedNews.imageAlt} />
+            <p className="news-lead">{selectedNews.summary}</p>
+            {selectedNews.bodyHtml ? (
+              <div
+                className="news-article-content"
+                dangerouslySetInnerHTML={{ __html: selectedNews.bodyHtml }}
+              />
+            ) : (
+              <p className="news-article-legacy">{selectedNews.body || selectedNews.summary}</p>
+            )}
           </section>
         </div>
       )}

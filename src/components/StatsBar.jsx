@@ -1,5 +1,12 @@
 import StarBorder from './StarBorder.jsx';
 
+const STAT_THEMES = [
+  { accent: '#2e7cff', strong: '#0b4ec4', tint: '#edf4ff' },
+  { accent: '#925cff', strong: '#6634bd', tint: '#f5efff' },
+  { accent: '#00b8d9', strong: '#007b95', tint: '#eafbff' },
+  { accent: '#ff4f9a', strong: '#b72c68', tint: '#fff0f6' },
+];
+
 function StatValue({ value }) {
   const ordinal = String(value).match(/^(\d+)(st|nd|rd|th)$/);
 
@@ -20,14 +27,19 @@ export function StatsBar({ stats }) {
         <StarBorder
           as="div"
           className="stat-card-shell"
-          color="#4690ff"
+          color={STAT_THEMES[index % STAT_THEMES.length].accent}
           speed="5s"
           thickness={1}
           key={item.label}
+          style={{
+            '--stat-accent': STAT_THEMES[index % STAT_THEMES.length].accent,
+            '--stat-accent-strong': STAT_THEMES[index % STAT_THEMES.length].strong,
+            '--stat-tint': STAT_THEMES[index % STAT_THEMES.length].tint,
+          }}
         >
           <div className={`stat-card${index === 0 ? ' stat-card--featured' : ''}`}>
             {typeof item.value === 'object' ? (
-              <strong className="stat-breakdown stat-breakdown--stacked">
+              <strong className="stat-number stat-breakdown stat-breakdown--stacked">
                 <span className="gender-stat" aria-label={`男性单身成员 ${item.value.male}`}>
                   <img
                     className="gender-icon"
@@ -48,9 +60,9 @@ export function StatsBar({ stats }) {
                 </span>
               </strong>
             ) : (
-              <strong><StatValue value={item.value} /></strong>
+              <strong className="stat-number"><StatValue value={item.value} /></strong>
             )}
-            <span>{item.label}</span>
+            <span className="stat-label">{item.label}</span>
           </div>
         </StarBorder>
       ))}

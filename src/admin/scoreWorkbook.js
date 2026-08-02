@@ -1,3 +1,5 @@
+import { normalizeNickname } from '../data/scoreRules.js';
+
 export const SCORE_SHEET_NAME = '积分明细';
 export const BASE_SHEET_NAME = '队员期初积分';
 export const SCORE_HEADERS = [
@@ -14,6 +16,8 @@ export const SCORE_HEADERS = [
   '累计总分',
 ];
 export const BASE_HEADERS = ['队员编号', '队员昵称', '期初积分'];
+export const WEEKEND_SHEET_NAME = '周末手动积分';
+export const WEEKEND_HEADERS = ['周末日期', '队员编号', '队员昵称', '积分', '当日得分', '累计总分'];
 
 const HEADER_ROW = 3;
 const DATA_ROW = 4;
@@ -122,25 +126,21 @@ const styleDataRow = (row, editableColumns) => {
 
 const setScoreFormula = (sheet, rowNumber) => {
   sheet.getCell(rowNumber, 10).value = {
-    formula: `IF(OR(A${rowNumber}="",B${rowNumber}=""),"",SUM(D${rowNumber}:I${rowNumber}))`,
+    formula: `IF(OR(A${rowNumber}="",C${rowNumber}=""),"",SUM(D${rowNumber}:I${rowNumber}))`,
   };
   sheet.getCell(rowNumber, 11).value = {
-    formula: `IF(OR(A${rowNumber}="",B${rowNumber}=""),"",VLOOKUP(B${rowNumber},'${BASE_SHEET_NAME}'!$A$4:$C$203,3,FALSE)+SUMIFS($J$4:$J$${MAX_SCORE_ROW},$B$4:$B$${MAX_SCORE_ROW},B${rowNumber},$A$4:$A$${MAX_SCORE_ROW},"<="&A${rowNumber}))`,
+    formula: `IF(OR(A${rowNumber}="",C${rowNumber}=""),"",VLOOKUP(C${rowNumber},'${BASE_SHEET_NAME}'!$B$4:$C$203,2,FALSE)+SUMIFS($J$4:$J$${MAX_SCORE_ROW},$C$4:$C$${MAX_SCORE_ROW},C${rowNumber},$A$4:$A$${MAX_SCORE_ROW},"<="&A${rowNumber}))`,
   };
 };
 
 const flattenScores = (config) => {
-  const members = new Map(config.roster.map((member) => [member.id, member]));
+  const members = new Map(config.scoreMembers.map((member) => [member.id, member]));
   return [...config.dailyScores]
     .sort((left, right) => left.date.localeCompare(right.date))
     .flatMap((round) => round.rows.map((row) => ({ ...row, date: round.date })))
     .sort((left, right) =>
       left.date.localeCompare(right.date) ||
-      (members.get(left.id)?.number || '').localeCompare(
-        members.get(right.id)?.number || '',
-        undefined,
-        { numeric: true },
-      ));
+      (members.get(left.id)?.name || '').localeCompare(members.get(right.id)?.name || ''));
 };
 
 export async function createScoreWorkbookBuffer(config, { template = false } = {}) {
@@ -159,10 +159,10 @@ export async function createScoreWorkbookBuffer(config, { template = false } = {
   styleHeaderRow(scoreSheet, SCORE_HEADERS);
   scoreSheet.columns = [14, 12, 20, 11, 11, 11, 11, 11, 11, 12, 12].map((width) => ({ width }));
 
-  const membersById = new Map(config.roster.map((member) => [member.id, member]));
+  const membersById = new Map(config.scoreMembers.map((member) => [member.id, member]));
   const rows = template
-    ? [...config.roster]
-      .sort((left, right) => left.number.localeCompare(right.number, undefined, { numeric: true }))
+    ? [...config.scoreMembers]
+      .sort((left, right) => left.name.localeCompare(right.name))
       .map((member) => ({
         date: null,
         id: member.id,
@@ -177,7 +177,7 @@ export async function createScoreWorkbookBuffer(config, { template = false } = {
     const row = scoreSheet.getRow(rowNumber);
     row.values = [
       score.date ? dateFromKey(score.date) : null,
-      member?.number || '',
+      member?.number || null,
       member?.name || '',
       ...score.teamRace,
       ...score.openRace,
@@ -198,13 +198,46 @@ export async function createScoreWorkbookBuffer(config, { template = false } = {
   );
   styleHeaderRow(baseSheet, BASE_HEADERS);
   baseSheet.columns = [14, 22, 14].map((width) => ({ width }));
-  [...config.roster]
-    .sort((left, right) => left.number.localeCompare(right.number, undefined, { numeric: true }))
+  [...config.scoreMembers]
+    .sort((left, right) => left.name.localeCompare(right.name))
     .forEach((member, index) => {
       const row = baseSheet.getRow(DATA_ROW + index);
-      row.values = [member.number, member.name, Number(member.basePoints || 0)];
+      row.values = [member.number || null, member.name, Number(member.basePoints || 0)];
       styleDataRow(row, new Set([3]));
     });
+
+  const weekendSheet = workbook.addWorksheet(WEEKEND_SHEET_NAME);
+  applySheetHeader(
+    weekendSheet,
+    '周末手动积分',
+    '周末总分覆盖该日累计值；保留原始积分、得分和总分三个字段。',
+    WEEKEND_HEADERS.length,
+  );
+  styleHeaderRow(weekendSheet, WEEKEND_HEADERS);
+  weekendSheet.columns = [14, 12, 20, 12, 12, 14].map((width) => ({ width }));
+  const weekendRows = (config.weekendScores || [])
+    .slice()
+    .sort((left, right) => left.date.localeCompare(right.date))
+    .flatMap((round) =>
+      round.rows.map((row) => {
+        const member = membersById.get(row.id);
+        return {
+          date: round.date,
+          number: member?.number || null,
+          name: member?.name || '',
+          points: Number(row.points || 0),
+          score: Number(row.score || 0),
+          total: Number(row.total || 0),
+        };
+      }),
+    );
+  weekendRows.forEach((score, index) => {
+    const rowNumber = DATA_ROW + index;
+    const row = weekendSheet.getRow(rowNumber);
+    row.values = [dateFromKey(score.date), score.number, score.name, score.points, score.score, score.total];
+    row.getCell(1).numFmt = 'yyyy-mm-dd';
+    styleDataRow(row, new Set([1, 2, 4, 5, 6]));
+  });
 
   return workbook.xlsx.writeBuffer();
 }
@@ -229,7 +262,7 @@ const invalidWorkbookError = (details) => {
   return error;
 };
 
-export async function parseScoreWorkbookBuffer(buffer, roster) {
+export async function parseScoreWorkbookBuffer(buffer, scoreMembers) {
   const ExcelJS = await loadExcel();
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
@@ -245,16 +278,23 @@ export async function parseScoreWorkbookBuffer(buffer, roster) {
   validateHeaders(baseSheet, BASE_HEADERS, details);
   if (details.length) throw invalidWorkbookError(details);
 
-  const membersByNumber = new Map(roster.map((member) => [String(member.number).trim(), member]));
+  const membersByNumber = new Map(scoreMembers
+    .filter((member) => String(member.number || '').trim())
+    .map((member) => [String(member.number).trim(), member]));
+  const membersByName = new Map(scoreMembers.map((member) => [normalizeNickname(member.name), member]));
+  const findMember = (number, name) => number
+    ? membersByNumber.get(number)
+    : membersByName.get(normalizeNickname(name));
   const basePointsById = new Map();
   for (let rowNumber = DATA_ROW; rowNumber <= baseSheet.rowCount; rowNumber += 1) {
     const row = baseSheet.getRow(rowNumber);
     const number = cellText(row.getCell(1));
+    const name = cellText(row.getCell(2));
     const points = parseScore(row.getCell(3));
-    if (!number && cellText(row.getCell(2)) === '' && cellText(row.getCell(3)) === '') continue;
-    const member = membersByNumber.get(number);
+    if (!number && !name && cellText(row.getCell(3)) === '') continue;
+    const member = findMember(number, name);
     if (!member) {
-      details.push({ sheet: BASE_SHEET_NAME, row: rowNumber, field: '队员编号', message: `未找到编号 ${number || '空白'} 的队员` });
+      details.push({ sheet: BASE_SHEET_NAME, row: rowNumber, field: '队员编号', message: `未找到${number ? `编号 ${number}` : `昵称 ${name || '空白'}`}的积分人物` });
     } else if (basePointsById.has(member.id)) {
       details.push({ sheet: BASE_SHEET_NAME, row: rowNumber, field: '队员编号', message: `编号 ${number} 重复` });
     } else if (points === null) {
@@ -270,6 +310,7 @@ export async function parseScoreWorkbookBuffer(buffer, roster) {
     const row = scoreSheet.getRow(rowNumber);
     const date = parseDateCell(row.getCell(1));
     const number = cellText(row.getCell(2));
+    const name = cellText(row.getCell(3));
     const raceValues = Array.from({ length: 6 }, (_, index) => parseScore(row.getCell(index + 4)));
     const hasEnteredScores = raceValues.some((value) => value !== 0 && value !== null);
     if (!date && !hasEnteredScores) continue;
@@ -277,9 +318,9 @@ export async function parseScoreWorkbookBuffer(buffer, roster) {
     if (!isValidDateKey(date)) {
       details.push({ sheet: SCORE_SHEET_NAME, row: rowNumber, field: '日期', message: '日期必须是有效的 YYYY-MM-DD' });
     }
-    const member = membersByNumber.get(number);
+    const member = findMember(number, name);
     if (!member) {
-      details.push({ sheet: SCORE_SHEET_NAME, row: rowNumber, field: '队员编号', message: `未找到编号 ${number || '空白'} 的队员` });
+      details.push({ sheet: SCORE_SHEET_NAME, row: rowNumber, field: '队员编号', message: `未找到${number ? `编号 ${number}` : `昵称 ${name || '空白'}`}的积分人物` });
     }
     raceValues.forEach((value, index) => {
       if (value === null) {
@@ -290,7 +331,7 @@ export async function parseScoreWorkbookBuffer(buffer, roster) {
 
     const uniqueKey = `${date}|${member.id}`;
     if (seenRows.has(uniqueKey)) {
-      details.push({ sheet: SCORE_SHEET_NAME, row: rowNumber, field: '队员编号', message: `${date} 已包含编号 ${number}` });
+      details.push({ sheet: SCORE_SHEET_NAME, row: rowNumber, field: '队员编号', message: `${date} 已包含积分人物 ${name || number}` });
       continue;
     }
     seenRows.add(uniqueKey);
@@ -307,13 +348,13 @@ export async function parseScoreWorkbookBuffer(buffer, roster) {
   }
   if (details.length) throw invalidWorkbookError(details);
 
-  const numberById = new Map(roster.map((member) => [member.id, member.number]));
+  const nameById = new Map(scoreMembers.map((member) => [member.id, member.name]));
   const dailyScores = [...rounds]
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([date, scoreRows]) => ({
       date,
       rows: scoreRows.sort((left, right) =>
-        numberById.get(left.id).localeCompare(numberById.get(right.id), undefined, { numeric: true })),
+        nameById.get(left.id).localeCompare(nameById.get(right.id))),
     }));
 
   return {
@@ -334,7 +375,7 @@ export function mergeScoreImport(config, imported) {
     ...next.dailyScores.filter((round) => !importedDates.has(round.date)),
     ...clone(imported.dailyScores),
   ].sort((left, right) => left.date.localeCompare(right.date));
-  next.roster = next.roster.map((member) => ({
+  next.scoreMembers = next.scoreMembers.map((member) => ({
     ...member,
     basePoints: imported.basePointsById.has(member.id)
       ? imported.basePointsById.get(member.id)

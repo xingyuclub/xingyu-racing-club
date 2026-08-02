@@ -12,7 +12,7 @@ describe('config store', () => {
   const backupFile = 'site-config.json.bak';
   const candidateFile = 'site-config.json.next';
   const stagedBackupFile = 'site-config.json.bak.next';
-  const rawTopLevelKeys = ['team', 'stats', 'roster', 'albums', 'dailyScores', 'news', 'music'];
+  const rawTopLevelKeys = ['team', 'stats', 'roster', 'scoreMembers', 'albums', 'dailyScores', 'weekendScores', 'memberAliases', 'news', 'music'];
 
   let tempDir;
   let dataDir;
@@ -111,6 +111,44 @@ describe('config store', () => {
     expect(stored).toBe(`${JSON.stringify(createSeedConfig(), null, 2)}\n`);
     await expect(access(join(dataDir, backupFile))).rejects.toMatchObject({ code: 'ENOENT' });
     await expectNoTempFiles();
+  });
+
+  it('rejects score member names that normalize to the same identity', async () => {
+    const store = await createConfigStore({ dataDir });
+    const config = await store.read();
+    config.scoreMembers = [
+      { id: 'a', name: '青山', basePoints: 0, wins: 0 },
+      { id: 'b', name: 'ˣʸ༩·青山', basePoints: 0, wins: 0 },
+    ];
+
+    await expect(store.write(config)).rejects.toMatchObject({
+      code: 'INVALID_CONFIG',
+      details: expect.arrayContaining([
+        'scoreMembers[1].name must be unique after normalization',
+      ]),
+    });
+  });
+
+  it.each([
+    ['dailyScores', (config) => config.dailyScores[0].rows[0]],
+    ['weekendScores', (config) => {
+      config.weekendScores = [{
+        date: '2026-08-02',
+        rows: [{ id: 'missing-score-member', points: 0, score: 0, total: 0 }],
+      }];
+      return config.weekendScores[0].rows[0];
+    }],
+  ])('rejects %s rows that reference no score member', async (collection, getRow) => {
+    const store = await createConfigStore({ dataDir });
+    const config = await store.read();
+    getRow(config).id = 'missing-score-member';
+
+    await expect(store.write(config)).rejects.toMatchObject({
+      code: 'INVALID_CONFIG',
+      details: expect.arrayContaining([
+        `${collection}[0].rows[0].id must reference an existing score member`,
+      ]),
+    });
   });
 
   it('migrates an existing points-based config and backs up its original bytes', async () => {
@@ -273,6 +311,33 @@ describe('config store', () => {
     });
   });
 
+  it.each([
+    [
+      'a numeric hero media source',
+      (config) => (config.team.heroMedia.src = 42),
+      'team.heroMedia.src must be a string',
+    ],
+    [
+      'an unsupported hero media type',
+      (config) => (config.team.heroMedia.type = 'audio'),
+      'team.heroMedia.type must be image or video',
+    ],
+    [
+      'a numeric hero fallback image',
+      (config) => (config.team.heroFallbackImage = 42),
+      'team.heroFallbackImage must be a string',
+    ],
+  ])('rejects %s', async (_name, mutate, detail) => {
+    const store = await createConfigStore({ dataDir });
+    const invalid = createSeedConfig();
+    mutate(invalid);
+
+    await expect(store.write(invalid)).rejects.toMatchObject({
+      code: 'INVALID_CONFIG',
+      details: expect.arrayContaining([detail]),
+    });
+  });
+
   it('preserves the active file and existing backup after an invalid write', async () => {
     const store = await createConfigStore({ dataDir });
     const initial = await store.read();
@@ -416,7 +481,7 @@ describe('config store', () => {
       mutate(config) {
         config.dailyScores[0].rows[0].id = 'missing-member';
       },
-      detail: 'dailyScores[0].rows[0].id must reference an existing roster member',
+      detail: 'dailyScores[0].rows[0].id must reference an existing score member',
     },
     {
       name: 'invalid race shape',
@@ -624,7 +689,39 @@ describe('config store', () => {
     });
   });
 
-  it('persists only the seven raw top-level keys on write', async () => {
+  it('sanitizes news HTML and persists its derived plain text', async () => {
+    const store = await createConfigStore({ dataDir });
+    const config = await store.read();
+    config.news[0].bodyHtml = '<h2>规则</h2><p onclick="bad()">安全正文</p><img src="/uploads/rule.jpg" alt="规则图">';
+    config.news[0].body = '伪造正文';
+
+    const saved = await store.write(config);
+    const stored = JSON.parse(await readFile(join(dataDir, activeFile), 'utf8'));
+
+    expect(saved.news[0].bodyHtml).toContain('<h2>规则</h2><p>安全正文</p>');
+    expect(saved.news[0].bodyHtml).toContain('/uploads/rule.jpg');
+    expect(saved.news[0].body).toMatch(/规则[\s\S]*安全正文/);
+    expect(stored.news[0]).toEqual(saved.news[0]);
+  });
+
+  it('rejects non-string and empty-after-sanitize rich text', async () => {
+    const store = await createConfigStore({ dataDir });
+    const config = await store.read();
+    config.news[0].bodyHtml = 42;
+
+    await expect(store.write(config)).rejects.toMatchObject({
+      code: 'INVALID_CONFIG',
+      details: expect.arrayContaining(['news[0].bodyHtml must be a string']),
+    });
+
+    config.news[0].bodyHtml = '<script>alert(1)</script>';
+    await expect(store.write(config)).rejects.toMatchObject({
+      code: 'INVALID_CONFIG',
+      details: expect.arrayContaining(['news[0].bodyHtml must contain readable text']),
+    });
+  });
+
+  it('persists only the ten raw top-level keys on write', async () => {
     const store = await createConfigStore({ dataDir });
     const config = await store.read();
     const clientConfig = {
@@ -646,6 +743,55 @@ describe('config store', () => {
     expect(Object.keys(stored)).toEqual(rawTopLevelKeys);
     expect(saved.team.metadata).toEqual({ keep: true });
     expect(stored.team.metadata).toEqual({ keep: true });
+  });
+
+  it('persists weekend scores and member aliases through migration', async () => {
+    const store = await createConfigStore({ dataDir });
+    const config = await store.read();
+    config.weekendScores = [
+      { date: '2026-08-02', rows: [{ id: config.roster[0].id, points: 100, score: 12, total: 100 }] },
+    ];
+    config.memberAliases = [{ memberId: config.roster[0].id, value: '老青山' }];
+
+    const saved = await store.write(config);
+
+    expect(saved.weekendScores).toEqual(config.weekendScores);
+    expect(saved.memberAliases).toEqual(config.memberAliases);
+  });
+
+  it('rejects weekend scores with a missing or invalid date', async () => {
+    const store = await createConfigStore({ dataDir });
+    const config = await store.read();
+    config.weekendScores = [{ date: 'not-a-date', rows: [] }];
+
+    await expect(store.write(config)).rejects.toMatchObject({
+      code: 'INVALID_CONFIG',
+      details: expect.arrayContaining(['weekendScores[0].date must use a valid YYYY-MM-DD date']),
+    });
+  });
+
+  it('rejects member aliases referencing a non-existent member', async () => {
+    const store = await createConfigStore({ dataDir });
+    const config = await store.read();
+    config.memberAliases = [{ memberId: 'ghost-member', value: 'x' }];
+
+    await expect(store.write(config)).rejects.toMatchObject({
+      code: 'INVALID_CONFIG',
+      details: expect.arrayContaining(['memberAliases[0].memberId must reference an existing roster member']),
+    });
+  });
+
+  it('rejects a negative weekend total', async () => {
+    const store = await createConfigStore({ dataDir });
+    const config = await store.read();
+    config.weekendScores = [
+      { date: '2026-08-02', rows: [{ id: config.roster[0].id, points: -1, score: 0, total: -5 }] },
+    ];
+
+    await expect(store.write(config)).rejects.toMatchObject({
+      code: 'INVALID_CONFIG',
+      details: expect.arrayContaining(['weekendScores[0].rows[0].total must be a non-negative finite number or null']),
+    });
   });
 
   it('rejects malformed on-disk JSON without silently reseeding it', async () => {

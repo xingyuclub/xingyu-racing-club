@@ -15,15 +15,16 @@ const formatDateLabel = (dateKey) => {
   return `${year}年${month}月${day}日`;
 };
 
+const getLatestDate = (dailyScores) => dailyScores.at(-1)?.date || '';
 const getInitialMonth = (dailyScores) => {
-  const firstDate = dailyScores[0]?.date || '2026-07-01';
-  const { year, month } = parseDateKey(firstDate);
+  const targetDate = getLatestDate(dailyScores) || dailyScores[0]?.date || '2026-07-01';
+  const { year, month } = parseDateKey(targetDate);
   return { year, month };
 };
 
 export function ScoreDetailsModal({ dailyScores = [], onClose }) {
   const [visibleMonth, setVisibleMonth] = useState(() => getInitialMonth(dailyScores));
-  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(() => getLatestDate(dailyScores) || null);
   const scoreByDate = useMemo(
     () => new Map(dailyScores.map((record) => [record.date, record])),
     [dailyScores],
@@ -156,11 +157,15 @@ export function ScoreDetailsModal({ dailyScores = [], onClose }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedScore.rows.map((row) => (
+                  {[...selectedScore.rows].sort((a, b) => b.total - a.total).map((row) => (
                     <tr key={row.id} data-testid="daily-score-row">
                       <th scope="row">{row.name}</th>
-                      {row.teamRace.map((value, index) => <td key={`team-${index}`}>{value}</td>)}
-                      {row.openRace.map((value, index) => <td key={`open-${index}`}>{value}</td>)}
+                      {Array.from({ length: 3 }, (_, index) => (
+                        <td key={`team-${index}`}>{row.teamRace[index] ?? '—'}</td>
+                      ))}
+                      {Array.from({ length: 3 }, (_, index) => (
+                        <td key={`open-${index}`}>{row.openRace[index] ?? '—'}</td>
+                      ))}
                       <td>{row.score}</td>
                       <td>{row.total}</td>
                     </tr>

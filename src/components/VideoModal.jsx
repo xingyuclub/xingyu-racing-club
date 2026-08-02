@@ -28,7 +28,7 @@ export function VideoModal({ member, onClose }) {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <section className="video-modal" role="dialog" aria-modal="true" aria-labelledby="video-title">
+      <section className="video-modal member-video-modal" role="dialog" aria-modal="true" aria-labelledby="video-title">
         <button className="icon-button" type="button" onClick={onClose} aria-label="关闭视频弹窗">
           <X aria-hidden="true" size={20} />
         </button>
