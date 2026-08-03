@@ -308,6 +308,7 @@ describe('config store', () => {
   it.each([
     ['an object avatar', (config) => (config.roster[0].avatar = {}), 'avatar'],
     ['a numeric video URL', (config) => (config.roster[0].videoUrl = 42), 'videoUrl'],
+    ['a numeric signature', (config) => (config.roster[0].signature = 42), 'signature'],
   ])('rejects %s', async (name, mutate, field) => {
     const store = await createConfigStore({ dataDir });
     const invalid = createSeedConfig();

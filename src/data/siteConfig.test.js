@@ -3,6 +3,20 @@ import { createSeedConfig, hydrateSiteData, migrateRawConfig } from './siteConfi
 import { teamData } from './teamData.js';
 
 describe('site configuration', () => {
+  it('adds an empty signature to legacy roster members', () => {
+    const legacy = structuredClone(teamData);
+    delete legacy.roster[0].signature;
+
+    expect(migrateRawConfig(legacy).roster[0].signature).toBe('');
+  });
+
+  it('preserves an explicitly configured member signature', () => {
+    const input = structuredClone(teamData);
+    input.roster[0].signature = '向着终点全速前进';
+
+    expect(migrateRawConfig(input).roster[0].signature).toBe('向着终点全速前进');
+  });
+
   it('migrates roster-backed score identities without changing existing score ids', () => {
     const legacy = createSeedConfig();
     delete legacy.scoreMembers;
@@ -97,6 +111,7 @@ describe('site configuration', () => {
     expect(config).not.toHaveProperty('leaderboard');
     expect(config).not.toHaveProperty('featuredMembers');
     expect(config.roster[0]).toHaveProperty('basePoints');
+    expect(config.roster[0]).toHaveProperty('signature', '');
     expect(config.roster[0]).not.toHaveProperty('points');
     expect(config.dailyScores[0]).not.toHaveProperty('weekday');
     expect(config.dailyScores[0].rows[0]).toEqual({

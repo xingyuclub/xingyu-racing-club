@@ -33,7 +33,10 @@ const createRawMember = (member, sortedScores) => {
 export function migrateRawConfig(input) {
   const { team, stats, roster, scoreMembers, albums, dailyScores, weekendScores, memberAliases, news, music } = clone(input);
   const sortedScores = [...dailyScores].sort((left, right) => left.date.localeCompare(right.date));
-  const normalizedRoster = roster.map((member) => createRawMember(member, sortedScores));
+  const normalizedRoster = roster.map((member) => ({
+    ...createRawMember(member, sortedScores),
+    signature: typeof member.signature === 'string' ? member.signature : '',
+  }));
   const normalizedScoreMembers = Array.isArray(scoreMembers)
     ? scoreMembers
     : normalizedRoster.map(({ id, name, basePoints = 0, wins = 0 }) => ({

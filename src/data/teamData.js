@@ -16,6 +16,7 @@ const roster = Array.from({ length: 30 }, (_, index) => {
     wins: Math.max(0, 6 - Math.floor(index / 5)),
     avatar: '',
     videoUrl: '',
+    signature: '',
   };
 });
 

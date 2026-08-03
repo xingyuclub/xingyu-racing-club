@@ -159,7 +159,7 @@ function validateConfig(config) {
       requireUniqueString(member.id, `${path}.id`, seenMemberIds, details);
       requireUniqueString(member.number, `${path}.number`, seenMemberNumbers, details);
       requireStrings(member, ['name', 'role'], path, details);
-      requireString(member, ['avatar', 'videoUrl'], path, details);
+      requireString(member, ['avatar', 'videoUrl', 'signature'], path, details);
       for (const field of ['basePoints', 'wins']) {
         if (!isNonNegativeFinite(member[field])) {
           details.push(`${path}.${field} must be a non-negative finite number`);
