@@ -27,7 +27,7 @@ export function Hero({ team }) {
   };
 
   return (
-    <>
+    <div className="hero-module" data-reveal>
       <div className="hero-brand-bar">
         <h1 id="team-title" className="hero-brand" aria-label={heroLines.join('\n')}>
           {heroLines.map((line, index) => (
@@ -93,6 +93,6 @@ export function Hero({ team }) {
           <div className="hero-media" aria-hidden="true" />
         )}
       </section>
-    </>
+    </div>
   );
 }

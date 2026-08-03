@@ -160,6 +160,7 @@ export function MusicPlayer({ src, cover }) {
       type="button"
       ref={playerRef}
       className={`music-player ${isPlaying ? 'is-playing' : 'is-paused'}`}
+      data-entrance
       style={{ top: `${topPosition}px` }}
       aria-label={isPlaying ? '音乐播放中，点击暂停，长按关闭' : '音乐已暂停，点击继续，长按关闭'}
       onClick={togglePlayback}

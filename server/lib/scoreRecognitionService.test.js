@@ -149,7 +149,11 @@ describe('score recognition service', () => {
     const saved = await configStore.read();
     expect(saved.dailyScores).toHaveLength(1);
     expect(saved.dailyScores[0].date).toBe('2026-08-01');
-    expect(saved.dailyScores[0].rows[0]).toEqual({ id: '1', teamRace: [1, 0, 0], openRace: [0, 0, 0] });
+    expect(saved.dailyScores[0].rows[0]).toEqual({
+      id: '1',
+      teamRace: [1, null, null],
+      openRace: [null, null, null],
+    });
     expect((await store.readBatch('b5')).status).toBe('committed');
   });
 
@@ -214,6 +218,48 @@ describe('score recognition service', () => {
       wins: 0,
     });
     expect(saved.dailyScores[0].rows[0].id).toBe('score:%E6%96%B0%E6%88%90%E5%91%98');
+  });
+
+  it('clears imported weekday score and total when a screenshot adds a race', async () => {
+    const config = {
+      roster,
+      scoreMembers,
+      dailyScores: [
+        {
+          date: '2026-07-30',
+          rows: [{ id: '1', teamRace: [1, null, null], openRace: [0, 0, 0], score: 99, total: 199 }],
+        },
+        {
+          date: '2026-07-31',
+          rows: [{ id: '1', teamRace: [2, 0, 0], openRace: [0, 0, 0], score: 2, total: 201 }],
+        },
+      ],
+      weekendScores: [],
+      memberAliases: [],
+    };
+    const { service, store, configStore } = setupService({
+      config,
+      aiResponses: [[{
+        title: '队内赛',
+        date: '2026-07-30',
+        time: '10:00:00',
+        participants: [{ nickname: '稳稳', rank: 1 }],
+      }]],
+    });
+
+    await store.createBatch({ id: 'replace-imported-fields', date: '2026-07-30', files: [
+      { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
+    ] });
+    const preview = await service.previewBatch('replace-imported-fields');
+    await service.commitBatch('replace-imported-fields', preview.rosterVersion);
+
+    const saved = await configStore.read();
+    const row = saved.dailyScores[0].rows[0];
+    expect(row.teamRace).toEqual([1, 1, null]);
+    expect(row).not.toHaveProperty('score');
+    expect(row).not.toHaveProperty('total');
+    expect(saved.dailyScores[1].rows[0]).toMatchObject({ score: 2 });
+    expect(saved.dailyScores[1].rows[0]).not.toHaveProperty('total');
   });
 
   it('blocks commit when the roster version changed during preview', async () => {

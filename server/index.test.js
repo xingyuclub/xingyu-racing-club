@@ -149,7 +149,8 @@ describe('config admin API', () => {
     expect(publicResponse.body.leaderboard[0]).toMatchObject({
       id: nextConfig.scoreMembers[0].id,
       rank: 1,
-      points: 1017,
+      // 排行榜显示最新日期所在周的“总分”，每周从零开始。
+      points: 98,
     });
   });
 

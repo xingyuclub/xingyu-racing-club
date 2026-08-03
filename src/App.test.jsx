@@ -223,6 +223,20 @@ describe('App', () => {
       },
     });
 
+    const { container } = render(<Hero team={config.team} />);
+    const poster = container.querySelector('img.hero-media--poster');
+    const video = container.querySelector('video.hero-media');
+
+    expect(poster).toHaveAttribute('src', '/images/hero-home.png');
+    expect(video).toHaveClass('hero-media--pending');
+    expect(container.querySelector('.hero-play-button')).toBeInTheDocument();
+
+    fireEvent.playing(video);
+
+    expect(video).not.toHaveClass('hero-media--pending');
+    expect(container.querySelector('.hero-play-button')).not.toBeInTheDocument();
+  });
+
   it('switches a failed hero video to its fallback image', () => {
     const seed = createSeedConfig();
     const config = hydrateSiteData({
@@ -234,6 +248,11 @@ describe('App', () => {
       },
     });
 
+    const { container } = render(<Hero team={config.team} />);
+    fireEvent.error(container.querySelector('video.hero-media'));
+
+    expect(container.querySelector('video.hero-media')).not.toBeInTheDocument();
+    expect(container.querySelector('img.hero-media')).toHaveAttribute('src', '/uploads/fallback.png');
   });
 
   it('switches to fallback when clicking play fails to load the video', async () => {
@@ -346,6 +365,63 @@ describe('App', () => {
     expect(card).not.toHaveClass('is-hovered');
     expect(roster).not.toHaveClass('is-paused');
     expect(roster).toHaveClass('is-settling');
+  });
+
+  it('pauses automatic roster rotation while a finger is held down and resumes on release', async () => {
+    vi.useFakeTimers();
+    render(<App />);
+
+    const roster = screen.getByTestId('roster-grid');
+    const cylinder = within(roster).getByTestId('roster-cylinder');
+    const touchPointerEvent = (type, clientX = 0) => {
+      const event = new MouseEvent(type, { bubbles: true, clientX });
+      Object.defineProperties(event, {
+        pointerId: { value: 8 },
+        pointerType: { value: 'touch' },
+      });
+      return event;
+    };
+
+    fireEvent(roster, touchPointerEvent('pointerdown', 220));
+    const heldRotation = Number.parseFloat(cylinder.style.getPropertyValue('--rotation'));
+
+    expect(roster).toHaveClass('is-paused');
+    expect(Number.parseFloat(cylinder.style.getPropertyValue('--speed'))).toBe(0);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(320);
+    });
+    expect(Number.parseFloat(cylinder.style.getPropertyValue('--rotation'))).toBeCloseTo(heldRotation, 3);
+
+    fireEvent(roster, touchPointerEvent('pointerup', 220));
+    expect(roster).toHaveClass('is-settling');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(320);
+    });
+    expect(Number.parseFloat(cylinder.style.getPropertyValue('--rotation'))).not.toBeCloseTo(heldRotation, 3);
+  });
+
+  it('opens a roster video after a touch tap with slight finger movement', () => {
+    render(<App />);
+
+    const roster = screen.getByTestId('roster-grid');
+    const card = within(roster).getAllByTestId('roster-card')[0];
+    const touchPointerEvent = (type, clientX) => {
+      const event = new MouseEvent(type, { bubbles: true, clientX });
+      Object.defineProperties(event, {
+        pointerId: { value: 9 },
+        pointerType: { value: 'touch' },
+      });
+      return event;
+    };
+
+    fireEvent(card, touchPointerEvent('pointerdown', 220));
+    fireEvent(card, touchPointerEvent('pointermove', 214));
+    fireEvent(card, touchPointerEvent('pointerup', 214));
+    fireEvent.click(card);
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('成员 01');
   });
 
   it('accelerates the roster cylinder in the swipe direction and eases back to base speed', async () => {
@@ -539,6 +615,7 @@ describe('App', () => {
       'src',
       '/images/icons/search.png',
     );
+    // 排行榜显示最新日期所在周的“总分”。
     expect(container.querySelector('.leader-score')).toHaveTextContent('98分');
     expect(screen.queryByText('PTS')).not.toBeInTheDocument();
   });
@@ -579,8 +656,39 @@ describe('App', () => {
     expect(container.querySelector('video')).toHaveAttribute('autoplay');
   });
 
-  it('gives the member video dialog a larger desktop viewing area', () => {
-    expect(globalStyles).toMatch(/\.member-video-modal\s*\{[^}]*width:\s*min\(100%,\s*960px\)/s);
+  it('gives member videos a larger edge-to-edge 16:9 viewing area', () => {
+    const { container } = render(
+      <VideoModal
+        member={{ name: '成员 01', videoUrl: '/videos/member-01.mp4' }}
+        onClose={() => {}}
+      />,
+    );
+
+    expect(container.querySelector('.member-video-header')).toContainElement(
+      screen.getByRole('heading', { name: '成员 01' }),
+    );
+    expect(globalStyles).toMatch(
+      /\.member-video-modal\s*\{[^}]*width:\s*min\(100vw,\s*calc\(\(100dvh\s*-\s*52px\)\s*\*\s*16\s*\/\s*9\)\)/s,
+    );
+    expect(globalStyles).toMatch(/\.member-video-modal\s*\{[^}]*max-height:\s*100dvh/s);
+    expect(globalStyles).toMatch(/\.member-video-modal\s*\{[^}]*padding:\s*0/s);
+    expect(globalStyles).toMatch(/\.member-video-modal\s*>\s*video\s*\{[^}]*margin-top:\s*0/s);
+  });
+
+  it('uses a compact full-viewport video frame with a name-only header', () => {
+    const { container } = render(
+      <VideoModal
+        member={{ name: '成员 01', videoUrl: '/videos/member-01.mp4' }}
+        onClose={() => {}}
+      />,
+    );
+
+    expect(container.querySelector('.modal-backdrop')).toHaveClass('video-modal-backdrop');
+    expect(container.querySelector('.member-video-header .eyebrow')).not.toBeInTheDocument();
+    expect(globalStyles).toMatch(/\.video-modal-backdrop\s*\{[^}]*padding:\s*0/s);
+    expect(globalStyles).toMatch(/\.member-video-modal\s*\{[^}]*max-height:\s*100dvh/s);
+    expect(globalStyles).toMatch(/\.member-video-header\s*\{[^}]*padding:\s*10px\s+16px/s);
+    expect(globalStyles).toMatch(/\.member-video-header\s+h2\s*\{[^}]*font-size:\s*1\.5rem/s);
   });
 
   it('renders a playable video when an album item has a video URL', () => {
@@ -643,6 +751,75 @@ describe('App', () => {
     const { container } = render(<App />);
 
     expect(container.querySelector('[data-reveal]')).toHaveClass('is-visible');
+  });
+
+  it('marks every homepage section for scroll reveal', () => {
+    const { container } = render(<App />);
+    const selectors = [
+      '.hero-module',
+      '.stats-bar',
+      '.featured-section',
+      '.gallery-section',
+      '[aria-labelledby="roster-title"]',
+      '[aria-labelledby="leaderboard-title"]',
+      '.news-section',
+    ];
+
+    selectors.forEach((selector) => {
+      expect(container.querySelector(selector)).toHaveAttribute('data-reveal');
+    });
+  });
+
+  it('marks the music player and every public dialog for immediate entrance', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+
+    expect(container.querySelector('.music-player')).toHaveAttribute('data-entrance');
+
+    await user.click(screen.getByRole('button', { name: '查看成员 01 高光视频' }));
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-entrance');
+    await user.keyboard('{Escape}');
+
+    await user.click(screen.getByRole('button', { name: '查看赛季全家福' }));
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-entrance');
+    await user.keyboard('{Escape}');
+
+    await user.click(screen.getAllByRole('button', { name: /查看资讯/ })[0]);
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-entrance');
+    await user.keyboard('{Escape}');
+
+    await user.click(screen.getByRole('button', { name: '查找' }));
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-entrance');
+  });
+
+  it('reveals album folders and photos when switching views', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '查看更多相册' }));
+
+    expect(container.querySelector('.album-header')).toHaveAttribute('data-reveal');
+    expect(container.querySelector('.album-folder-grid')).toHaveClass('is-visible');
+    expect(screen.getAllByTestId('album-folder')[0].style.getPropertyValue('--stagger-index')).toBe('0');
+    expect(screen.getAllByTestId('album-folder')[1].style.getPropertyValue('--stagger-index')).toBe('1');
+
+    await user.click(screen.getAllByTestId('album-folder')[0]);
+
+    expect(container.querySelector('.album-grid')).toHaveAttribute('data-reveal');
+    expect(container.querySelector('.album-grid')).toHaveClass('is-visible');
+    expect(screen.getAllByTestId('album-photo')[0].style.getPropertyValue('--stagger-index')).toBe('0');
+  });
+
+  it('defines unified entrance motion with a reduced-motion fallback', () => {
+    expect(globalStyles).toMatch(
+      /\[data-entrance\]\s*\{[^}]*animation:\s*modal-in\s+280ms/s,
+    );
+    expect(globalStyles).toMatch(
+      /\[data-reveal\]\.is-visible\s*>\s*\.album-folder,[\s\S]*animation:\s*modal-in\s+420ms/s,
+    );
+    expect(globalStyles).toMatch(
+      /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*\[data-entrance\],[\s\S]*animation:\s*none\s*!important/s,
+    );
   });
 
   it('renders the revised editorial structure', () => {

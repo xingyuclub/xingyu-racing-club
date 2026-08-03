@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ArrowDownUp, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, X } from 'lucide-react';
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -22,14 +22,39 @@ const getInitialMonth = (dailyScores) => {
   return { year, month };
 };
 
+const displayScore = (value) => value ?? '—';
+
+const sortableValue = (value) => (
+  value === null || value === undefined || value === '' ? Number.NEGATIVE_INFINITY : Number(value)
+);
+
 export function ScoreDetailsModal({ dailyScores = [], onClose }) {
   const [visibleMonth, setVisibleMonth] = useState(() => getInitialMonth(dailyScores));
   const [selectedDate, setSelectedDate] = useState(() => getLatestDate(dailyScores) || null);
+  const [sortKey, setSortKey] = useState('total');
+  const [sortDirection, setSortDirection] = useState('desc');
   const scoreByDate = useMemo(
     () => new Map(dailyScores.map((record) => [record.date, record])),
     [dailyScores],
   );
   const selectedScore = selectedDate ? scoreByDate.get(selectedDate) : null;
+  const isSaturday = selectedScore?.weekday === '周六';
+  const isWeekend = isSaturday || selectedScore?.weekday === '周日';
+  const sortOptions = isWeekend ? ['points', 'score', 'total'] : ['score', 'total'];
+  const activeSortKey = sortOptions.includes(sortKey) ? sortKey : 'total';
+  const activeSortDirection = sortOptions.includes(sortKey) ? sortDirection : 'desc';
+  const sortedRows = useMemo(() => {
+    if (!selectedScore) return [];
+
+    const direction = activeSortDirection === 'asc' ? 1 : -1;
+    return selectedScore.rows
+      .map((row, index) => ({ row, index }))
+      .sort((a, b) => {
+        const difference = sortableValue(a.row[activeSortKey]) - sortableValue(b.row[activeSortKey]);
+        return difference === 0 ? a.index - b.index : difference * direction;
+      })
+      .map(({ row }) => row);
+  }, [activeSortDirection, activeSortKey, selectedScore]);
   const firstWeekday = new Date(visibleMonth.year, visibleMonth.month - 1, 1).getDay();
   const daysInMonth = new Date(visibleMonth.year, visibleMonth.month, 0).getDate();
 
@@ -47,10 +72,54 @@ export function ScoreDetailsModal({ dailyScores = [], onClose }) {
     };
   }, [onClose]);
 
+  useEffect(() => {
+    setSortKey('total');
+    setSortDirection('desc');
+  }, [selectedDate]);
+
   const changeMonth = (offset) => {
     const nextMonth = new Date(visibleMonth.year, visibleMonth.month - 1 + offset, 1);
     setVisibleMonth({ year: nextMonth.getFullYear(), month: nextMonth.getMonth() + 1 });
     setSelectedDate(null);
+  };
+
+  const toggleSort = (nextSortKey) => {
+    if (sortKey === nextSortKey) {
+      setSortDirection((current) => (current === 'desc' ? 'asc' : 'desc'));
+      return;
+    }
+    setSortKey(nextSortKey);
+    setSortDirection('desc');
+  };
+
+  const renderSortableHeader = (label, key, rowSpan) => {
+    const isActive = activeSortKey === key;
+    const directionLabel = isActive
+      ? (activeSortDirection === 'desc' ? '降序' : '升序')
+      : '未排序';
+    const SortIcon = isActive
+      ? (activeSortDirection === 'desc' ? ChevronDown : ChevronUp)
+      : ArrowDownUp;
+
+    return (
+      <th
+        scope="col"
+        rowSpan={rowSpan}
+        aria-sort={isActive ? (activeSortDirection === 'desc' ? 'descending' : 'ascending') : 'none'}
+        aria-label={label}
+      >
+        <button
+          className="daily-score-sort-button"
+          type="button"
+          onClick={() => toggleSort(key)}
+          aria-label={`按${label}排序，当前${directionLabel}，点击切换`}
+          title={`按${label}排序`}
+        >
+          <span>{label}</span>
+          <SortIcon aria-hidden="true" size={13} strokeWidth={2.4} />
+        </button>
+      </th>
+    );
   };
 
   return (
@@ -63,6 +132,7 @@ export function ScoreDetailsModal({ dailyScores = [], onClose }) {
     >
       <section
         className="video-modal score-details-modal"
+        data-entrance
         role="dialog"
         aria-modal="true"
         aria-labelledby="score-details-title"
@@ -138,14 +208,41 @@ export function ScoreDetailsModal({ dailyScores = [], onClose }) {
               {formatDateLabel(selectedScore.date)} · {selectedScore.weekday}
             </h3>
             <div className="daily-score-table-wrap">
+              {isWeekend ? (
+                <table className="daily-score-table daily-score-table--weekend">
+                  <thead>
+                    <tr>
+                      <th scope="col" rowSpan="2">队员</th>
+                      <th scope="colgroup" colSpan={isSaturday ? 4 : 3}>车队赛</th>
+                    </tr>
+                    <tr>
+                      {isSaturday && <th scope="col">上周积分</th>}
+                      {renderSortableHeader('积分', 'points')}
+                      {renderSortableHeader('得分', 'score')}
+                      {renderSortableHeader('总分', 'total')}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedRows.map((row) => (
+                      <tr key={row.id} data-testid="daily-score-row">
+                        <th scope="row">{row.name}</th>
+                        {isSaturday && <td>{displayScore(row.previousPoints)}</td>}
+                        <td>{displayScore(row.points)}</td>
+                        <td>{displayScore(row.score)}</td>
+                        <td>{displayScore(row.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
               <table className="daily-score-table">
                 <thead>
                   <tr>
                     <th scope="col" rowSpan="2">队员</th>
                     <th scope="colgroup" colSpan="3">队内赛</th>
                     <th scope="colgroup" colSpan="3">开黑赛</th>
-                    <th scope="col" rowSpan="2">得分</th>
-                    <th scope="col" rowSpan="2">总分</th>
+                    {renderSortableHeader('得分', 'score', 2)}
+                    {renderSortableHeader('总分', 'total', 2)}
                   </tr>
                   <tr>
                     <th scope="col">第一局</th>
@@ -157,7 +254,7 @@ export function ScoreDetailsModal({ dailyScores = [], onClose }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {[...selectedScore.rows].sort((a, b) => b.total - a.total).map((row) => (
+                  {sortedRows.map((row) => (
                     <tr key={row.id} data-testid="daily-score-row">
                       <th scope="row">{row.name}</th>
                       {Array.from({ length: 3 }, (_, index) => (
@@ -166,12 +263,13 @@ export function ScoreDetailsModal({ dailyScores = [], onClose }) {
                       {Array.from({ length: 3 }, (_, index) => (
                         <td key={`open-${index}`}>{row.openRace[index] ?? '—'}</td>
                       ))}
-                      <td>{row.score}</td>
-                      <td>{row.total}</td>
+                      <td>{displayScore(row.score)}</td>
+                      <td>{displayScore(row.total)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              )}
             </div>
           </section>
         )}

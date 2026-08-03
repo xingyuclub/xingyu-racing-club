@@ -54,7 +54,12 @@ function addKw27Sheet(workbook) {
 
   sheet.getCell('B6').value = '青山';
   setCells(sheet, 6, 7, [0, 0, 0]);
+  sheet.getCell('J6').value = 0;
   setCells(sheet, 6, 11, [1, 2, 3]);
+  sheet.getCell('N6').value = 6;
+  sheet.getCell('R6').value = 6;
+  sheet.getCell('V6').value = 6;
+  sheet.getCell('Z6').value = 6;
   setCells(sheet, 6, 27, [48, 87, 97, 49, 136]);
 
   sheet.getCell('B7').value = '旧队员';
@@ -79,13 +84,15 @@ function addKw31Sheet(workbook) {
     sheet.mergeCells(5, start, 5, start + 2);
     sheet.getCell(5, start + 3).value = '开黑赛';
     sheet.mergeCells(5, start + 3, 5, start + 5);
-    setCells(sheet, 6, start, ['第一局', '第二局', '第三局', '第一局', '第二局', '第三局']);
+    setCells(sheet, 6, start, [
+      '第一局', '第二局', '第三局', '第一局', '第二局', '第三局', '得分', '总分',
+    ]);
   }
   setCells(sheet, 6, 48, ['上周', '积分', '得分', '总分']);
   setCells(sheet, 6, 52, ['积分', '得分', '总分']);
 
   sheet.getCell('D7').value = 'ˣʸ༩·青山';
-  setCells(sheet, 7, 8, [5, 4, 3, 2, 1, 0]);
+  setCells(sheet, 7, 8, [5, 4, 3, 2, 1, 0, 15, 15]);
   setCells(sheet, 7, 48, [100, 120, 20, 140, 150, 10, 150]);
 }
 
@@ -122,17 +129,30 @@ describe('parseLegacyScoreWorkbook', () => {
       id: scoreId,
       teamRace: [1, 2, 3],
       openRace: [0, 0, 0],
+      score: null,
+      total: 6,
     });
     expect(preview.dailyScores.find((round) => round.date === '2026-07-27').rows[0]).toEqual({
       id: scoreId,
       teamRace: [5, 4, 3],
       openRace: [2, 1, 0],
+      score: 15,
+      total: 15,
     });
     expect(preview.weekendScores.find((round) => round.date === '2026-07-04').rows[0]).toEqual({
       id: scoreId,
+      previousPoints: null,
       points: 48,
       score: null,
       total: 87,
+    });
+    expect(preview.weekendScores.find((round) => round.date === '2026-07-11')).toBeUndefined();
+    expect(preview.weekendScores.find((round) => round.date === '2026-08-01').rows[0]).toEqual({
+      id: scoreId,
+      previousPoints: 100,
+      points: 120,
+      score: 20,
+      total: 140,
     });
   });
 
@@ -149,6 +169,8 @@ describe('parseLegacyScoreWorkbook', () => {
       id: historical.id,
       teamRace: [0, 0, 0],
       openRace: [0, 0, 0],
+      score: null,
+      total: null,
     });
     expect(preview.ignoredSheets).toContain('S52');
     expect(preview.errors).toEqual([

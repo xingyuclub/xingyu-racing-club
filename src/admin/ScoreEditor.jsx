@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Download, FileDown, Plus, Trash2, Upload, X } from 'lucide-react';
 import { hydrateSiteData } from '../data/siteConfig.js';
+import { invalidateFollowingWeekTotals } from '../data/scoreRules.js';
 import {
   downloadScoreWorkbook,
   mergeScoreImport,
@@ -18,9 +19,9 @@ const flattenScores = (dailyScores) => dailyScores.flatMap((round) =>
 const replaceDailyScores = (config, rows) => {
   const next = clone(config);
   const rounds = new Map();
-  rows.forEach(({ date, id, teamRace, openRace }) => {
+  rows.forEach(({ date, ...scoreRow }) => {
     if (!rounds.has(date)) rounds.set(date, []);
-    rounds.get(date).push({ id, teamRace, openRace });
+    rounds.get(date).push(scoreRow);
   });
   next.dailyScores = [...rounds]
     .sort(([left], [right]) => left.localeCompare(right))
@@ -55,11 +56,21 @@ export function ScoreEditor({ config, onChange }) {
     ])));
   }, [config]);
 
-  const updateRows = (nextRows) => onChange(replaceDailyScores(config, nextRows));
+  const updateRows = (nextRows, invalidations = []) => {
+    const next = replaceDailyScores(config, nextRows);
+    invalidations.forEach((target) => invalidateFollowingWeekTotals(next, target));
+    onChange(next);
+  };
   const updateRow = (index, updater) => {
+    const previous = rows[index];
     const nextRows = clone(rows);
+    delete nextRows[index].score;
+    delete nextRows[index].total;
     updater(nextRows[index]);
-    updateRows(nextRows);
+    updateRows(nextRows, [
+      { date: previous.date, id: previous.id },
+      { date: nextRows[index].date, id: nextRows[index].id },
+    ]);
   };
 
   const addRow = () => {
@@ -70,8 +81,8 @@ export function ScoreEditor({ config, onChange }) {
     updateRows([...rows, {
       date,
       id: member.id,
-      teamRace: [0, 0, 0],
-      openRace: [0, 0, 0],
+      teamRace: [null, null, null],
+      openRace: [null, null, null],
     }]);
     setSelectedDate(date);
   };
@@ -282,7 +293,7 @@ export function ScoreEditor({ config, onChange }) {
               <th>开黑赛2</th>
               <th>开黑赛3</th>
               <th>当日得分</th>
-              <th>累计总分</th>
+              <th>总分</th>
               <th><span className="sr-only">操作</span></th>
             </tr>
           </thead>
@@ -300,7 +311,11 @@ export function ScoreEditor({ config, onChange }) {
                       type="date"
                       aria-label={`第${rowIndex + 1}行日期`}
                       value={row.date}
-                      onChange={(event) => updateRow(rowIndex, (item) => { item.date = event.target.value; })}
+                      onChange={(event) => {
+                        if (event.target.value) {
+                          updateRow(rowIndex, (item) => { item.date = event.target.value; });
+                        }
+                      }}
                     />
                   </td>
                   <td>
@@ -321,9 +336,11 @@ export function ScoreEditor({ config, onChange }) {
                         min="0"
                         step="1"
                         aria-label={`第${rowIndex + 1}行${label}${raceIndex + 1}`}
-                        value={value}
+                        value={value ?? ''}
                         onChange={(event) => updateRow(rowIndex, (item) => {
-                          item[field][raceIndex] = Math.max(0, Number(event.target.value || 0));
+                          item[field][raceIndex] = event.target.value === ''
+                            ? null
+                            : Math.max(0, Number(event.target.value));
                         })}
                       />
                     </td>
@@ -336,7 +353,10 @@ export function ScoreEditor({ config, onChange }) {
                       type="button"
                       title="删除明细"
                       aria-label={`删除第${rowIndex + 1}行`}
-                      onClick={() => updateRows(rows.filter((_, index) => index !== rowIndex))}
+                      onClick={() => updateRows(
+                        rows.filter((_, index) => index !== rowIndex),
+                        [{ date: row.date, id: row.id }],
+                      )}
                     >
                       <Trash2 aria-hidden="true" size={16} />
                     </button>

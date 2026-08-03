@@ -12,16 +12,17 @@ export const SCORE_HEADERS = [
   '开黑赛1',
   '开黑赛2',
   '开黑赛3',
-  '当日得分',
-  '累计总分',
+  '得分',
+  '总分',
 ];
 export const BASE_HEADERS = ['队员编号', '队员昵称', '期初积分'];
 export const WEEKEND_SHEET_NAME = '周末手动积分';
-export const WEEKEND_HEADERS = ['周末日期', '队员编号', '队员昵称', '积分', '当日得分', '累计总分'];
+export const WEEKEND_HEADERS = ['周末日期', '队员编号', '队员昵称', '上周积分', '积分', '得分', '总分'];
 
 const HEADER_ROW = 3;
 const DATA_ROW = 4;
 const MAX_SCORE_ROW = 2003;
+const RAW_SCORE_SHEET_NAME = '_原始积分字段';
 const workbookMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 const clone = (value) => structuredClone(value);
@@ -70,6 +71,13 @@ const parseScore = (cell) => {
   if (value === null || value === undefined || String(value).trim() === '') return 0;
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? number : null;
+};
+
+const parseRaceScore = (cell) => {
+  const value = cellValue(cell);
+  if (value === null || value === undefined || String(value).trim() === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : undefined;
 };
 
 const applySheetHeader = (sheet, title, note, columnCount) => {
@@ -124,12 +132,12 @@ const styleDataRow = (row, editableColumns) => {
   });
 };
 
-const setScoreFormula = (sheet, rowNumber) => {
+const setScoreFormulas = (sheet, rowNumber) => {
   sheet.getCell(rowNumber, 10).value = {
     formula: `IF(OR(A${rowNumber}="",C${rowNumber}=""),"",SUM(D${rowNumber}:I${rowNumber}))`,
   };
   sheet.getCell(rowNumber, 11).value = {
-    formula: `IF(OR(A${rowNumber}="",C${rowNumber}=""),"",VLOOKUP(C${rowNumber},'${BASE_SHEET_NAME}'!$B$4:$C$203,2,FALSE)+SUMIFS($J$4:$J$${MAX_SCORE_ROW},$C$4:$C$${MAX_SCORE_ROW},C${rowNumber},$A$4:$A$${MAX_SCORE_ROW},"<="&A${rowNumber}))`,
+    formula: `IF(OR(A${rowNumber}="",C${rowNumber}=""),"",SUMIFS($J$4:$J$${MAX_SCORE_ROW},$C$4:$C$${MAX_SCORE_ROW},C${rowNumber},$A$4:$A$${MAX_SCORE_ROW},">="&A${rowNumber}-WEEKDAY(A${rowNumber},2)+1,$A$4:$A$${MAX_SCORE_ROW},"<="&A${rowNumber}))`,
   };
 };
 
@@ -153,7 +161,7 @@ export async function createScoreWorkbookBuffer(config, { template = false } = {
   applySheetHeader(
     scoreSheet,
     template ? '星屿积分填写模板' : '星屿积分明细',
-    '按日期逐行填写蓝色单元格；当日得分和累计总分由公式生成。',
+    '按日期逐行填写蓝色单元格；得分和本周总分由公式生成。',
     SCORE_HEADERS.length,
   );
   styleHeaderRow(scoreSheet, SCORE_HEADERS);
@@ -185,9 +193,25 @@ export async function createScoreWorkbookBuffer(config, { template = false } = {
       null,
     ];
     row.getCell(1).numFmt = 'yyyy-mm-dd';
-    setScoreFormula(scoreSheet, rowNumber);
+    setScoreFormulas(scoreSheet, rowNumber);
     styleDataRow(row, new Set([1, 2, 4, 5, 6, 7, 8, 9]));
   });
+
+  if (!template) {
+    const rawSheet = workbook.addWorksheet(RAW_SCORE_SHEET_NAME);
+    rawSheet.state = 'veryHidden';
+    rawSheet.addRow(['日期', '积分人物ID', '赛局签名', '得分', '总分']);
+    rows.forEach((score) => {
+      if (score.score == null && score.total == null) return;
+      rawSheet.addRow([
+        score.date,
+        score.id,
+        JSON.stringify([...score.teamRace, ...score.openRace]),
+        score.score ?? null,
+        score.total ?? null,
+      ]);
+    });
+  }
 
   const baseSheet = workbook.addWorksheet(BASE_SHEET_NAME);
   applySheetHeader(
@@ -214,7 +238,7 @@ export async function createScoreWorkbookBuffer(config, { template = false } = {
     WEEKEND_HEADERS.length,
   );
   styleHeaderRow(weekendSheet, WEEKEND_HEADERS);
-  weekendSheet.columns = [14, 12, 20, 12, 12, 14].map((width) => ({ width }));
+  weekendSheet.columns = [14, 12, 20, 12, 12, 12, 14].map((width) => ({ width }));
   const weekendRows = (config.weekendScores || [])
     .slice()
     .sort((left, right) => left.date.localeCompare(right.date))
@@ -225,16 +249,17 @@ export async function createScoreWorkbookBuffer(config, { template = false } = {
           date: round.date,
           number: member?.number || null,
           name: member?.name || '',
-          points: Number(row.points || 0),
-          score: Number(row.score || 0),
-          total: Number(row.total || 0),
+          previousPoints: row.previousPoints == null ? null : Number(row.previousPoints),
+          points: row.points == null ? null : Number(row.points),
+          score: row.score == null ? null : Number(row.score),
+          total: row.total == null ? null : Number(row.total),
         };
       }),
     );
   weekendRows.forEach((score, index) => {
     const rowNumber = DATA_ROW + index;
     const row = weekendSheet.getRow(rowNumber);
-    row.values = [dateFromKey(score.date), score.number, score.name, score.points, score.score, score.total];
+    row.values = [dateFromKey(score.date), score.number, score.name, score.previousPoints, score.points, score.score, score.total];
     row.getCell(1).numFmt = 'yyyy-mm-dd';
     styleDataRow(row, new Set([1, 2, 4, 5, 6]));
   });
@@ -262,6 +287,14 @@ const invalidWorkbookError = (details) => {
   return error;
 };
 
+const parseStoredScore = (cell) => {
+  if (cell.value && typeof cell.value === 'object' && 'formula' in cell.value) return undefined;
+  const value = cellValue(cell);
+  if (value === null || value === undefined || String(value).trim() === '') return undefined;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+};
+
 export async function parseScoreWorkbookBuffer(buffer, scoreMembers) {
   const ExcelJS = await loadExcel();
   const workbook = new ExcelJS.Workbook();
@@ -286,6 +319,23 @@ export async function parseScoreWorkbookBuffer(buffer, scoreMembers) {
     ? membersByNumber.get(number)
     : membersByName.get(normalizeNickname(name));
   const basePointsById = new Map();
+
+  const rawScoresByKey = new Map();
+  const rawSheet = workbook.getWorksheet(RAW_SCORE_SHEET_NAME);
+  if (rawSheet) {
+    for (let rowNumber = 2; rowNumber <= rawSheet.rowCount; rowNumber += 1) {
+      const row = rawSheet.getRow(rowNumber);
+      const date = cellText(row.getCell(1));
+      const id = cellText(row.getCell(2));
+      if (!date || !id) continue;
+      rawScoresByKey.set(`${date}|${id}`, {
+        raceSignature: cellText(row.getCell(3)),
+        score: parseStoredScore(row.getCell(4)),
+        total: parseStoredScore(row.getCell(5)),
+      });
+    }
+  }
+
   for (let rowNumber = DATA_ROW; rowNumber <= baseSheet.rowCount; rowNumber += 1) {
     const row = baseSheet.getRow(rowNumber);
     const number = cellText(row.getCell(1));
@@ -311,7 +361,9 @@ export async function parseScoreWorkbookBuffer(buffer, scoreMembers) {
     const date = parseDateCell(row.getCell(1));
     const number = cellText(row.getCell(2));
     const name = cellText(row.getCell(3));
-    const raceValues = Array.from({ length: 6 }, (_, index) => parseScore(row.getCell(index + 4)));
+    const raceValues = Array.from({ length: 6 }, (_, index) => parseRaceScore(row.getCell(index + 4)));
+    const storedScore = parseStoredScore(row.getCell(10));
+    const storedTotal = parseStoredScore(row.getCell(11));
     const hasEnteredScores = raceValues.some((value) => value !== 0 && value !== null);
     if (!date && !hasEnteredScores) continue;
 
@@ -323,11 +375,17 @@ export async function parseScoreWorkbookBuffer(buffer, scoreMembers) {
       details.push({ sheet: SCORE_SHEET_NAME, row: rowNumber, field: '队员编号', message: `未找到${number ? `编号 ${number}` : `昵称 ${name || '空白'}`}的积分人物` });
     }
     raceValues.forEach((value, index) => {
-      if (value === null) {
+      if (value === undefined) {
         details.push({ sheet: SCORE_SHEET_NAME, row: rowNumber, field: SCORE_HEADERS[index + 3], message: '分数必须是大于或等于 0 的数字' });
       }
     });
-    if (!isValidDateKey(date) || !member || raceValues.includes(null)) continue;
+    if (storedScore === null) {
+      details.push({ sheet: SCORE_SHEET_NAME, row: rowNumber, field: '得分', message: '得分必须是大于或等于 0 的数字' });
+    }
+    if (storedTotal === null) {
+      details.push({ sheet: SCORE_SHEET_NAME, row: rowNumber, field: '总分', message: '总分必须是大于或等于 0 的数字' });
+    }
+    if (!isValidDateKey(date) || !member || raceValues.includes(undefined) || storedScore === null || storedTotal === null) continue;
 
     const uniqueKey = `${date}|${member.id}`;
     if (seenRows.has(uniqueKey)) {
@@ -335,11 +393,17 @@ export async function parseScoreWorkbookBuffer(buffer, scoreMembers) {
       continue;
     }
     seenRows.add(uniqueKey);
+    const raw = rawScoresByKey.get(uniqueKey);
+    const racesUnchanged = raw?.raceSignature === JSON.stringify(raceValues);
+    const importedScore = racesUnchanged ? raw.score : storedScore;
+    const importedTotal = racesUnchanged ? raw.total : storedTotal;
     if (!rounds.has(date)) rounds.set(date, []);
     rounds.get(date).push({
       id: member.id,
       teamRace: raceValues.slice(0, 3),
       openRace: raceValues.slice(3),
+      ...(importedScore === undefined ? {} : { score: importedScore }),
+      ...(importedTotal === undefined ? {} : { total: importedTotal }),
     });
   }
 

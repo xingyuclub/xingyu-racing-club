@@ -5,10 +5,48 @@ import {
   buildDuplicateSignature,
   buildMemberMatcher,
   createScoreMemberId,
+  invalidateFollowingWeekTotals,
   normalizeNickname,
   scoreRankedRace,
   scoreTeamRace,
 } from './scoreRules.js';
+
+describe('invalidateFollowingWeekTotals', () => {
+  it('clears totals from the edited date through the end of the same week', () => {
+    const config = {
+      dailyScores: [
+        { date: '2026-07-27', rows: [{ id: '1', total: 10 }] },
+        { date: '2026-07-28', rows: [{ id: '1', total: 12 }, { id: '2', total: 20 }] },
+        { date: '2026-07-31', rows: [{ id: '1', total: 18 }] },
+        { date: '2026-08-03', rows: [{ id: '1', total: 30 }] },
+      ],
+      weekendScores: [
+        { date: '2026-08-01', rows: [{ id: '1', total: 21 }] },
+        { date: '2026-08-02', rows: [{ id: '1', total: 24 }] },
+      ],
+    };
+
+    invalidateFollowingWeekTotals(config, { date: '2026-07-28', id: '1' });
+
+    expect(config.dailyScores[0].rows[0].total).toBe(10);
+    expect(config.dailyScores[1].rows[0]).not.toHaveProperty('total');
+    expect(config.dailyScores[1].rows[1].total).toBe(20);
+    expect(config.dailyScores[2].rows[0]).not.toHaveProperty('total');
+    expect(config.weekendScores[0].rows[0]).not.toHaveProperty('total');
+    expect(config.weekendScores[1].rows[0]).not.toHaveProperty('total');
+    expect(config.dailyScores[3].rows[0].total).toBe(30);
+  });
+
+  it('ignores an incomplete date while the editor input is being cleared', () => {
+    const config = {
+      dailyScores: [{ date: '2026-07-28', rows: [{ id: '1', total: 12 }] }],
+      weekendScores: [],
+    };
+
+    expect(() => invalidateFollowingWeekTotals(config, { date: '', id: '1' })).not.toThrow();
+    expect(config.dailyScores[0].rows[0].total).toBe(12);
+  });
+});
 
 describe('score member identity', () => {
   it('creates the same score id with or without the team prefix', () => {
@@ -153,6 +191,26 @@ describe('assignMemberSlots', () => {
       rows: [{ members: [{ id: '1', score: 2 }] }],
     });
     expect(result[0].members[0].slot).toBe(2);
+  });
+
+  it('never overwrites ambiguous zero slots in legacy rows', () => {
+    const result = assignMemberSlots({
+      type: 'team',
+      existingRows: [{ id: '1', teamRace: [1, 0, 2], openRace: [] }],
+      rows: [{ members: [{ id: '1', score: 3 }] }],
+    });
+
+    expect(result[0].members[0]).toMatchObject({ id: '1', skipped: 'member-limit' });
+  });
+
+  it('treats zero as an occupied slot when null marks empty slots', () => {
+    const result = assignMemberSlots({
+      type: 'team',
+      existingRows: [{ id: '1', teamRace: [0, null, null], openRace: [] }],
+      rows: [{ members: [{ id: '1', score: 2 }] }],
+    });
+
+    expect(result[0].members[0].slot).toBe(1);
   });
 
   it('skips members already at the 3-game limit but keeps others in the same race', () => {

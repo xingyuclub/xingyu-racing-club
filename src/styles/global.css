@@ -1070,12 +1070,26 @@ h2 {
   color: var(--ink);
   background: #ffffff;
   box-shadow: 0 28px 80px rgba(4, 24, 58, 0.28);
-  animation: modal-in 280ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
 }
 
 .member-video-modal {
-  width: min(100%, 960px);
-  padding: clamp(12px, 3vw, 24px);
+  width: min(100vw, calc((100dvh - 52px) * 16 / 9));
+  max-width: none;
+  max-height: 100dvh;
+  padding: 0;
+  overflow: hidden;
+}
+
+.video-modal-backdrop {
+  padding: 0;
+}
+
+.member-video-header {
+  padding: 10px 16px;
+}
+
+.member-video-header h2 {
+  font-size: 1.5rem;
 }
 
 .video-modal .eyebrow {
@@ -1113,6 +1127,19 @@ h2 {
   margin-top: 24px;
 }
 
+.member-video-modal > video {
+  display: block;
+  margin-top: 0;
+  object-fit: contain;
+  background: #000000;
+}
+
+.member-video-modal > .video-fallback {
+  margin-top: 0;
+  border-right: 0;
+  border-left: 0;
+}
+
 .photo-modal video {
   width: 100%;
   aspect-ratio: 16 / 9;
@@ -1145,6 +1172,16 @@ h2 {
 [data-reveal].is-visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+[data-entrance] {
+  animation: modal-in 280ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+[data-reveal].is-visible > .album-folder,
+[data-reveal].is-visible > .album-photo {
+  animation: modal-in 420ms calc(var(--stagger-index, 0) * 36ms)
+    cubic-bezier(0.2, 0.75, 0.25, 1) both;
 }
 
 [data-reveal] .member-card,
@@ -1470,6 +1507,14 @@ button:focus-visible {
   [data-reveal] .news-item {
     opacity: 1;
     transform: none;
+  }
+
+  [data-entrance],
+  [data-reveal] > .album-folder,
+  [data-reveal] > .album-photo {
+    opacity: 1;
+    transform: none;
+    animation: none !important;
   }
 
   .roster-card {
@@ -1882,7 +1927,6 @@ button:focus-visible {
   color: var(--ink);
   background: #ffffff;
   box-shadow: 0 28px 80px rgba(4, 24, 58, 0.28);
-  animation: modal-in 280ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
 }
 
 .photo-modal h2 {
@@ -2065,6 +2109,30 @@ button:focus-visible {
   font-size: 0.64rem;
   font-weight: 700;
   background: #f7fbff;
+}
+
+.daily-score-sort-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 2px 4px;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  background: transparent;
+  cursor: pointer;
+}
+
+.daily-score-sort-button:hover {
+  color: var(--signal);
+}
+
+.daily-score-sort-button:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
 }
 
 .daily-score-table tbody th {

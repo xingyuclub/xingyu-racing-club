@@ -311,9 +311,12 @@ function validateConfig(config) {
         } else {
           seenRowIds.add(row.id);
         }
-        for (const field of ['name', 'score', 'total']) {
-          if (field in row) {
-            details.push(`${path}.${field} is derived and must not be stored`);
+        if ('name' in row) {
+          details.push(`${path}.name is derived and must not be stored`);
+        }
+        for (const field of ['score', 'total']) {
+          if (field in row && row[field] != null && !isNonNegativeFinite(row[field])) {
+            details.push(`${path}.${field} must be a non-negative finite number or null`);
           }
         }
         for (const field of ['teamRace', 'openRace']) {
@@ -321,14 +324,14 @@ function validateConfig(config) {
           let hasInvalidRaceValue = false;
           if (Array.isArray(race)) {
             for (let raceIndex = 0; raceIndex < race.length; raceIndex += 1) {
-              if (!isNonNegativeFinite(race[raceIndex])) {
+              if (race[raceIndex] !== null && !isNonNegativeFinite(race[raceIndex])) {
                 hasInvalidRaceValue = true;
               }
             }
           }
           if (!Array.isArray(race) || race.length !== 3 || hasInvalidRaceValue) {
             details.push(
-              `${path}.${field} must contain exactly 3 non-negative finite numbers`,
+              `${path}.${field} must contain exactly 3 non-negative finite numbers or null`,
             );
           }
         }
@@ -364,7 +367,7 @@ function validateConfig(config) {
           if (!scoreMemberIds.has(row.id)) {
             details.push(`${path}.id must reference an existing score member`);
           }
-          for (const field of ['points', 'score', 'total']) {
+          for (const field of ['previousPoints', 'points', 'score', 'total']) {
             if (field in row && row[field] != null && !isNonNegativeFinite(row[field])) {
               details.push(`${path}.${field} must be a non-negative finite number or null`);
             }

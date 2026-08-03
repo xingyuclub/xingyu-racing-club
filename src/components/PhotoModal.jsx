@@ -32,7 +32,7 @@ export function PhotoModal({ photo, onClose }) {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <section className="photo-modal" role="dialog" aria-modal="true" aria-labelledby="photo-title">
+      <section className="photo-modal" data-entrance role="dialog" aria-modal="true" aria-labelledby="photo-title">
         <button className="icon-button" type="button" onClick={onClose} aria-label="关闭照片预览">
           <X aria-hidden="true" size={20} />
         </button>

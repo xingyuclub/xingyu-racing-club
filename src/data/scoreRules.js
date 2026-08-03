@@ -65,23 +65,52 @@ export function buildDuplicateSignature({ date, type, participants }) {
   return `${date}::${type}::${entries}`;
 }
 
+function getWeekStart(date) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  const value = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(value.getTime())) return null;
+  const daysSinceMonday = (value.getUTCDay() + 6) % 7;
+  value.setUTCDate(value.getUTCDate() - daysSinceMonday);
+  return value.toISOString().slice(0, 10);
+}
+
+export function invalidateFollowingWeekTotals(config, { date, id }) {
+  const weekStart = getWeekStart(date);
+  if (!weekStart || !id) return config;
+  for (const collection of [config.dailyScores || [], config.weekendScores || []]) {
+    for (const round of collection) {
+      if (round.date < date || getWeekStart(round.date) !== weekStart) continue;
+      const row = round.rows.find((entry) => entry.id === id);
+      if (row) delete row.total;
+    }
+  }
+  return config;
+}
+
 // 为每个成员独立分配当天该类型的局次槽位；已满 3 局的成员标记跳过。
 export function assignMemberSlots({ rows, existingRows = [], type }) {
   const field = type === 'ranked' ? 'openRace' : 'teamRace';
   const used = new Map();
   for (const row of existingRows) {
-    used.set(row.id, (row[field] || []).length);
+    const values = row[field] || [];
+    const hasExplicitEmptySlots = values.includes(null);
+    used.set(row.id, new Set(values.flatMap((value, index) =>
+      (hasExplicitEmptySlots ? value !== null : true) ? [index] : [])));
   }
 
   return rows.map((race) => ({
     ...race,
     members: race.members.map((member) => {
-      const count = used.get(member.id) || 0;
-      if (count >= MAX_GAMES_PER_TYPE) {
+      const occupied = used.get(member.id) || new Set();
+      const slot = Array.from(
+        { length: MAX_GAMES_PER_TYPE },
+        (_, index) => index,
+      ).find((index) => !occupied.has(index));
+      if (slot === undefined) {
         return { ...member, skipped: 'member-limit' };
       }
-      const slot = count;
-      used.set(member.id, count + 1);
+      occupied.add(slot);
+      used.set(member.id, occupied);
       return { ...member, slot };
     }),
   }));

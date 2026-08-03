@@ -210,7 +210,7 @@ describe('config store', () => {
     [
       'race',
       (config) => delete config.dailyScores[0].rows[0].teamRace[1],
-      'dailyScores[0].rows[0].teamRace must contain exactly 3 non-negative finite numbers',
+      'dailyScores[0].rows[0].teamRace must contain exactly 3 non-negative finite numbers or null',
     ],
   ])('rejects sparse %s arrays', async (name, mutate, detail) => {
     const store = await createConfigStore({ dataDir });
@@ -221,6 +221,14 @@ describe('config store', () => {
       code: 'INVALID_CONFIG',
       details: expect.arrayContaining([detail]),
     });
+  });
+
+  it('allows null to represent an unfilled screenshot score slot', async () => {
+    const store = await createConfigStore({ dataDir });
+    const config = createSeedConfig();
+    config.dailyScores[0].rows[0].teamRace = [0, null, null];
+
+    await expect(store.write(config)).resolves.toEqual(config);
   });
 
   it('captures a deep snapshot at write invocation time', async () => {
@@ -489,7 +497,7 @@ describe('config store', () => {
         config.dailyScores[0].rows[0].teamRace = [1, 2];
       },
       detail:
-        'dailyScores[0].rows[0].teamRace must contain exactly 3 non-negative finite numbers',
+        'dailyScores[0].rows[0].teamRace must contain exactly 3 non-negative finite numbers or null',
     },
     {
       name: 'duplicate score date',
@@ -663,14 +671,14 @@ describe('config store', () => {
       'dailyScores[0].weekday is derived and must not be stored',
     ],
     [
-      'a derived score row field',
-      (config) => (config.dailyScores[0].rows[0].total = 99),
-      'dailyScores[0].rows[0].total is derived and must not be stored',
+      'an invalid imported daily total',
+      (config) => (config.dailyScores[0].rows[0].total = -1),
+      'dailyScores[0].rows[0].total must be a non-negative finite number or null',
     ],
     [
       'an invalid race value',
       (config) => (config.dailyScores[0].rows[0].openRace[0] = -1),
-      'dailyScores[0].rows[0].openRace must contain exactly 3 non-negative finite numbers',
+      'dailyScores[0].rows[0].openRace must contain exactly 3 non-negative finite numbers or null',
     ],
     [
       'an invalid music field',
@@ -749,7 +757,7 @@ describe('config store', () => {
     const store = await createConfigStore({ dataDir });
     const config = await store.read();
     config.weekendScores = [
-      { date: '2026-08-02', rows: [{ id: config.roster[0].id, points: 100, score: 12, total: 100 }] },
+      { date: '2026-08-02', rows: [{ id: config.roster[0].id, previousPoints: 90, points: 100, score: 12, total: 100 }] },
     ];
     config.memberAliases = [{ memberId: config.roster[0].id, value: '老青山' }];
 
@@ -757,6 +765,17 @@ describe('config store', () => {
 
     expect(saved.weekendScores).toEqual(config.weekendScores);
     expect(saved.memberAliases).toEqual(config.memberAliases);
+  });
+
+  it('persists exact imported daily score and week-total fields', async () => {
+    const store = await createConfigStore({ dataDir });
+    const config = await store.read();
+    config.dailyScores[0].rows[0].score = 6;
+    config.dailyScores[0].rows[0].total = 18;
+
+    const saved = await store.write(config);
+
+    expect(saved.dailyScores[0].rows[0]).toMatchObject({ score: 6, total: 18 });
   });
 
   it('rejects weekend scores with a missing or invalid date', async () => {

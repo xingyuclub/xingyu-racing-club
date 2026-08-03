@@ -3,15 +3,20 @@ import { useMemo } from 'react';
 const clone = (value) => structuredClone(value);
 
 const WEEKEND_DAYS = [
-  { offset: 5, label: '周六' },
+  { offset: 5, label: '周六', hasPreviousPoints: true },
   { offset: 6, label: '周日' },
 ];
 
 function getWeekendDate(monday, offset) {
   const d = new Date(monday);
   d.setDate(d.getDate() + offset);
-  return d.toISOString().slice(0, 10);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
+
+const numericInputValue = (value) => value === '' ? null : Number(value);
 
 function getMondayOfThisWeek() {
   const now = new Date();
@@ -39,7 +44,7 @@ export function WeekendScoreEditor({ config, onChange }) {
   const getRow = (date, memberId) => {
     const round = scoresByDate.get(date);
     return round?.rows.find((row) => row.id === memberId)
-      || { id: memberId, points: '', score: '', total: '' };
+      || { id: memberId, previousPoints: null, points: null, score: null, total: null };
   };
 
   const updateField = (date, memberId, field, value) => {
@@ -54,10 +59,10 @@ export function WeekendScoreEditor({ config, onChange }) {
 
     let row = round.rows.find((entry) => entry.id === memberId);
     if (!row) {
-      row = { id: memberId, points: '', score: '', total: '' };
+      row = { id: memberId, previousPoints: null, points: null, score: null, total: null };
       round.rows.push(row);
     }
-    row[field] = value;
+    row[field] = numericInputValue(value);
     onChange(next);
   };
 
@@ -70,6 +75,7 @@ export function WeekendScoreEditor({ config, onChange }) {
             <thead>
               <tr>
                 <th>队员</th>
+                {day.hasPreviousPoints && <th>上周积分</th>}
                 <th>积分</th>
                 <th>得分</th>
                 <th>总分</th>
@@ -81,11 +87,21 @@ export function WeekendScoreEditor({ config, onChange }) {
                 return (
                   <tr key={member.id}>
                     <td>{member.name}</td>
+                    {day.hasPreviousPoints && (
+                      <td>
+                        <input
+                          type="number"
+                          aria-label={day.label + ' ' + member.name + ' 上周积分'}
+                          value={row.previousPoints ?? ''}
+                          onChange={(event) => updateField(day.date, member.id, 'previousPoints', event.target.value)}
+                        />
+                      </td>
+                    )}
                     <td>
                       <input
                         type="number"
                         aria-label={day.label + ' ' + member.name + ' 积分'}
-                        value={row.points}
+                        value={row.points ?? ''}
                         onChange={(event) => updateField(day.date, member.id, 'points', event.target.value)}
                       />
                     </td>
@@ -93,7 +109,7 @@ export function WeekendScoreEditor({ config, onChange }) {
                       <input
                         type="number"
                         aria-label={day.label + ' ' + member.name + ' 得分'}
-                        value={row.score}
+                        value={row.score ?? ''}
                         onChange={(event) => updateField(day.date, member.id, 'score', event.target.value)}
                       />
                     </td>
@@ -101,7 +117,7 @@ export function WeekendScoreEditor({ config, onChange }) {
                       <input
                         type="number"
                         aria-label={day.label + ' ' + member.name + ' 总分'}
-                        value={row.total}
+                        value={row.total ?? ''}
                         onChange={(event) => updateField(day.date, member.id, 'total', event.target.value)}
                       />
                     </td>

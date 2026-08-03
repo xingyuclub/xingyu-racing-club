@@ -4,12 +4,13 @@ import {
   buildMemberMatcher,
   buildScoreMemberMatcher,
   createScoreMemberId,
+  invalidateFollowingWeekTotals,
   scoreRankedRace,
   scoreTeamRace,
 } from '../../src/data/scoreRules.js';
 
 const classifyType = (title) => (String(title || '').includes('排位赛') ? 'ranked' : 'team');
-const EMPTY_RACES = () => ({ teamRace: [0, 0, 0], openRace: [0, 0, 0] });
+const EMPTY_RACES = () => ({ teamRace: [null, null, null], openRace: [null, null, null] });
 
 function computeRosterVersion({ roster, memberAliases }) {
   const members = roster.map((m) => `${m.id}:${m.name}`).sort();
@@ -144,8 +145,11 @@ export function createScoreRecognitionService({ ai, store, configStore }) {
           row = { id: member.id, ...EMPTY_RACES() };
           round.rows.push(row);
         }
-        if (!Array.isArray(row[field]) || row[field].length !== 3) row[field] = [0, 0, 0];
+        if (!Array.isArray(row[field]) || row[field].length !== 3) row[field] = [null, null, null];
+        delete row.score;
+        delete row.total;
         row[field][member.slot] = member.score;
+        invalidateFollowingWeekTotals(next, { date: draft.batchDate, id: member.id });
       }
     }
 

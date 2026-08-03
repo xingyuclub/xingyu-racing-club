@@ -5,6 +5,14 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 const sum = (values) => values.reduce((total, value) => total + Number(value || 0), 0);
 const inferMediaType = (src) => /\.(mp4|webm)(?:$|[?#])/i.test(String(src || '')) ? 'video' : 'image';
 
+const createRawScoreRow = ({ id, teamRace, openRace, score, total }) => ({
+  id,
+  teamRace,
+  openRace,
+  ...(score !== undefined ? { score } : {}),
+  ...(total !== undefined ? { total } : {}),
+});
+
 const createRawMember = (member, sortedScores) => {
   if (Number.isFinite(member.basePoints)) {
     const { points, ...rawMember } = member;
@@ -61,7 +69,7 @@ export function migrateRawConfig(input) {
     albums,
     dailyScores: sortedScores.map((round) => ({
       date: round.date,
-      rows: round.rows.map(({ id, teamRace, openRace }) => ({ id, teamRace, openRace })),
+      rows: round.rows.map(createRawScoreRow),
     })),
     weekendScores: Array.isArray(weekendScores) ? weekendScores : [],
     memberAliases: Array.isArray(memberAliases) ? memberAliases : [],
@@ -94,7 +102,10 @@ export function hydrateSiteData(rawConfig) {
       name: scoreMembersById.get(row.id)?.name || '',
       teamRace: row.teamRace,
       openRace: row.openRace,
+      ...(row.previousPoints !== undefined ? { previousPoints: row.previousPoints } : {}),
+      ...(row.points !== undefined ? { points: row.points } : {}),
       score: row.score,
+      weekTotal: row.weekTotal,
       total: row.total,
     })),
   }));

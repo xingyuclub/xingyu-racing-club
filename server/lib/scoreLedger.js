@@ -7,10 +7,27 @@ const formatWeekday = (dateKey) => {
   return WEEKDAYS[new Date(year, month - 1, day).getDay()];
 };
 
+const numericValue = (value) => {
+  if (value === '' || value == null) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+
+const weekKey = (dateKey) => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const daysFromMonday = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - daysFromMonday);
+  return date.toISOString().slice(0, 10);
+};
+
+const hasWeekendValues = (row) =>
+  ['previousPoints', 'points', 'score', 'total'].some((field) => numericValue(row[field]) != null);
+
 export function projectScores({ dailyScores = [], weekendScores = [], roster = [] }) {
   const totals = new Map();
   for (const member of roster) {
-    totals.set(String(member.id), Number(member.basePoints ?? member.points ?? 0));
+    totals.set(String(member.id), 0);
   }
 
   const events = [
@@ -19,22 +36,57 @@ export function projectScores({ dailyScores = [], weekendScores = [], roster = [
   ].sort((left, right) => left.date.localeCompare(right.date));
 
   const dailyDetail = [];
+  let activeWeek = null;
+  let weekTotals = new Map();
+  let weekendPoints = new Map();
+
   for (const event of events) {
     const isWeekend = event.kind === 'weekend';
-    const rows = event.rows.map((row) => {
+    const eventWeek = weekKey(event.date);
+    if (activeWeek !== null && eventWeek !== activeWeek) {
+      weekTotals = new Map();
+      weekendPoints = new Map();
+      for (const memberId of totals.keys()) totals.set(memberId, 0);
+    }
+    activeWeek = eventWeek;
+
+    const rows = event.rows.flatMap((row) => {
+      if (isWeekend && !hasWeekendValues(row)) return [];
       const memberId = String(row.id);
       if (!totals.has(memberId)) totals.set(memberId, 0);
-      const teamRace = isWeekend ? [] : [...row.teamRace];
-      const openRace = isWeekend ? [] : [...row.openRace];
-      const score = isWeekend
-        ? Number(row.score) || 0
-        : sum([...teamRace, ...openRace]);
-      const total = totals.get(memberId) + score;
+      const teamRace = isWeekend ? [] : [...(row.teamRace || [])];
+      const openRace = isWeekend ? [] : [...(row.openRace || [])];
+      const importedScore = numericValue(row.score);
+      const points = numericValue(row.points);
+      const previousPoints = numericValue(row.previousPoints);
+      const weekendBaseline = previousPoints ?? weekendPoints.get(memberId) ?? null;
+      const score = importedScore
+        ?? (isWeekend
+          ? (points != null && weekendBaseline != null ? points - weekendBaseline : null)
+          : sum([...teamRace, ...openRace]));
+      const importedWeekTotal = numericValue(row.total);
+      const weekTotal = importedWeekTotal ?? ((weekTotals.get(memberId) || 0) + (score || 0));
+      const total = weekTotal;
+      weekTotals.set(memberId, weekTotal);
       totals.set(memberId, total);
-      return { id: row.id, teamRace, openRace, score, total };
+      if (isWeekend && points != null) weekendPoints.set(memberId, points);
+      return [{
+        id: row.id,
+        teamRace,
+        openRace,
+        ...(isWeekend ? {
+          previousPoints,
+          points,
+        } : {}),
+        score,
+        weekTotal,
+        total,
+      }];
     });
 
-    dailyDetail.push({ date: event.date, weekday: formatWeekday(event.date), rows });
+    if (rows.length) {
+      dailyDetail.push({ date: event.date, weekday: formatWeekday(event.date), rows });
+    }
   }
 
   return { totals, dailyDetail };

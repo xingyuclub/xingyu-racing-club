@@ -6,6 +6,8 @@ const BASE_SMOOTHING = 0.1;
 const ROTATION_STEP_MS = 16;
 const DRAG_ROTATION_SCALE = 0.6;
 const VISIBLE_SPAN = 86;
+const POINTER_DRAG_THRESHOLD = 4;
+const TOUCH_DRAG_THRESHOLD = 12;
 
 function wrapAngle(angle) {
   const wrapped = angle % 360;
@@ -38,6 +40,7 @@ export function Roster({ members, onSelect = () => {} }) {
   const animationFrameRef = useRef(0);
   const lastPointerX = useRef(null);
   const draggingRef = useRef(false);
+  const touchActiveRef = useRef(false);
   const hoveredRef = useRef(false);
   const hoveredCardRef = useRef(null);
   const suppressClick = useRef(false);
@@ -144,6 +147,13 @@ export function Roster({ members, onSelect = () => {} }) {
     lastPointerX.current = event.clientX;
     draggingRef.current = false;
     suppressClick.current = false;
+    touchActiveRef.current = event.pointerType === 'touch';
+    if (touchActiveRef.current) {
+      speedRef.current = 0;
+      targetSpeedRef.current = 0;
+      writeMotionStyles(rotationRef.current, 0);
+      setPhaseState('paused');
+    }
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
 
@@ -151,24 +161,30 @@ export function Roster({ members, onSelect = () => {} }) {
     if (lastPointerX.current === null) return;
 
     const delta = event.clientX - lastPointerX.current;
-    if (Math.abs(delta) < 4) return;
+    const dragThreshold = touchActiveRef.current ? TOUCH_DRAG_THRESHOLD : POINTER_DRAG_THRESHOLD;
+    if (Math.abs(delta) < dragThreshold) return;
 
     draggingRef.current = true;
     suppressClick.current = true;
     rotationRef.current = wrapAngle(rotationRef.current - delta * DRAG_ROTATION_SCALE);
-    targetSpeedRef.current = clamp(BASE_SPEED - delta * 0.45, -ACCEL_RANGE, ACCEL_RANGE);
+    if (touchActiveRef.current) {
+      speedRef.current = 0;
+      targetSpeedRef.current = 0;
+    } else {
+      targetSpeedRef.current = clamp(BASE_SPEED - delta * 0.45, -ACCEL_RANGE, ACCEL_RANGE);
+    }
     writeMotionStyles(rotationRef.current, speedRef.current);
-    setPhaseState('accelerating');
+    setPhaseState(touchActiveRef.current ? 'paused' : 'accelerating');
     lastPointerX.current = event.clientX;
   };
 
   const handlePointerEnd = () => {
-    if (!draggingRef.current) {
-      lastPointerX.current = null;
-      return;
-    }
+    const wasTouchActive = touchActiveRef.current;
+    touchActiveRef.current = false;
 
     lastPointerX.current = null;
+    if (!draggingRef.current && !wasTouchActive) return;
+
     draggingRef.current = false;
     targetSpeedRef.current = hoveredRef.current ? 0 : BASE_SPEED;
     setPhaseState(hoveredRef.current ? 'paused' : 'settling');

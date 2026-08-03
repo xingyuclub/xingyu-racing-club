@@ -44,7 +44,7 @@ describe('ScoreEditor', () => {
     vi.clearAllMocks();
   });
 
-  it('edits a race score and exposes calculated daily and cumulative totals', async () => {
+  it('edits a race score and exposes calculated daily and weekly totals', async () => {
     const user = userEvent.setup();
     const config = createConfig();
     const onChange = vi.fn();
@@ -52,7 +52,7 @@ describe('ScoreEditor', () => {
 
     expect(screen.getByTestId('score-editor-row')).toHaveTextContent('6');
     expect(screen.getByTestId('score-editor-row')).toHaveTextContent(
-      String(config.roster[0].basePoints + 6),
+      '6',
     );
 
     const input = screen.getByRole('spinbutton', { name: '第1行队内赛1' });
@@ -61,6 +61,71 @@ describe('ScoreEditor', () => {
 
     const next = onChange.mock.calls.at(-1)[0];
     expect(next.dailyScores[0].rows[0].teamRace[0]).toBe(6);
+  });
+
+  it('stores cleared race inputs and new row slots as null', async () => {
+    const user = userEvent.setup();
+    const config = createConfig();
+    const onChange = vi.fn();
+    render(<ScoreEditorHarness initialConfig={config} onChange={onChange} />);
+
+    const input = screen.getByRole('spinbutton', { name: '第1行队内赛1' });
+    await user.clear(input);
+    expect(onChange.mock.calls.at(-1)[0].dailyScores[0].rows[0].teamRace[0]).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: '新增明细' }));
+    const added = onChange.mock.calls.at(-1)[0].dailyScores[0].rows[1];
+    expect(added.teamRace).toEqual([null, null, null]);
+    expect(added.openRace).toEqual([null, null, null]);
+  });
+
+  it('allows the date input to be cleared without throwing', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<ScoreEditorHarness initialConfig={createConfig()} onChange={onChange} />);
+
+    await user.clear(screen.getByLabelText('第1行日期'));
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('keeps imported totals on untouched rows and clears them on the edited row', async () => {
+    const user = userEvent.setup();
+    const config = createConfig();
+    config.dailyScores[0].rows[0].score = 6;
+    config.dailyScores[0].rows[0].total = 18;
+    config.dailyScores[0].rows.push({
+      id: config.scoreMembers[1].id,
+      teamRace: [2, 0, 0],
+      openRace: [0, 0, 0],
+      score: 2,
+      total: 20,
+    });
+    config.dailyScores.push({
+      date: '2026-07-29',
+      rows: [{
+        id: config.scoreMembers[0].id,
+        teamRace: [2, 0, 0],
+        openRace: [0, 0, 0],
+        score: 2,
+        total: 20,
+      }],
+    });
+    const onChange = vi.fn();
+    render(<ScoreEditorHarness initialConfig={config} onChange={onChange} />);
+
+    await user.clear(screen.getByLabelText('筛选日期'));
+    await user.type(screen.getByLabelText('筛选日期'), '2026-07-28');
+    const input = screen.getByRole('spinbutton', { name: '第1行队内赛1' });
+    await user.clear(input);
+    await user.type(input, '5');
+
+    const rounds = onChange.mock.calls.at(-1)[0].dailyScores;
+    expect(rounds[0].rows[0]).not.toHaveProperty('score');
+    expect(rounds[0].rows[0]).not.toHaveProperty('total');
+    expect(rounds[0].rows[1]).toMatchObject({ score: 2, total: 20 });
+    expect(rounds[1].rows[0]).toMatchObject({ score: 2 });
+    expect(rounds[1].rows[0]).not.toHaveProperty('total');
   });
 
   it('uses score members instead of roster members in the score table', () => {

@@ -32,7 +32,13 @@ const createConfig = () => ({
   dailyScores: [
     {
       date: '2026-07-28',
-      rows: [{ id: 'member-01', teamRace: [1, 2, 3], openRace: [0, 0, 0] }],
+      rows: [{
+        id: 'member-01',
+        teamRace: [1, null, 3],
+        openRace: [0, 0, 0],
+        score: 99,
+        total: 199,
+      }],
     },
     {
       date: '2026-07-29',
@@ -59,7 +65,9 @@ describe('score workbook', () => {
     expect(baseSheet.getRow(3).values.slice(1)).toEqual(BASE_HEADERS);
     expect(scoreSheet.getCell('A4').value).toBeInstanceOf(Date);
     expect(scoreSheet.getCell('J4').value.formula).toContain('SUM(D4:I4)');
-    expect(scoreSheet.getCell('K4').value.formula).toContain('SUMIFS');
+    expect(scoreSheet.getCell('K4').value.formula).toContain('WEEKDAY(A4,2)');
+    expect(scoreSheet.getCell('J5').value.formula).toContain('SUM(D5:I5)');
+    expect(scoreSheet.getCell('K5').value.formula).toContain('WEEKDAY(A5,2)');
     expect(scoreSheet.views[0]).toMatchObject({ state: 'frozen', ySplit: 3 });
 
     expect(scoreSheet.getCell('B4').value).toBeNull();
@@ -74,6 +82,21 @@ describe('score workbook', () => {
       ['member-01', 10],
       ['member-02', 20],
     ]));
+  });
+
+  it('drops exported raw fields when a race score is edited', async () => {
+    const config = createConfig();
+    const workbook = await loadWorkbook(await createScoreWorkbookBuffer(config));
+    workbook.getWorksheet(SCORE_SHEET_NAME).getCell('D4').value = 6;
+
+    const imported = await parseScoreWorkbookBuffer(
+      await workbook.xlsx.writeBuffer(),
+      config.scoreMembers,
+    );
+
+    expect(imported.dailyScores[0].rows[0].teamRace[0]).toBe(6);
+    expect(imported.dailyScores[0].rows[0]).not.toHaveProperty('score');
+    expect(imported.dailyScores[0].rows[0]).not.toHaveProperty('total');
   });
 
   it('creates one blank-date editable row per member in a template', async () => {
@@ -140,7 +163,7 @@ describe('score workbook', () => {
       ]),
     });
   });
-  it('exports the weekend manual score sheet with the three raw fields', async () => {
+  it('exports the weekend manual score sheet with the raw team-race fields', async () => {
     const config = createConfig();
     const buffer = await createScoreWorkbookBuffer(config);
     const workbook = await loadWorkbook(buffer);
@@ -149,9 +172,10 @@ describe('score workbook', () => {
     expect(weekendSheet).toBeDefined();
     expect(weekendSheet.getRow(3).values.slice(1)).toEqual(WEEKEND_HEADERS);
     expect(weekendSheet.getCell('A4').value).toBeInstanceOf(Date);
-    expect(weekendSheet.getCell('D4').value).toBe(100);
-    expect(weekendSheet.getCell('E4').value).toBe(12);
-    expect(weekendSheet.getCell('F4').value).toBe(100);
+    expect(weekendSheet.getCell('D4').value).toBeNull();
+    expect(weekendSheet.getCell('E4').value).toBe(100);
+    expect(weekendSheet.getCell('F4').value).toBe(12);
+    expect(weekendSheet.getCell('G4').value).toBe(100);
     expect(weekendSheet.getCell('B4').value).toBeNull();
     expect(weekendSheet.getCell('C4').value).toBe('Excel成员 01');
   });

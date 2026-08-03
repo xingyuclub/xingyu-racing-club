@@ -69,6 +69,7 @@ export function NewsFeed({ items }) {
         >
           <section
             className="photo-modal news-modal"
+            data-entrance
             role="dialog"
             aria-modal="true"
             aria-labelledby="news-modal-title"

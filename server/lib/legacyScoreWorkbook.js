@@ -14,7 +14,7 @@ const TARGET_SHEETS = new Map([
   ['S53-KW31', 4],
 ]);
 const GAME_HEADERS = new Set(['第一局', '第二局', '第三局']);
-const DETAIL_HEADERS = new Set(['队内赛', '开黑赛', '排位赛', '积分', '得分', '总分', ...GAME_HEADERS]);
+const DETAIL_HEADERS = new Set(['队内赛', '开黑赛', '排位赛', '上周', '积分', '得分', '总分', ...GAME_HEADERS]);
 
 function cellValue(cell) {
   const value = cell.result ?? cell.value;
@@ -99,7 +99,7 @@ function findNicknameColumn(sheet, dayLayout, dataStart) {
 }
 
 function findGameColumns(sheet, range, dayRow, headerEnd) {
-  const columns = { teamRace: [], openRace: [] };
+  const columns = { teamRace: [], openRace: [], score: null, total: null };
   let hasRaceTypes = false;
 
   for (let column = range.start; column <= range.end; column += 1) {
@@ -107,6 +107,8 @@ function findGameColumns(sheet, range, dayRow, headerEnd) {
     for (let row = dayRow + 1; row <= headerEnd; row += 1) {
       labels.push(cellText(sheet.getCell(row, column)));
     }
+    if (labels.includes('得分')) columns.score = column;
+    if (labels.includes('总分')) columns.total = column;
     if (!labels.some((label) => GAME_HEADERS.has(label))) continue;
     if (labels.includes('队内赛')) {
       columns.teamRace.push(column);
@@ -130,10 +132,11 @@ function findGameColumns(sheet, range, dayRow, headerEnd) {
 }
 
 function findWeekendColumns(sheet, range, dayRow, headerEnd) {
-  const fields = { points: null, score: null, total: null };
+  const fields = { previousPoints: null, points: null, score: null, total: null };
   for (let column = range.start; column <= range.end; column += 1) {
     for (let row = dayRow + 1; row <= headerEnd; row += 1) {
       const label = cellText(sheet.getCell(row, column));
+      if (label === '上周') fields.previousPoints = column;
       if (label === '积分') fields.points = column;
       if (label === '得分') fields.score = column;
       if (label === '总分') fields.total = column;
@@ -176,6 +179,8 @@ function parseSheet(sheet, { scoreMembers, monday }) {
         id,
         teamRace: readRace(row, columns.teamRace),
         openRace: readRace(row, columns.openRace),
+        score: columns.score ? numericValue(row.getCell(columns.score), null) : null,
+        total: columns.total ? numericValue(row.getCell(columns.total), null) : null,
       })),
     };
   });
@@ -186,6 +191,9 @@ function parseSheet(sheet, { scoreMembers, monday }) {
       date: addDays(monday, index + 5),
       rows: participants.map(({ id, row }) => ({
         id,
+        previousPoints: columns.previousPoints
+          ? numericValue(row.getCell(columns.previousPoints), null)
+          : null,
         points: columns.points ? numericValue(row.getCell(columns.points), null) : null,
         score: columns.score ? numericValue(row.getCell(columns.score), null) : null,
         total: columns.total ? numericValue(row.getCell(columns.total), null) : null,

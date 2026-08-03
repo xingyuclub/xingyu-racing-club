@@ -63,6 +63,21 @@ describe('site configuration', () => {
     expect(migrateRawConfig(legacy).news[0].bodyHtml).toBe('<p><strong>富文本</strong></p>');
   });
 
+  it('preserves exact imported score fields during raw migration', () => {
+    const input = structuredClone(teamData);
+    input.dailyScores[0].rows[0].score = 6;
+    input.dailyScores[0].rows[0].total = 18;
+    input.weekendScores = [{
+      date: '2026-08-01',
+      rows: [{ id: input.roster[0].id, previousPoints: 90, points: 142, score: 52, total: 136 }],
+    }];
+
+    const migrated = migrateRawConfig(input);
+
+    expect(migrated.dailyScores[0].rows[0]).toMatchObject({ score: 6, total: 18 });
+    expect(migrated.weekendScores[0].rows[0]).toMatchObject({ previousPoints: 90 });
+  });
+
   it('creates raw configuration without duplicate derived collections', () => {
     const config = createSeedConfig();
 
@@ -88,6 +103,8 @@ describe('site configuration', () => {
       id: teamData.roster[0].id,
       teamRace: teamData.dailyScores[0].rows[0].teamRace,
       openRace: teamData.dailyScores[0].rows[0].openRace,
+      score: teamData.dailyScores[0].rows[0].score,
+      total: teamData.dailyScores[0].rows[0].total,
     });
     expect(Object.keys(config).sort()).toEqual([
       'albums',
@@ -103,7 +120,7 @@ describe('site configuration', () => {
     ]);
   });
 
-  it('derives current points and daily totals from opening balances in date order', () => {
+  it('derives weekly totals from daily scores in date order', () => {
     const config = createSeedConfig();
     config.roster = config.roster.slice(0, 2);
     config.scoreMembers = config.scoreMembers.slice(0, 2).map((member, index) => ({
@@ -134,14 +151,14 @@ describe('site configuration', () => {
       id: config.scoreMembers[0].id,
       name: config.scoreMembers[0].name,
       score: 9,
-      total: 19,
+      total: 9,
     });
-    expect(data.dailyScores[1].rows[0].total).toBe(22);
+    expect(data.dailyScores[1].rows[0].total).toBe(12);
     expect(data.roster[0]).not.toHaveProperty('points');
     expect(data.featuredMembers[0]).not.toHaveProperty('points');
     expect(data.leaderboard).toEqual([expect.objectContaining({
       id: config.roster[0].id,
-      points: 22,
+      points: 12,
       rank: 1,
     })]);
   });
@@ -159,7 +176,7 @@ describe('site configuration', () => {
 
     expect(hydrated.roster[0].name).toBe('后台名称');
     expect(hydrated.leaderboard).toEqual([
-      { id: 'score-1', rank: 1, name: 'Excel名称', points: 11 },
+      { id: 'score-1', rank: 1, name: 'Excel名称', points: 1 },
     ]);
     expect(hydrated.dailyScores[0].rows[0].name).toBe('Excel名称');
   });
@@ -244,7 +261,7 @@ describe('site configuration', () => {
     expect(config).toEqual(snapshot);
   });
 
-  it('adds weekend scores additively and includes them in the daily detail', () => {
+  it('resets weekly totals at Monday and exposes source weekend fields', () => {
     const config = createSeedConfig();
     config.scoreMembers = config.scoreMembers.slice(0, 1).map((member) => ({ ...member, basePoints: 0 }));
     config.dailyScores = [
@@ -259,9 +276,28 @@ describe('site configuration', () => {
 
     expect(data.dailyScores.map((round) => round.date)).toEqual(['2026-08-01', '2026-08-02', '2026-08-03']);
     expect(data.dailyScores[0].rows[0].total).toBe(4);
-    expect(data.dailyScores[1].rows[0].total).toBe(16);
-    expect(data.dailyScores[2].rows[0].total).toBe(19);
-    expect(data.leaderboard[0].points).toBe(19);
+    expect(data.dailyScores[1].rows[0]).toMatchObject({ points: 100, weekTotal: 100, total: 100 });
+    expect(data.dailyScores[2].rows[0].total).toBe(3);
+    expect(data.leaderboard[0].points).toBe(3);
+  });
+
+  it('ignores an all-blank weekend date when selecting the latest score day', () => {
+    const config = createSeedConfig();
+    const member = { ...config.scoreMembers[0], basePoints: 0 };
+    config.scoreMembers = [member];
+    config.dailyScores = [{
+      date: '2026-08-01',
+      rows: [{ id: member.id, teamRace: [4, 0, 0], openRace: [0, 0, 0], score: 4, total: 4 }],
+    }];
+    config.weekendScores = [{
+      date: '2026-08-02',
+      rows: [{ id: member.id, points: null, score: null, total: null }],
+    }];
+
+    const data = hydrateSiteData(config);
+
+    expect(data.latestScoreDate).toBe('2026-08-01');
+    expect(data.dailyScores.map((round) => round.date)).toEqual(['2026-08-01']);
   });
 
   it('includes all latest-day score members in the leaderboard sorted by total descending', () => {
@@ -326,12 +362,11 @@ describe('site configuration', () => {
 
     const data = hydrateSiteData(config);
 
-    // Latest date is the weekend 2026-08-02; totals accumulate additively.
-    // score-a: 4 + 10 = 14, score-b: 6 + 20 = 26, history-only: 0 + 999 = 999
+    // The weekend source total is the week's exact final score.
     expect(data.leaderboard).toEqual([
       { id: 'history-only', rank: 1, name: 'Excel历史人物', points: 999 },
-      { id: 'score-b', rank: 2, name: '白榆', points: 26 },
-      { id: 'score-a', rank: 3, name: 'ˣʸ༩·青山', points: 14 },
+      { id: 'score-b', rank: 2, name: '白榆', points: 70 },
+      { id: 'score-a', rank: 3, name: 'ˣʸ༩·青山', points: 50 },
     ]);
     expect(data.latestScoreDate).toBe('2026-08-02');
   });

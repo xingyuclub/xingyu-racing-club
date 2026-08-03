@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-export function useRevealOnScroll(enabled = true) {
+export function useRevealOnScroll(enabled = true, refreshKey = null) {
   useEffect(() => {
     if (!enabled) return undefined;
 
@@ -25,5 +25,5 @@ export function useRevealOnScroll(enabled = true) {
 
     elements.forEach((element) => observer.observe(element));
     return () => observer.disconnect();
-  }, [enabled]);
+  }, [enabled, refreshKey]);
 }

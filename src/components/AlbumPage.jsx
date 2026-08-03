@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { useRevealOnScroll } from '../hooks/useRevealOnScroll.js';
 
 export function AlbumPage({ albums, onBack, onOpenPhoto }) {
   const [activeAlbumId, setActiveAlbumId] = useState(null);
+  useRevealOnScroll(true, activeAlbumId);
   const activeAlbum = albums.find((album) => album.id === activeAlbumId);
   const totalPhotos = albums.reduce((sum, album) => sum + album.photos.length, 0);
 
@@ -16,7 +18,7 @@ export function AlbumPage({ albums, onBack, onOpenPhoto }) {
 
   return (
     <section className="album-page" aria-labelledby="album-title">
-      <header className="album-header">
+      <header className="album-header" data-reveal>
         <button className="text-action" type="button" onClick={handleBack}>
           <ArrowLeft aria-hidden="true" size={17} />
           {activeAlbum ? '返回文件夹' : '返回首页'}
@@ -32,8 +34,8 @@ export function AlbumPage({ albums, onBack, onOpenPhoto }) {
       {activeAlbum
         ? activeAlbum.photos.length
           ? (
-              <div className="album-grid">
-                {activeAlbum.photos.map((photo) => {
+              <div className="album-grid" data-reveal>
+                {activeAlbum.photos.map((photo, index) => {
                   const isVideo = photo.mediaType === 'video' || Boolean(photo.videoUrl);
 
                   return (
@@ -42,6 +44,7 @@ export function AlbumPage({ albums, onBack, onOpenPhoto }) {
                       data-testid="album-photo"
                       key={photo.id}
                       type="button"
+                      style={{ '--stagger-index': Math.min(index, 5) }}
                       onClick={() => onOpenPhoto(photo)}
                       aria-label={`${isVideo ? '查看视频' : '查看'}${photo.title}`}
                     >
@@ -63,13 +66,14 @@ export function AlbumPage({ albums, onBack, onOpenPhoto }) {
           : <p className="empty-state">该文件夹暂无照片</p>
         : albums.length
           ? (
-              <div className="album-folder-grid">
-                {albums.map((album) => (
+              <div className="album-folder-grid" data-reveal>
+                {albums.map((album, index) => (
                   <button
                     className="album-folder"
                     data-testid="album-folder"
                     key={album.id}
                     type="button"
+                    style={{ '--stagger-index': Math.min(index, 5) }}
                     onClick={() => setActiveAlbumId(album.id)}
                     aria-label={`打开文件夹${album.name}`}
                   >
