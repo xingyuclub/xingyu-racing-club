@@ -1084,12 +1084,18 @@ h2 {
   padding: 0;
 }
 
-.member-video-header {
+.member-video-signature {
+  display: grid;
+  min-height: 52px;
+  margin: 0;
   padding: 10px 16px;
-}
-
-.member-video-header h2 {
-  font-size: 1.5rem;
+  place-items: center;
+  overflow: hidden;
+  color: var(--ink);
+  line-height: 1.5;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .video-modal .eyebrow {

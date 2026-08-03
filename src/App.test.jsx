@@ -421,7 +421,7 @@ describe('App', () => {
     fireEvent(card, touchPointerEvent('pointerup', 214));
     fireEvent.click(card);
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('成员 01');
+    expect(screen.getByRole('dialog')).toHaveTextContent('高光视频素材待替换');
   });
 
   it('accelerates the roster cylinder in the swipe direction and eases back to base speed', async () => {
@@ -496,7 +496,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: '查看成员 01 卡片详情' }));
 
     const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByRole('heading', { name: '成员 01' })).toBeInTheDocument();
+    expect(within(dialog).queryByText('成员 01')).not.toBeInTheDocument();
     expect(dialog).toHaveTextContent('高光视频素材待替换');
   });
 
@@ -659,14 +659,12 @@ describe('App', () => {
   it('gives member videos a larger edge-to-edge 16:9 viewing area', () => {
     const { container } = render(
       <VideoModal
-        member={{ name: '成员 01', videoUrl: '/videos/member-01.mp4' }}
+        member={{ name: '成员 01', signature: '一路向星光', videoUrl: '/videos/member-01.mp4' }}
         onClose={() => {}}
       />,
     );
 
-    expect(container.querySelector('.member-video-header')).toContainElement(
-      screen.getByRole('heading', { name: '成员 01' }),
-    );
+    expect(container.querySelector('.member-video-signature')).toHaveTextContent('一路向星光');
     expect(globalStyles).toMatch(
       /\.member-video-modal\s*\{[^}]*width:\s*min\(100vw,\s*calc\(\(100dvh\s*-\s*52px\)\s*\*\s*16\s*\/\s*9\)\)/s,
     );
@@ -675,20 +673,46 @@ describe('App', () => {
     expect(globalStyles).toMatch(/\.member-video-modal\s*>\s*video\s*\{[^}]*margin-top:\s*0/s);
   });
 
-  it('uses a compact full-viewport video frame with a name-only header', () => {
+  it('shows a non-empty signature above the video without name or close button', () => {
     const { container } = render(
       <VideoModal
-        member={{ name: '成员 01', videoUrl: '/videos/member-01.mp4' }}
+        member={{ name: '成员 01', signature: '一路向星光', videoUrl: '/videos/member-01.mp4' }}
         onClose={() => {}}
       />,
     );
 
+    const dialog = screen.getByRole('dialog');
+    const signature = within(dialog).getByText('一路向星光');
+    const video = container.querySelector('video');
     expect(container.querySelector('.modal-backdrop')).toHaveClass('video-modal-backdrop');
-    expect(container.querySelector('.member-video-header .eyebrow')).not.toBeInTheDocument();
+    expect(signature.compareDocumentPosition(video) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(dialog).queryByText('成员 01')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '关闭视频弹窗' })).not.toBeInTheDocument();
     expect(globalStyles).toMatch(/\.video-modal-backdrop\s*\{[^}]*padding:\s*0/s);
     expect(globalStyles).toMatch(/\.member-video-modal\s*\{[^}]*max-height:\s*100dvh/s);
-    expect(globalStyles).toMatch(/\.member-video-header\s*\{[^}]*padding:\s*10px\s+16px/s);
-    expect(globalStyles).toMatch(/\.member-video-header\s+h2\s*\{[^}]*font-size:\s*1\.5rem/s);
+    expect(globalStyles).toMatch(/\.member-video-signature\s*\{[^}]*text-align:\s*center/s);
+  });
+
+  it('omits a blank member signature', () => {
+    const { container } = render(
+      <VideoModal member={{ name: '成员 01', signature: '  ', videoUrl: '/member.mp4' }} onClose={() => {}} />,
+    );
+
+    expect(container.querySelector('.member-video-signature')).not.toBeInTheDocument();
+  });
+
+  it('closes only from blank backdrop clicks', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const { container } = render(
+      <VideoModal member={{ signature: '一路向星光', videoUrl: '/member.mp4' }} onClose={onClose} />,
+    );
+
+    await user.click(container.querySelector('video'));
+    await user.click(screen.getByText('一路向星光'));
+    expect(onClose).not.toHaveBeenCalled();
+    await user.click(container.querySelector('.video-modal-backdrop'));
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('renders a playable video when an album item has a video URL', () => {
@@ -718,10 +742,10 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: '查看成员 01 高光视频' }));
     const dialog = screen.getByRole('dialog');
     expect(dialog).toBeInTheDocument();
-    expect(within(dialog).getByRole('heading', { name: '成员 01' })).toBeInTheDocument();
+    expect(within(dialog).queryByText('成员 01')).not.toBeInTheDocument();
     expect(screen.getByText('高光视频素材待替换')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '关闭视频弹窗' }));
+    await user.click(document.querySelector('.video-modal-backdrop'));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 

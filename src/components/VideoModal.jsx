@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { X } from 'lucide-react';
 
 export function VideoModal({ member, onClose }) {
   useEffect(() => {
@@ -28,13 +27,10 @@ export function VideoModal({ member, onClose }) {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <section className="video-modal member-video-modal" data-entrance role="dialog" aria-modal="true" aria-labelledby="video-title">
-        <button className="icon-button" type="button" onClick={onClose} aria-label="关闭视频弹窗">
-          <X aria-hidden="true" size={20} />
-        </button>
-        <header className="member-video-header">
-          <h2 id="video-title">{member.name}</h2>
-        </header>
+      <section className="video-modal member-video-modal" data-entrance role="dialog" aria-modal="true">
+        {member.signature?.trim() && (
+          <p className="member-video-signature">{member.signature.trim()}</p>
+        )}
         {member.videoUrl ? (
           <video src={member.videoUrl} autoPlay muted controls playsInline />
         ) : (
