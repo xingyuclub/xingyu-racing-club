@@ -2,7 +2,7 @@
 
 当前项目根目录：`C:\Users\Admin\Documents\H5`
 
-最后更新：2026-08-02
+最后更新：2026-08-03
 
 ## 项目一句话
 这是一个基于 Vite + React 的星屿车队移动端 H5，核心是首页展示、成员阵容、积分榜、资讯、相册和音乐浮窗。
@@ -30,7 +30,7 @@
 - 项目文件已从 `技术标\.worktrees\xingyu-racing-club` 迁移到当前 `H5` 根目录
 - 本地配置后台与 API 已实现，设计和实施记录见 `docs/superpowers/specs/2026-07-28-xingyu-config-admin-design.md`、`docs/superpowers/plans/2026-07-28-xingyu-config-admin-implementation.md`
 - 星屿积分榜后台已采用独立 `scoreMembers` 的“按日期纵向明细 + 积分人物期初积分”模型，支持 Excel 式在线编辑、模板下载、`.xlsx` 导入预览确认和当前数据导出
-- 原始配置只保存积分人物、期初积分、日期、积分人物 ID 和六局成绩；星期、当日得分、累计总分及首页排行榜均在运行时派生，成员阵容继续独立使用 `roster`
+- 原始配置保存积分人物、期初积分、日期、积分人物 ID、六局成绩及 Excel/周末原始的得分和总分；星期和首页排行榜在运行时派生，成员阵容继续独立使用 `roster`
 - 普通 Excel 中出现的日期整体覆盖、未出现的日期保留；KW27-KW31 旧周表通过 `scripts/import-legacy-score-workbook.js` 专用脚本导入
 - 旧配置中的成员 `points` 会自动迁移为 `basePoints`，原运行时文件会保存为 `.bak`
 - 公开 H5 的新 UI/UX 方向已确认采用 `Pit Wall / 车队维修区`，完整设计见 `docs/superpowers/specs/2026-07-29-xingyu-pit-wall-ui-redesign-design.md`
@@ -164,3 +164,11 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 2026-08-02 已在应用层屏蔽公网对后台的访问：server/index.js 新增 isFromTunnel/blockTunnelAccess 中间件，识别 cf-ray/cf-connecting-ip/cf-visitor 等 Cloudflare 特征头，对 /api/login 与 /api/admin 一律返回 404；本机直连（无 cf 头）照常可用。公网经 cloudflared 隧道访问 /api/admin/config 与 /api/login 实测返回 404，而 /、/api/config 仍为 200；本机直连后台仍为 401 正常鉴权。新增 3 项回归测试覆盖「带 cf 头后台 404、无 cf 头后台 401、带 cf 头公开 API 200」，server/index.test.js 共 26 项通过。此改动仅重启 Node，cloudflared 未动，公网网址不变；管理员如需后台操作请在笔记本本机访问
 
 - 2026-08-02 已从 cloudflared（海外节点）切换到 cpolar（国内节点）以降低公网延迟：cpolar exe 位于 tools/cpolar.exe（不入 Git），authtoken 存于 ~/.cpolar/cpolar.yml，以 -region=cn 连接国内节点；运维脚本 scripts/start-tunnel.ps1 和 stop-tunnel.ps1 已更新为启动/停止 cpolar+Node。当前公网地址 https://4512da3d.r6.cpolar.cn（HTTP），首页延迟从 cloudflared 的 ~1000ms 降到 ~85ms（10 倍提升）；cpolar 免费版对大数据有带宽限速（~1Mbps），153KB API 约 1.2s，128MB 首页视频仍是大文件瓶颈。后台屏蔽中间件同步改为 Host 白名单方式（server/index.js 的 isLocalHost/isFromTunnel）：非本地/局域网 Host 一律 404，兼容 cloudflared/cpolar/ngrok 等任意穿透服务；server/index.test.js 回归测试已更新为 Host 方式（26 项通过）。cloudflared 进程已停；临时补丁脚本已清理
+
+- 2026-08-03 已继续完成公网访问性能收口：首页 128MB 视频保留原片、不压缩，改为显示备用封面并点击后才加载播放，视频使用 `preload="none"`；浏览器未点击时确认 `readyState=0`，移动端 375 宽无横向溢出。修复上轮误删的两个 Hero 视频测试体后，`npm test -- --run` 通过 19 个文件、270 项测试，`npm run build` 通过。`scripts/start-tunnel.ps1` 与 `scripts/stop-tunnel.ps1` 已补 UTF-8 BOM，Windows PowerShell 5 可直接执行；当前 cpolar 公网地址为 https://212c7c7a.r6.cpolar.cn，实测首页与 `/api/config` 为 200，公网 `/api/admin/config` 与 `/api/login` 为 404
+
+- 2026-08-03 已修复真实 Excel 历史积分导入字段和总分口径：`legacyScoreWorkbook` 完整保留工作日的“得分/总分”、周六车队赛的“上周/积分/得分/总分”及周日车队赛的“积分/得分/总分”；`scoreLedger` 改为按周使用 Excel 当周最终“总分”，成员累计总分仅累加各周最终总分。后台周末录入、在线积分编辑与前台日期明细同步保留并展示这些字段。已从 `星屿杯积分明细NEW.xlsx` 原子重导运行时配置，共 79 个积分人物、25 个工作日、10 个周末日，最新有效日期为 2026-08-02；25 人 roster 哈希导入前后完全一致，旧配置保存在 `server/data/site-config.json.bak`。真实工作簿审计确认原始字段、周末字段、页面当周总分和成员累计总分均为 0 差异；`npm test -- --run` 通过 20 个文件、275 项测试，`npm run build` 通过；浏览器在 1280x800 与 390x844 验证排行榜、周六/周日车队赛表格及内部横向滚动，页面级横向溢出为 0。
+
+- 2026-08-03 更正上一条积分口径：总分不是跨周累计，而是本周周一至当天的得分滚动和；每周一重置。周六得分为“积分-上周积分”、总分为周五总分加周六得分；周日得分为“积分-周六积分”、总分为周六总分加周日得分。Excel 原字段和值原样入库，前台排行榜和日期明细按最新日期的“总分”排序/展示，不再显示“累计总分”。截图识别补局会清除被修改工作日的旧导入得分/总分并重新派生，周末手动录入仍保留原始字段。重新导入 `星屿杯积分明细NEW.xlsx` 后仍为 79 个积分人物、25 个工作日、10 个周末日，最新日期 2026-08-02，roster 未变化；逐字段、周内总分审计均为 0 差异。`npm test -- --run` 通过 20 个文件、277 项测试，`npm run build` 通过；1280x800 与 390x844 浏览器验收通过，页面级横向溢出为 0。
+
+- 2026-08-03 提交前审计已收口：周末输入改为本地日期和数值/null 存储；编辑或截图补录工作日时清除同成员本周后续旧总分；截图新数据用 null 区分空槽和真实 0 分，旧数字数组按全部槽位已占用处理以避免覆盖；普通 Excel 通过隐藏元数据无损往返工作日原始得分、总分和 null 空槽，修改赛局后会丢弃对应旧原始值；成员视频弹窗同时受视口宽高约束。`npm test -- --run` 通过 20 个文件、295 项测试，`npm run build` 通过；844x390 横屏实测弹窗完整位于视口内、视频保持 16:9、横向溢出为 0。
