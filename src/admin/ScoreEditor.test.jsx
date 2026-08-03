@@ -170,6 +170,52 @@ describe('ScoreEditor', () => {
     })).toBeInTheDocument();
   });
 
+  it('includes weekend dates in the date union and renders projected weekend fields read-only', async () => {
+    const user = userEvent.setup();
+    const config = createConfig();
+    config.weekendScores = [
+      { date: '2026-08-08', rows: [{ id: config.scoreMembers[0].id, previousPoints: 90, points: 100 }] },
+      { date: '2026-08-09', rows: [{ id: config.scoreMembers[0].id, points: 112 }] },
+    ];
+
+    render(<ScoreEditor config={config} onChange={() => {}} />);
+    const memberName = config.scoreMembers[0].name;
+
+    expect(screen.getByLabelText('筛选日期')).toHaveValue('2026-08-09');
+    expect(screen.getByTestId('score-editor-weekend-row')).toBeInTheDocument();
+    expect(screen.getByLabelText(`周日 ${memberName} 得分`)).toHaveValue(12);
+    expect(screen.getByLabelText(`周日 ${memberName} 得分`)).toHaveAttribute('readonly');
+
+    await user.clear(screen.getByLabelText('筛选日期'));
+    await user.type(screen.getByLabelText('筛选日期'), '2026-08-08');
+    expect(screen.getByLabelText(`周六 ${memberName} 上周积分`)).toHaveValue(90);
+    expect(screen.getByLabelText(`周六 ${memberName} 总分`)).toHaveValue(10);
+  });
+
+  it('sorts weekday rows without changing the raw row used by edits', async () => {
+    const user = userEvent.setup();
+    const config = createConfig();
+    config.dailyScores[0].rows.push({
+      id: config.scoreMembers[1].id,
+      teamRace: [9, 0, 0],
+      openRace: [0, 0, 0],
+    });
+    const onChange = vi.fn();
+
+    render(<ScoreEditorHarness initialConfig={config} onChange={onChange} />);
+    await user.click(screen.getByRole('button', { name: '按队内赛1从大到小排序' }));
+
+    const sortedRows = screen.getAllByTestId('score-editor-row');
+    expect(within(sortedRows[0]).getByRole('option', { name: config.scoreMembers[1].name, selected: true })).toBeInTheDocument();
+    const firstRace = within(sortedRows[0]).getByRole('spinbutton', { name: '第2行队内赛1' });
+    await user.clear(firstRace);
+    await user.type(firstRace, '10');
+
+    const latest = onChange.mock.calls.at(-1)[0];
+    expect(latest.dailyScores[0].rows[1].teamRace[0]).toBe(10);
+    expect(latest.dailyScores[0].rows[0].teamRace[0]).toBe(1);
+  });
+
   it('manages roster names without showing Excel-only score members', async () => {
     const user = userEvent.setup();
     const config = createConfig();

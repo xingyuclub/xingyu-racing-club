@@ -179,4 +179,25 @@ describe('score workbook', () => {
     expect(weekendSheet.getCell('B4').value).toBeNull();
     expect(weekendSheet.getCell('C4').value).toBe('Excel成员 01');
   });
+
+  it('exports projected weekend formulas instead of stale stored score and total', async () => {
+    const config = createConfig();
+    config.dailyScores = [{
+      date: '2026-07-31',
+      rows: [{ id: 'member-01', teamRace: [5, 0, 0], openRace: [0, 0, 0] }],
+    }];
+    config.weekendScores = [
+      { date: '2026-08-01', rows: [{ id: 'member-01', previousPoints: 0, points: 10, score: 999, total: 999 }] },
+      { date: '2026-08-02', rows: [{ id: 'member-01', points: 15, score: 999, total: 999 }] },
+    ];
+
+    const workbook = await loadWorkbook(await createScoreWorkbookBuffer(config));
+    const weekendSheet = workbook.getWorksheet(WEEKEND_SHEET_NAME);
+
+    expect(weekendSheet.getCell('F4').value).toBe(10);
+    expect(weekendSheet.getCell('G4').value).toBe(15);
+    expect(weekendSheet.getCell('D5').value).toBeNull();
+    expect(weekendSheet.getCell('F5').value).toBe(5);
+    expect(weekendSheet.getCell('G5').value).toBe(20);
+  });
 });

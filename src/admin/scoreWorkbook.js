@@ -1,4 +1,5 @@
 import { normalizeNickname } from '../data/scoreRules.js';
+import { hydrateSiteData } from '../data/siteConfig.js';
 
 export const SCORE_SHEET_NAME = '积分明细';
 export const BASE_SHEET_NAME = '队员期初积分';
@@ -239,20 +240,32 @@ export async function createScoreWorkbookBuffer(config, { template = false } = {
   );
   styleHeaderRow(weekendSheet, WEEKEND_HEADERS);
   weekendSheet.columns = [14, 12, 20, 12, 12, 12, 14].map((width) => ({ width }));
+  const hydratedWeekendRows = new Map(
+    (hydrateSiteData({
+      ...config,
+      roster: config.roster || [],
+      scoreMembers: config.scoreMembers || [],
+      albums: config.albums || [],
+      dailyScores: config.dailyScores || [],
+      weekendScores: config.weekendScores || [],
+    }).dailyScores || []).flatMap((round) =>
+      (round.rows || []).map((row) => [`${round.date}|${row.id}`, row])),
+  );
   const weekendRows = (config.weekendScores || [])
     .slice()
     .sort((left, right) => left.date.localeCompare(right.date))
     .flatMap((round) =>
       round.rows.map((row) => {
         const member = membersById.get(row.id);
+        const projected = hydratedWeekendRows.get(`${round.date}|${row.id}`);
         return {
           date: round.date,
           number: member?.number || null,
           name: member?.name || '',
-          previousPoints: row.previousPoints == null ? null : Number(row.previousPoints),
+          previousPoints: (projected?.previousPoints ?? row.previousPoints) == null ? null : Number(projected?.previousPoints ?? row.previousPoints),
           points: row.points == null ? null : Number(row.points),
-          score: row.score == null ? null : Number(row.score),
-          total: row.total == null ? null : Number(row.total),
+          score: (projected?.score ?? row.score) == null ? null : Number(projected?.score ?? row.score),
+          total: (projected?.total ?? row.total) == null ? null : Number(projected?.total ?? row.total),
         };
       }),
     );

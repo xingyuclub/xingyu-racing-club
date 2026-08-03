@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Download, FileDown, Plus, Trash2, Upload, X } from 'lucide-react';
+import { ArrowDownWideNarrow, Download, FileDown, Plus, Trash2, Upload, X } from 'lucide-react';
 import { hydrateSiteData } from '../data/siteConfig.js';
 import { invalidateFollowingWeekTotals } from '../data/scoreRules.js';
 import {
@@ -30,6 +30,11 @@ const replaceDailyScores = (config, rows) => {
 };
 
 const totalKey = (date, id) => `${date}|${id}`;
+const dateWeekday = (dateKey) => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Date(year, month - 1, day).getDay();
+};
+const weekendLabel = (dateKey) => dateWeekday(dateKey) === 6 ? '周六' : '周日';
 const nextNumericValue = (values, format = String) => {
   const used = new Set(values.map((value) => String(value || '').trim()));
   let value = 1;
@@ -42,19 +47,76 @@ export function ScoreEditor({ config, onChange }) {
   const [tab, setTab] = useState('scores');
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [sortKeys, setSortKeys] = useState({});
   const rows = useMemo(() => flattenScores(config.dailyScores), [config.dailyScores]);
-  const [selectedDate, setSelectedDate] = useState(() =>
-    config.dailyScores.map((round) => round.date).sort().at(-1) || '');
-  const visibleRows = useMemo(() => rows
-    .map((row, index) => ({ row, index }))
-    .filter(({ row }) => row.date === selectedDate), [rows, selectedDate]);
+  const weekendRows = useMemo(
+    () => (config.weekendScores || []).flatMap((round, roundIndex) =>
+      round.rows.map((row, rowIndex) => ({ ...clone(row), date: round.date, roundIndex, rowIndex }))),
+    [config.weekendScores],
+  );
+  const availableDates = useMemo(() => [...new Set([
+    ...rows.map((row) => row.date),
+    ...weekendRows.map((row) => row.date),
+  ])].sort(), [rows, weekendRows]);
+  const [selectedDate, setSelectedDate] = useState(() => availableDates.at(-1) || '');
+  const selectedIsWeekend = selectedDate && [0, 6].includes(dateWeekday(selectedDate));
   const totals = useMemo(() => {
     const hydrated = hydrateSiteData(config);
     return new Map(hydrated.dailyScores.flatMap((round) => round.rows.map((row) => [
       totalKey(round.date, row.id),
-      { score: row.score, total: row.total },
+      {
+        previousPoints: row.previousPoints,
+        points: row.points,
+        score: row.score,
+        total: row.total,
+        previousPointsInherited: row.previousPointsInherited,
+      },
     ])));
   }, [config]);
+  const visibleRows = useMemo(() => {
+    const source = selectedIsWeekend
+      ? weekendRows
+        .filter((row) => row.date === selectedDate)
+        .map((row) => ({ row, index: null, weekend: true }))
+      : rows
+        .map((row, index) => ({ row, index, weekend: false }))
+        .filter(({ row }) => row.date === selectedDate);
+    const field = sortKeys[selectedDate];
+    if (!field) return source;
+    return source.slice().sort((left, right) => {
+      const leftValue = left.weekend
+        ? totals.get(totalKey(selectedDate, left.row.id))?.[field]
+        : field === 'score' || field === 'total'
+          ? totals.get(totalKey(selectedDate, left.row.id))?.[field]
+          : left.row[field.split(':')[0]]?.[Number(field.split(':')[1])] ?? null;
+      const rightValue = right.weekend
+        ? totals.get(totalKey(selectedDate, right.row.id))?.[field]
+        : field === 'score' || field === 'total'
+          ? totals.get(totalKey(selectedDate, right.row.id))?.[field]
+          : right.row[field.split(':')[0]]?.[Number(field.split(':')[1])] ?? null;
+      const leftNumber = leftValue == null || leftValue === '' ? Number.NEGATIVE_INFINITY : Number(leftValue);
+      const rightNumber = rightValue == null || rightValue === '' ? Number.NEGATIVE_INFINITY : Number(rightValue);
+      const leftName = config.scoreMembers.find((member) => member.id === left.row.id)?.name || left.row.name || '';
+      const rightName = config.scoreMembers.find((member) => member.id === right.row.id)?.name || right.row.name || '';
+      return rightNumber - leftNumber || String(leftName).localeCompare(String(rightName));
+    });
+  }, [rows, weekendRows, selectedDate, selectedIsWeekend, sortKeys, totals]);
+
+  const setDate = (date) => {
+    setSelectedDate(date);
+    setSortKeys({});
+  };
+  const sortButton = (label, field) => (
+    <button
+      type="button"
+      className="score-sort-button"
+      aria-label={`按${label}从大到小排序`}
+      title={`按${label}从大到小排序`}
+      onClick={() => setSortKeys((current) => ({ ...current, [selectedDate]: field }))}
+    >
+      <ArrowDownWideNarrow aria-hidden="true" size={14} />
+    </button>
+  );
 
   const updateRows = (nextRows, invalidations = []) => {
     const next = replaceDailyScores(config, nextRows);
@@ -75,7 +137,7 @@ export function ScoreEditor({ config, onChange }) {
 
   const addRow = () => {
     if (!config.scoreMembers.length) return;
-    const date = selectedDate || rows.at(-1)?.date || new Date().toISOString().slice(0, 10);
+    const date = selectedDate || availableDates.at(-1) || new Date().toISOString().slice(0, 10);
     const used = new Set(rows.filter((row) => row.date === date).map((row) => row.id));
     const member = config.scoreMembers.find((item) => !used.has(item.id)) || config.scoreMembers[0];
     updateRows([...rows, {
@@ -84,7 +146,7 @@ export function ScoreEditor({ config, onChange }) {
       teamRace: [null, null, null],
       openRace: [null, null, null],
     }]);
-    setSelectedDate(date);
+    setDate(date);
   };
 
   const updateRosterName = (index, name) => {
@@ -209,7 +271,7 @@ export function ScoreEditor({ config, onChange }) {
             type="date"
             aria-label="筛选日期"
             value={selectedDate}
-            onChange={(event) => setSelectedDate(event.target.value)}
+            onChange={(event) => setDate(event.target.value)}
           />
         </label>
         <button type="button" disabled={busy} onClick={() => download(true)}>
@@ -286,20 +348,40 @@ export function ScoreEditor({ config, onChange }) {
             <tr>
               <th>日期</th>
               <th>队员</th>
-              <th>队内赛1</th>
-              <th>队内赛2</th>
-              <th>队内赛3</th>
-              <th>开黑赛1</th>
-              <th>开黑赛2</th>
-              <th>开黑赛3</th>
-              <th>当日得分</th>
-              <th>总分</th>
+              {selectedIsWeekend ? <>
+                {dateWeekday(selectedDate) === 6 && <th><span className="score-table-header">上周积分{sortButton(`${weekendLabel(selectedDate)}上周积分`, 'previousPoints')}</span></th>}
+                <th><span className="score-table-header">积分{sortButton(`${weekendLabel(selectedDate)}积分`, 'points')}</span></th>
+                <th><span className="score-table-header">得分{sortButton(`${weekendLabel(selectedDate)}得分`, 'score')}</span></th>
+                <th><span className="score-table-header">总分{sortButton(`${weekendLabel(selectedDate)}总分`, 'total')}</span></th>
+              </> : <>
+                {['队内赛1', '队内赛2', '队内赛3', '开黑赛1', '开黑赛2', '开黑赛3'].map((label, index) => (
+                  <th key={label}><span className="score-table-header">{label}{sortButton(label, `${index < 3 ? 'teamRace' : 'openRace'}:${index % 3}`)}</span></th>
+                ))}
+                <th><span className="score-table-header">当日得分{sortButton('当日得分', 'score')}</span></th>
+                <th><span className="score-table-header">总分{sortButton('总分', 'total')}</span></th>
+              </>}
               <th><span className="sr-only">操作</span></th>
             </tr>
           </thead>
           <tbody>
             {visibleRows.map(({ row, index: rowIndex }) => {
               const calculated = totals.get(totalKey(row.date, row.id)) || { score: 0, total: 0 };
+              if (selectedIsWeekend) {
+                const member = config.scoreMembers.find((item) => item.id === row.id);
+                const dayLabel = weekendLabel(row.date);
+                const name = member?.name || row.id;
+                return (
+                  <tr key={`${row.date}-${row.id}-${row.rowIndex}`} data-testid="score-editor-weekend-row">
+                    <td><input type="date" value={row.date} readOnly aria-label={`${dayLabel} ${name} 日期`} /></td>
+                    <td>{name}</td>
+                    {dayLabel === '周六' && <td><input type="number" readOnly aria-label={`${dayLabel} ${name} 上周积分`} value={calculated.previousPoints ?? row.previousPoints ?? ''} /></td>}
+                    <td><input type="number" readOnly aria-label={`${dayLabel} ${name} 积分`} value={calculated.points ?? row.points ?? ''} /></td>
+                    <td><input type="number" readOnly aria-label={`${dayLabel} ${name} 得分`} value={calculated.score ?? row.score ?? ''} /></td>
+                    <td><input type="number" readOnly aria-label={`${dayLabel} ${name} 总分`} value={calculated.total ?? row.total ?? ''} /></td>
+                    <td />
+                  </tr>
+                );
+              }
               const raceGroups = [
                 ['队内赛', 'teamRace'],
                 ['开黑赛', 'openRace'],
