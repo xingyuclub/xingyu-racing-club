@@ -8,6 +8,23 @@ import { UploadField } from './UploadField.jsx';
 
 afterEach(() => vi.unstubAllGlobals());
 
+it('starts every top-level admin section collapsed and expands them independently', async () => {
+  const user = userEvent.setup();
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
+
+  render(<ConfigEditor initialConfig={createSeedConfig()} onAuthError={() => false} />);
+
+  expect(screen.getAllByRole('button', { name: /^展开/ })).toHaveLength(7);
+  expect(screen.queryByLabelText('名称')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('个性签名')).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole('button', { name: '展开 成员管理' }));
+
+  expect(screen.getAllByLabelText('个性签名')[0]).toHaveValue('');
+  expect(screen.getByRole('button', { name: '收起 成员管理' })).toHaveAttribute('aria-expanded', 'true');
+  expect(screen.getByRole('button', { name: '展开 新闻管理' })).toHaveAttribute('aria-expanded', 'false');
+});
+
 it('logs in, edits public content, uploads a cover, and saves the draft', async () => {
   const user = userEvent.setup();
   const config = createSeedConfig();
@@ -23,6 +40,9 @@ it('logs in, edits public content, uploads a cover, and saves the draft', async 
   await user.type(screen.getByLabelText('账号'), 'admin');
   await user.type(screen.getByLabelText('密码'), 'test-password');
   await user.click(screen.getByRole('button', { name: '登录' }));
+  await user.click(await screen.findByRole('button', { name: '展开 基础信息' }));
+  await user.click(screen.getByRole('button', { name: '展开 成员管理' }));
+  await user.click(screen.getByRole('button', { name: '展开 星屿积分榜' }));
   const motto = await screen.findByLabelText('车队口号');
   expect(screen.getByLabelText('第 1 句')).toHaveValue(config.team.heroLines[0]);
   expect(screen.getByLabelText('第 2 句')).toHaveValue(config.team.heroLines[1]);
@@ -35,6 +55,7 @@ it('logs in, edits public content, uploads a cover, and saves the draft', async 
   const firstRole = screen.getAllByLabelText('角色')[0];
   await user.clear(firstRole);
   await user.type(firstRole, '队长');
+  await user.type(screen.getAllByLabelText('个性签名')[0], '一路向星光');
   const rosterSection = screen.getByRole('heading', { name: '成员管理' }).closest('section');
   await user.click(within(rosterSection).getByRole('button', { name: '新增' }));
   expect(within(rosterSection).getAllByLabelText('ID').at(-1)).toHaveValue('1');
@@ -45,6 +66,7 @@ it('logs in, edits public content, uploads a cover, and saves the draft', async 
   expect(fetch).toHaveBeenLastCalledWith('/api/admin/config', expect.objectContaining({ method: 'PUT' }));
     const savedConfig = JSON.parse(fetch.mock.calls.at(-1)[1].body);
     expect(savedConfig.roster[0].role).toBe('队长');
+    expect(savedConfig.roster[0].signature).toBe('一路向星光');
     expect(savedConfig.team.heroMedia).toEqual({ src: '/uploads/abc--hero.mp4', type: 'video' });
     expect(savedConfig.team.heroFallbackImage).toBe('/uploads/def--fallback.png');
     expect(screen.getByText('hero.mp4', { selector: 'code' })).toBeInTheDocument();
@@ -70,6 +92,8 @@ it('lets each member card collapse and expand without losing its values', async 
 
   render(<ConfigEditor initialConfig={config} onAuthError={() => false} />);
 
+  await user.click(screen.getByRole('button', { name: '展开 成员管理' }));
+
   const collapseButton = screen.getByRole('button', { name: `收起 ${member.name}` });
   const memberCard = collapseButton.closest('.array-item');
   expect(within(memberCard).getByLabelText('名称')).toHaveValue(member.name);
@@ -91,6 +115,8 @@ it('collapses existing news into title category and date summaries', async () =>
 
   render(<ConfigEditor initialConfig={config} onAuthError={() => false} />);
 
+  await user.click(screen.getByRole('button', { name: '展开 新闻管理' }));
+
   const expandButton = screen.getByRole('button', { name: `展开 ${news.title}` });
   const card = expandButton.closest('.array-item');
   expect(within(card).getByText(`${news.title} · ${news.category} · ${news.date}`)).toBeInTheDocument();
@@ -108,6 +134,7 @@ it('opens newly added news with separate cover and article image controls', asyn
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
 
   render(<ConfigEditor initialConfig={config} onAuthError={() => false} />);
+  await user.click(screen.getByRole('button', { name: '展开 新闻管理' }));
   const section = screen.getByRole('heading', { name: '新闻管理' }).closest('section');
   await user.click(within(section).getByRole('button', { name: '新增' }));
 
@@ -123,6 +150,7 @@ it('keeps a news card expanded while its editable ID changes', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
 
   render(<ConfigEditor initialConfig={config} onAuthError={() => false} />);
+  await user.click(screen.getByRole('button', { name: '展开 新闻管理' }));
   const section = screen.getByRole('heading', { name: '新闻管理' }).closest('section');
   await user.click(within(section).getByRole('button', { name: `展开 ${config.news[0].title}` }));
   const idInput = within(section).getByLabelText('ID');
