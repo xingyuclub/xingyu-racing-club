@@ -106,6 +106,7 @@ export function hydrateSiteData(rawConfig) {
       teamRace: row.teamRace,
       openRace: row.openRace,
       ...(row.previousPoints !== undefined ? { previousPoints: row.previousPoints } : {}),
+      ...(row.previousPointsInherited !== undefined ? { previousPointsInherited: row.previousPointsInherited } : {}),
       ...(row.points !== undefined ? { points: row.points } : {}),
       score: row.score,
       weekTotal: row.weekTotal,

@@ -296,6 +296,21 @@ describe('site configuration', () => {
     expect(data.leaderboard[0].points).toBe(3);
   });
 
+  it('exposes inherited Saturday baseline metadata', () => {
+    const config = createSeedConfig();
+    const member = config.scoreMembers[0];
+    config.scoreMembers = [member];
+    config.dailyScores = [];
+    config.weekendScores = [
+      { date: '2026-08-09', rows: [{ id: member.id, points: 112 }] },
+      { date: '2026-08-15', rows: [{ id: member.id, previousPoints: 999, points: 120 }] },
+    ];
+
+    const saturday = hydrateSiteData(config).dailyScores.find(({ date }) => date === '2026-08-15').rows[0];
+
+    expect(saturday).toMatchObject({ previousPoints: 112, previousPointsInherited: true, score: 8 });
+  });
+
   it('ignores an all-blank weekend date when selecting the latest score day', () => {
     const config = createSeedConfig();
     const member = { ...config.scoreMembers[0], basePoints: 0 };

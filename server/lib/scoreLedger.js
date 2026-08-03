@@ -38,14 +38,15 @@ export function projectScores({ dailyScores = [], weekendScores = [], roster = [
   const dailyDetail = [];
   let activeWeek = null;
   let weekTotals = new Map();
-  let weekendPoints = new Map();
+  let saturdayPoints = new Map();
+  const previousSundayPoints = new Map();
 
   for (const event of events) {
     const isWeekend = event.kind === 'weekend';
     const eventWeek = weekKey(event.date);
     if (activeWeek !== null && eventWeek !== activeWeek) {
       weekTotals = new Map();
-      weekendPoints = new Map();
+      saturdayPoints = new Map();
       for (const memberId of totals.keys()) totals.set(memberId, 0);
     }
     activeWeek = eventWeek;
@@ -58,18 +59,28 @@ export function projectScores({ dailyScores = [], weekendScores = [], roster = [
       const openRace = isWeekend ? [] : [...(row.openRace || [])];
       const importedScore = numericValue(row.score);
       const points = numericValue(row.points);
-      const previousPoints = numericValue(row.previousPoints);
-      const weekendBaseline = previousPoints ?? weekendPoints.get(memberId) ?? null;
-      const score = importedScore
-        ?? (isWeekend
-          ? (points != null && weekendBaseline != null ? points - weekendBaseline : null)
-          : sum([...teamRace, ...openRace]));
+      const weekendDay = isWeekend ? formatWeekday(event.date) : null;
+      const isSaturday = weekendDay === '周六';
+      const isSunday = weekendDay === '周日';
+      const inheritedBaseline = isSaturday && previousSundayPoints.has(memberId);
+      const previousPoints = isSaturday
+        ? (inheritedBaseline ? previousSundayPoints.get(memberId) : numericValue(row.previousPoints))
+        : numericValue(row.previousPoints);
+      const weekendBaseline = isSaturday
+        ? previousPoints
+        : (isSunday ? saturdayPoints.get(memberId) ?? null : null);
+      const hasWeekendFormula = isWeekend && points != null && weekendBaseline != null;
+      const score = hasWeekendFormula
+        ? points - weekendBaseline
+        : (importedScore ?? (isWeekend ? null : sum([...teamRace, ...openRace])));
       const importedWeekTotal = numericValue(row.total);
-      const weekTotal = importedWeekTotal ?? ((weekTotals.get(memberId) || 0) + (score || 0));
+      const calculatedWeekTotal = (weekTotals.get(memberId) || 0) + (score || 0);
+      const weekTotal = hasWeekendFormula ? calculatedWeekTotal : (importedWeekTotal ?? calculatedWeekTotal);
       const total = weekTotal;
       weekTotals.set(memberId, weekTotal);
       totals.set(memberId, total);
-      if (isWeekend && points != null) weekendPoints.set(memberId, points);
+      if (isSaturday && points != null) saturdayPoints.set(memberId, points);
+      if (isSunday && points != null) previousSundayPoints.set(memberId, points);
       return [{
         id: row.id,
         teamRace,
@@ -77,6 +88,7 @@ export function projectScores({ dailyScores = [], weekendScores = [], roster = [
         ...(isWeekend ? {
           previousPoints,
           points,
+          ...(isSaturday ? { previousPointsInherited: inheritedBaseline } : {}),
         } : {}),
         score,
         weekTotal,

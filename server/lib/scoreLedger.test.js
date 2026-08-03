@@ -100,6 +100,51 @@ describe('projectScores', () => {
     ]);
   });
 
+  it('derives weekend formulas and carries Sunday points into next Saturday', () => {
+    const { dailyDetail } = projectScores({
+      roster: [{ id: '1' }],
+      dailyScores: [
+        { date: '2026-08-07', rows: [{ id: '1', teamRace: [20, 0, 0], openRace: [0, 0, 0] }] },
+        { date: '2026-08-14', rows: [{ id: '1', teamRace: [8, 0, 0], openRace: [0, 0, 0] }] },
+      ],
+      weekendScores: [
+        { date: '2026-08-08', rows: [{ id: '1', previousPoints: 90, points: 100, score: 999, total: 999 }] },
+        { date: '2026-08-09', rows: [{ id: '1', points: 112, score: 999, total: 999 }] },
+        { date: '2026-08-15', rows: [{ id: '1', previousPoints: 999, points: 120, score: 999, total: 999 }] },
+      ],
+    });
+
+    expect(dailyDetail.find(({ date }) => date === '2026-08-08').rows[0]).toMatchObject({
+      previousPoints: 90,
+      previousPointsInherited: false,
+      score: 10,
+      total: 30,
+    });
+    expect(dailyDetail.find(({ date }) => date === '2026-08-09').rows[0]).toMatchObject({ score: 12, total: 42 });
+    expect(dailyDetail.find(({ date }) => date === '2026-08-15').rows[0]).toMatchObject({
+      previousPoints: 112,
+      previousPointsInherited: true,
+      score: 8,
+      total: 16,
+    });
+  });
+
+  it('falls back to imported weekend score and total when formula inputs are incomplete', () => {
+    const { dailyDetail } = projectScores({
+      roster: [{ id: '1' }],
+      weekendScores: [
+        { date: '2026-08-08', rows: [{ id: '1', previousPoints: null, points: 100, score: 7, total: 17 }] },
+      ],
+    });
+
+    expect(dailyDetail[0].rows[0]).toMatchObject({
+      previousPoints: null,
+      previousPointsInherited: false,
+      score: 7,
+      total: 17,
+    });
+  });
+
   it('tracks totals for historical members not in the roster', () => {
     const { totals } = projectScores({
       roster,
