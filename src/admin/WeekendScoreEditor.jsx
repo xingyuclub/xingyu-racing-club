@@ -1,4 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { ArrowDownWideNarrow } from 'lucide-react';
+import { hydrateSiteData } from '../data/siteConfig.js';
 
 const clone = (value) => structuredClone(value);
 
@@ -28,6 +30,7 @@ function getMondayOfThisWeek() {
 
 export function WeekendScoreEditor({ config, onChange }) {
   const monday = useMemo(() => getMondayOfThisWeek(), []);
+  const [sortKeys, setSortKeys] = useState({});
   const weekendDates = WEEKEND_DAYS.map((day) => ({
     ...day,
     date: getWeekendDate(monday, day.offset),
@@ -41,10 +44,27 @@ export function WeekendScoreEditor({ config, onChange }) {
     return map;
   }, [config.weekendScores]);
 
+  const hydrated = useMemo(() => hydrateSiteData(config), [config]);
+  const projectedRowsByKey = useMemo(() => {
+    const map = new Map();
+    for (const round of hydrated.dailyScores || []) {
+      for (const row of round.rows || []) map.set(`${round.date}|${row.id}`, row);
+    }
+    return map;
+  }, [hydrated.dailyScores]);
+
   const getRow = (date, memberId) => {
     const round = scoresByDate.get(date);
-    return round?.rows.find((row) => row.id === memberId)
-      || { id: memberId, previousPoints: null, points: null, score: null, total: null };
+    const source = round?.rows.find((row) => row.id === memberId) || { id: memberId };
+    const projected = projectedRowsByKey.get(`${date}|${memberId}`);
+    return {
+      id: memberId,
+      previousPoints: projected?.previousPoints ?? source.previousPoints ?? null,
+      points: source.points ?? projected?.points ?? null,
+      score: projected?.score ?? source.score ?? null,
+      total: projected?.total ?? source.total ?? null,
+      previousPointsInherited: projected?.previousPointsInherited === true,
+    };
   };
 
   const updateField = (date, memberId, field, value) => {
@@ -66,6 +86,31 @@ export function WeekendScoreEditor({ config, onChange }) {
     onChange(next);
   };
 
+  const sortMembers = (day) => {
+    const field = sortKeys[day.date];
+    const members = [...(config.scoreMembers || [])];
+    if (!field) return members;
+    return members.sort((left, right) => {
+      const leftValue = getRow(day.date, left.id)[field];
+      const rightValue = getRow(day.date, right.id)[field];
+      const leftNumber = leftValue == null || leftValue === '' ? Number.NEGATIVE_INFINITY : Number(leftValue);
+      const rightNumber = rightValue == null || rightValue === '' ? Number.NEGATIVE_INFINITY : Number(rightValue);
+      return rightNumber - leftNumber || String(left.name || '').localeCompare(String(right.name || ''));
+    });
+  };
+
+  const sortButton = (day, field, label) => (
+    <button
+      type="button"
+      className="weekend-score-sort"
+      aria-label={`按${day.label}${label}从大到小排序`}
+      title={`按${day.label}${label}从大到小排序`}
+      onClick={() => setSortKeys((current) => ({ ...current, [day.date]: field }))}
+    >
+      <ArrowDownWideNarrow size={14} aria-hidden="true" />
+    </button>
+  );
+
   return (
     <div className="weekend-score-editor">
       {weekendDates.map((day) => (
@@ -75,14 +120,14 @@ export function WeekendScoreEditor({ config, onChange }) {
             <thead>
               <tr>
                 <th>队员</th>
-                {day.hasPreviousPoints && <th>上周积分</th>}
-                <th>积分</th>
-                <th>得分</th>
-                <th>总分</th>
+                {day.hasPreviousPoints && <th><span className="weekend-score-header">上周积分{sortButton(day, 'previousPoints', '上周积分')}</span></th>}
+                <th><span className="weekend-score-header">积分{sortButton(day, 'points', '积分')}</span></th>
+                <th><span className="weekend-score-header">得分{sortButton(day, 'score', '得分')}</span></th>
+                <th><span className="weekend-score-header">总分{sortButton(day, 'total', '总分')}</span></th>
               </tr>
             </thead>
             <tbody>
-              {config.scoreMembers.map((member) => {
+              {sortMembers(day).map((member) => {
                 const row = getRow(day.date, member.id);
                 return (
                   <tr key={member.id}>
@@ -93,6 +138,7 @@ export function WeekendScoreEditor({ config, onChange }) {
                           type="number"
                           aria-label={day.label + ' ' + member.name + ' 上周积分'}
                           value={row.previousPoints ?? ''}
+                          readOnly={row.previousPointsInherited}
                           onChange={(event) => updateField(day.date, member.id, 'previousPoints', event.target.value)}
                         />
                       </td>
@@ -109,16 +155,16 @@ export function WeekendScoreEditor({ config, onChange }) {
                       <input
                         type="number"
                         aria-label={day.label + ' ' + member.name + ' 得分'}
-                        value={row.score ?? ''}
-                        onChange={(event) => updateField(day.date, member.id, 'score', event.target.value)}
+                          value={row.score ?? ''}
+                        readOnly
                       />
                     </td>
                     <td>
                       <input
                         type="number"
                         aria-label={day.label + ' ' + member.name + ' 总分'}
-                        value={row.total ?? ''}
-                        onChange={(event) => updateField(day.date, member.id, 'total', event.target.value)}
+                          value={row.total ?? ''}
+                        readOnly
                       />
                     </td>
                   </tr>

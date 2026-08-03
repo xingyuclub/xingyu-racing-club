@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { expect, it, vi } from 'vitest';
@@ -13,6 +13,8 @@ const baseConfig = {
     { id: '2', name: '喵酱', basePoints: 0, wins: 0 },
   ],
   weekendScores: [],
+  dailyScores: [],
+  albums: [],
 };
 
 // Wrapper that feeds onChange back into state so controlled inputs re-render.
@@ -44,7 +46,7 @@ it('writes the edited value into the matching weekendScores row', async () => {
   expect(input).toHaveValue(120);
 });
 
-it('preserves all four Saturday source fields when editing a member row', async () => {
+it('calculates weekend fields and keeps formula outputs read-only', async () => {
   const onChange = vi.fn();
   function Spy() {
     const [config, setConfig] = useState(baseConfig);
@@ -53,18 +55,74 @@ it('preserves all four Saturday source fields when editing a member row', async 
   render(<Spy />);
 
   await userEvent.type(screen.getByLabelText('周六 青山 上周积分'), '90');
-  await userEvent.type(screen.getByLabelText('周六 青山 得分'), '7');
-  await userEvent.type(screen.getByLabelText('周六 青山 总分'), '9');
+  await userEvent.type(screen.getByLabelText('周六 青山 积分'), '100');
 
   const last = onChange.mock.calls.at(-1)[0];
   const row = last.weekendScores[0].rows[0];
-  expect(row).toMatchObject({ id: '1', previousPoints: 90, score: 7, total: 9 });
-  expect(['previousPoints', 'points', 'score', 'total'].map((field) => row[field])).toEqual([
-    90,
-    null,
-    7,
-    9,
-  ]);
+  expect(row).toMatchObject({ id: '1', previousPoints: 90, points: 100 });
+  expect(screen.getByLabelText('周六 青山 得分')).toHaveValue(10);
+  expect(screen.getByLabelText('周六 青山 得分')).toHaveAttribute('readonly');
+  expect(screen.getByLabelText('周六 青山 总分')).toHaveValue(10);
+  expect(screen.getByLabelText('周六 青山 总分')).toHaveAttribute('readonly');
+});
+
+it('locks an inherited Saturday baseline and derives the weekly total', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-08-15T12:00:00'));
+  const config = {
+    ...baseConfig,
+    dailyScores: [{ date: '2026-08-14', rows: [{ id: '1', teamRace: [8, 0, 0], openRace: [0, 0, 0] }] }],
+    weekendScores: [
+      { date: '2026-08-09', rows: [{ id: '1', points: 112 }] },
+      { date: '2026-08-15', rows: [{ id: '1', previousPoints: 999, points: 120 }] },
+    ],
+  };
+
+  try {
+    render(<WeekendScoreEditor config={config} onChange={vi.fn()} />);
+
+    expect(screen.getByLabelText('周六 青山 上周积分')).toHaveValue(112);
+    expect(screen.getByLabelText('周六 青山 上周积分')).toHaveAttribute('readonly');
+    expect(screen.getByLabelText('周六 青山 得分')).toHaveValue(8);
+    expect(screen.getByLabelText('周六 青山 总分')).toHaveValue(16);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('sorts each weekend numeric column from large to small', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-08-08T12:00:00'));
+  const config = {
+    ...baseConfig,
+    weekendScores: [
+      { date: '2026-08-08', rows: [
+        { id: '1', previousPoints: 90, points: 100 },
+        { id: '2', previousPoints: 50, points: 80 },
+      ] },
+      { date: '2026-08-09', rows: [
+        { id: '1', points: 112 },
+        { id: '2', points: 85 },
+      ] },
+    ],
+  };
+
+  try {
+    render(<WeekendScoreEditor config={config} onChange={vi.fn()} />);
+    const saturday = screen.getByText('周六（2026-08-08）').closest('.weekend-score-day');
+    const sunday = screen.getByText('周日（2026-08-09）').closest('.weekend-score-day');
+    for (const field of ['上周积分', '积分', '得分', '总分']) {
+      expect(within(saturday).getByRole('button', { name: `按周六${field}从大到小排序` })).toBeInTheDocument();
+    }
+    for (const field of ['积分', '得分', '总分']) {
+      expect(within(sunday).getByRole('button', { name: `按周日${field}从大到小排序` })).toBeInTheDocument();
+    }
+
+    fireEvent.click(within(saturday).getByRole('button', { name: '按周六得分从大到小排序' }));
+    expect(within(saturday).getAllByRole('row')[1]).toHaveTextContent('喵酱');
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it('uses local calendar dates before 08:00 instead of shifting them to UTC', () => {
