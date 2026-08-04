@@ -5,9 +5,10 @@ const INVISIBLE_CHARS = /[\u200B-\u200F\u202A-\u202E\u2060\uFEFF]/g;
 const TEAM_PREFIX = /^(?:ˣʸ༩|xy(?:[roa²♂♀β]|\/[ac])?)\s*[·._-]\s*/i;
 const MAX_GAMES_PER_TYPE = 3;
 const MAX_TEAM_RACE_SCORE = 6;
+const HAN_CHARACTERS = /\p{Script=Han}/gu;
 
 export function extractHanCharacters(value) {
-  return String(value ?? '').match(/\p{Script=Han}/gu)?.join('') ?? '';
+  return String(value ?? '').normalize('NFC').match(HAN_CHARACTERS)?.join('') ?? '';
 }
 
 export function normalizeNickname(value) {
@@ -40,7 +41,7 @@ export function buildMemberMatcher(roster, aliases = []) {
     lookup.set(normalizedName, member.id);
 
     const hanName = extractHanCharacters(normalizedName);
-    if (hanName.length < 2) continue;
+    if ([...hanName].length < 2) continue;
     if (!hanLookup.has(hanName)) {
       hanLookup.set(hanName, member.id);
     } else if (hanLookup.get(hanName) !== member.id) {
@@ -55,7 +56,7 @@ export function buildMemberMatcher(roster, aliases = []) {
     if (lookup.has(normalized)) return lookup.get(normalized) ?? null;
 
     const hanName = extractHanCharacters(normalized);
-    if (hanName.length < 2) return null;
+    if ([...hanName].length < 2) return null;
     return hanLookup.get(hanName) ?? null;
   };
 }

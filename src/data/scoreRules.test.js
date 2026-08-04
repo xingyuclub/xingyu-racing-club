@@ -143,6 +143,15 @@ describe('extractHanCharacters', () => {
     expect(extractHanCharacters('Q3')).toBe('');
     expect(extractHanCharacters('Rose')).toBe('');
   });
+
+  it('normalizes compatibility Han characters before extraction', () => {
+    expect(extractHanCharacters('x\uF900y')).toBe('豈');
+  });
+
+  it('treats supplementary-plane Han characters as single characters', () => {
+    expect(extractHanCharacters('x𠀀y')).toBe('𠀀');
+    expect([...extractHanCharacters('𠀀')].length).toBe(1);
+  });
 });
 
 describe('buildMemberMatcher', () => {
@@ -205,6 +214,16 @@ describe('buildMemberMatcher', () => {
     expect(match('黑岩')).toBeNull();
     expect(match('旧黑岩')).toBe('first');
     expect(match('A·黑岩')).toBe('first');
+  });
+
+  it('does not use a lone supplementary-plane Han character as a two-character fallback', () => {
+    const match = buildMemberMatcher([{ id: 'ext', name: '𠀀' }]);
+    expect(match('x?𠀀99')).toBeNull();
+  });
+
+  it('matches through NFC-normalized Han sequences', () => {
+    const match = buildMemberMatcher([{ id: 'nfc', name: '豈𠀀' }]);
+    expect(match('x?\uF900𠀀99')).toBe('nfc');
   });
 });
 
