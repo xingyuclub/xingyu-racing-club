@@ -1073,7 +1073,7 @@ h2 {
 }
 
 .member-video-modal {
-  width: min(100vw, calc((100dvh - 52px) * 16 / 9));
+  width: min(100vw, calc((100dvh - 34px) * 16 / 9));
   max-width: none;
   max-height: 100dvh;
   padding: 0;
@@ -1085,17 +1085,24 @@ h2 {
 }
 
 .member-video-signature {
-  display: grid;
-  min-height: 52px;
+  display: flex;
+  min-height: 34px;
   margin: 0;
-  padding: 10px 16px;
-  place-items: center;
+  padding: 3px 12px;
+  align-items: center;
+  justify-content: flex-start;
   overflow: hidden;
   color: var(--ink);
-  line-height: 1.5;
-  text-align: center;
+  line-height: 1.25;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.member-video-signature .shiny-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .video-modal .eyebrow {

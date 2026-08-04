@@ -46,6 +46,7 @@ export function Roster({ members, onSelect = () => {} }) {
   const suppressClick = useRef(false);
   const cylinderRef = useRef(null);
   const cardRefs = useRef([]);
+  const imageRefs = useRef([]);
 
   const writeMotionStyles = (nextRotation, nextSpeed) => {
     const cylinder = cylinderRef.current;
@@ -82,6 +83,14 @@ export function Roster({ members, onSelect = () => {} }) {
       card.style.zIndex = index === centeredIndex ? '500' : String(Math.round(100 - Math.abs(offset)));
       card.classList.toggle('is-centered', index === centeredIndex);
       card.classList.toggle('is-visible', isVisible);
+      const image = imageRefs.current[index];
+      if (image) {
+        if (isVisible && !image.hasAttribute('src')) {
+          image.setAttribute('src', image.dataset.src);
+        } else if (!isVisible && image.hasAttribute('src')) {
+          image.removeAttribute('src');
+        }
+      }
       if (isVisible) {
         card.removeAttribute('aria-hidden');
         card.tabIndex = 0;
@@ -299,7 +308,19 @@ export function Roster({ members, onSelect = () => {} }) {
                 }}
               >
                 <span className="roster-avatar" data-testid="roster-avatar" aria-hidden="true">
-                  {member.avatar ? <img src={member.avatar} alt="" draggable="false" /> : null}
+                  {member.avatar ? (
+                    <img
+                      ref={(node) => {
+                        imageRefs.current[index] = node;
+                      }}
+                      src={isVisible ? member.avatar : undefined}
+                      data-src={member.avatar}
+                      alt=""
+                      draggable="false"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : null}
                   <span className="roster-mark" />
                 </span>
                 <span className="roster-identity">

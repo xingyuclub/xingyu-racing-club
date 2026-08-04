@@ -62,6 +62,7 @@ export default function App() {
         <Hero team={siteData.team} />
         <StatsBar stats={siteData.stats} />
         <FeaturedMembers members={siteData.featuredMembers} onSelect={setSelectedMember} />
+        <NewsFeed items={siteData.news} />
         <GalleryPreview
           photos={siteData.gallery}
           onOpenPhoto={setSelectedPhoto}
@@ -69,7 +70,6 @@ export default function App() {
         />
         <Roster members={siteData.roster} onSelect={setSelectedMember} />
         <Leaderboard rows={siteData.leaderboard} scoreDate={siteData.latestScoreDate} onOpenDetails={() => setShowScoreDetails(true)} />
-        <NewsFeed items={siteData.news} />
         <VideoModal member={selectedMember} onClose={() => setSelectedMember(null)} />
         <PhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} />
         {showScoreDetails && (

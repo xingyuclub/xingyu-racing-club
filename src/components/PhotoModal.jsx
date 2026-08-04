@@ -1,9 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 
 export function PhotoModal({ photo, onClose }) {
+  const videoRef = useRef(null);
   const [imageFailed, setImageFailed] = useState(false);
   const isVideo = photo && (photo.mediaType === 'video' || Boolean(photo.videoUrl));
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return undefined;
+
+    return () => {
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+    };
+  }, [photo?.videoUrl]);
 
   useEffect(() => {
     if (!photo) return undefined;
@@ -41,12 +53,14 @@ export function PhotoModal({ photo, onClose }) {
         {isVideo ? (
           photo.videoUrl ? (
             <video
+              ref={videoRef}
               src={photo.videoUrl}
               poster={photo.src}
               autoPlay
               muted
               controls
               playsInline
+              preload="metadata"
             />
           ) : (
             <div className="video-fallback">视频素材待替换</div>

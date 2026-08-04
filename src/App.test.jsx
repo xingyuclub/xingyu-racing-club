@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { readFileSync } from 'node:fs';
 import { vi } from 'vitest';
@@ -9,12 +9,14 @@ import { Hero } from './components/Hero.jsx';
 import { VideoModal } from './components/VideoModal.jsx';
 import { PhotoModal } from './components/PhotoModal.jsx';
 import { FeaturedMembers } from './components/FeaturedMembers.jsx';
+import { Roster } from './components/Roster.jsx';
 import { NewsFeed } from './components/NewsFeed.jsx';
 
 const globalStyles = readFileSync('src/styles/global.css', 'utf8');
 
 let mediaPlay;
 let mediaPause;
+let mediaLoad;
 
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
@@ -22,9 +24,11 @@ beforeEach(() => {
     .spyOn(HTMLMediaElement.prototype, 'play')
     .mockImplementation(() => new Promise(() => {}));
   mediaPause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+  mediaLoad = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
 });
 
 afterEach(() => {
+  cleanup();
   window.location.hash = '';
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -163,10 +167,16 @@ describe('App', () => {
     expect(container.querySelector('.hero-motto')).not.toBeInTheDocument();
     expect(screen.queryByText('RACING CLUB / 2026 SEASON')).not.toBeInTheDocument();
     expect(screen.queryByText('09 / 30')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '车队风采' })).toBeInTheDocument();
+    const featuredHeading = screen.getByRole('heading', { name: '车队风采' });
+    const newsHeading = screen.getByRole('heading', { name: '车队动态' });
+    const galleryHeading = screen.getByRole('heading', { name: '相册空间' });
+
+    expect(featuredHeading).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '队员阵容' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '星屿积分榜' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '车队动态' })).toBeInTheDocument();
+    expect(newsHeading).toBeInTheDocument();
+    expect(featuredHeading.compareDocumentPosition(newsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(newsHeading.compareDocumentPosition(galleryHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('promotes the welcome heading and keeps the slogan non-heading', () => {
@@ -338,6 +348,35 @@ describe('App', () => {
     expect(cards[6]).toHaveClass('is-visible');
     expect(cards[7]).toHaveAttribute('aria-hidden', 'true');
     expect(cards.filter((card) => card.classList.contains('is-centered'))).toEqual([cards[0]]);
+  });
+
+  it('loads roster portraits only while their cards are visible', () => {
+    const members = Array.from({ length: 30 }, (_, index) => ({
+      id: String(index + 1),
+      name: `成员 ${index + 1}`,
+      avatar: `/images/member-${index + 1}.jpg`,
+    }));
+    render(<Roster members={members} />);
+
+    const roster = screen.getByTestId('roster-grid');
+    const cards = within(roster).getAllByTestId('roster-card');
+    const touchPointerEvent = (type, clientX) => {
+      const event = new MouseEvent(type, { bubbles: true, clientX });
+      Object.defineProperties(event, {
+        pointerId: { value: 12 },
+        pointerType: { value: 'touch' },
+      });
+      return event;
+    };
+
+    expect(cards[12].querySelector('img')).not.toHaveAttribute('src');
+    fireEvent(roster, touchPointerEvent('pointerdown', 260));
+    fireEvent(roster, touchPointerEvent('pointermove', 140));
+
+    expect(cards[12]).toHaveClass('is-visible');
+    expect(cards[12].querySelector('img')).toHaveAttribute('src');
+    expect(cards[24]).toHaveAttribute('aria-hidden', 'true');
+    expect(cards[24].querySelector('img')).not.toHaveAttribute('src');
   });
 
   it('keeps touch swipes interactive without entering the desktop hover pause state', () => {
@@ -654,6 +693,34 @@ describe('App', () => {
     );
 
     expect(container.querySelector('video')).toHaveAttribute('autoplay');
+    expect(container.querySelector('video')).toHaveAttribute('preload', 'metadata');
+  });
+
+  it('loads portraits only for the five visible featured cards', () => {
+    const members = Array.from({ length: 8 }, (_, index) => ({
+      id: String(index + 1),
+      name: `成员 ${index + 1}`,
+      role: '队员',
+      avatar: `/images/featured-${index + 1}.jpg`,
+    }));
+    const { container } = render(<FeaturedMembers members={members} onSelect={() => {}} />);
+    const portraits = Array.from(container.querySelectorAll('.driver-portrait'));
+
+    expect(portraits.filter((portrait) => portrait.style.getPropertyValue('--member-image'))).toHaveLength(5);
+    expect(portraits.filter((portrait) => !portrait.style.getPropertyValue('--member-image'))).toHaveLength(3);
+  });
+
+  it('releases a member video when its dialog is removed', () => {
+    const { container, unmount } = render(
+      <VideoModal member={{ name: '成员 01', videoUrl: '/videos/member-01.mp4' }} onClose={() => {}} />,
+    );
+    const video = container.querySelector('video');
+
+    unmount();
+
+    expect(mediaPause).toHaveBeenCalled();
+    expect(video).not.toHaveAttribute('src');
+    expect(mediaLoad).toHaveBeenCalled();
   });
 
   it('gives member videos a larger edge-to-edge 16:9 viewing area', () => {
@@ -666,7 +733,7 @@ describe('App', () => {
 
     expect(container.querySelector('.member-video-signature')).toHaveTextContent('一路向星光');
     expect(globalStyles).toMatch(
-      /\.member-video-modal\s*\{[^}]*width:\s*min\(100vw,\s*calc\(\(100dvh\s*-\s*52px\)\s*\*\s*16\s*\/\s*9\)\)/s,
+      /\.member-video-modal\s*\{[^}]*width:\s*min\(100vw,\s*calc\(\(100dvh\s*-\s*34px\)\s*\*\s*16\s*\/\s*9\)\)/s,
     );
     expect(globalStyles).toMatch(/\.member-video-modal\s*\{[^}]*max-height:\s*100dvh/s);
     expect(globalStyles).toMatch(/\.member-video-modal\s*\{[^}]*padding:\s*0/s);
@@ -690,7 +757,11 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: '关闭视频弹窗' })).not.toBeInTheDocument();
     expect(globalStyles).toMatch(/\.video-modal-backdrop\s*\{[^}]*padding:\s*0/s);
     expect(globalStyles).toMatch(/\.member-video-modal\s*\{[^}]*max-height:\s*100dvh/s);
-    expect(globalStyles).toMatch(/\.member-video-signature\s*\{[^}]*text-align:\s*center/s);
+    expect(globalStyles).toMatch(/\.member-video-signature\s*\{[^}]*align-items:\s*center/s);
+    expect(globalStyles).toMatch(/\.member-video-signature\s*\{[^}]*text-align:\s*left/s);
+    const signatureText = container.querySelector('.member-video-signature .shiny-text');
+    expect(signatureText).toHaveTextContent('一路向星光');
+    expect(signatureText).toHaveStyle({ color: '#7C3AED' });
   });
 
   it('omits a blank member signature', () => {
@@ -733,6 +804,23 @@ describe('App', () => {
       'poster',
       '/images/album/placeholder-01.jpg',
     );
+    expect(container.querySelector('video')).toHaveAttribute('preload', 'metadata');
+  });
+
+  it('releases an album video when its dialog is removed', () => {
+    const { container, unmount } = render(
+      <PhotoModal
+        photo={{ title: '训练视频', src: '/images/poster.jpg', videoUrl: '/videos/team-preview.mp4' }}
+        onClose={() => {}}
+      />,
+    );
+    const video = container.querySelector('video');
+
+    unmount();
+
+    expect(mediaPause).toHaveBeenCalled();
+    expect(video).not.toHaveAttribute('src');
+    expect(mediaLoad).toHaveBeenCalled();
   });
 
   it('opens and closes the member video dialog', async () => {

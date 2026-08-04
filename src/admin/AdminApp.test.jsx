@@ -107,6 +107,32 @@ it('lets each member card collapse and expand without losing its values', async 
   expect(within(memberCard).getByLabelText('名称')).toHaveValue(member.name);
 });
 
+it('adds an editable signature field to legacy members without rebuilding them', async () => {
+  const user = userEvent.setup();
+  const config = createSeedConfig();
+  const legacyMember = config.roster[0];
+  delete legacyMember.signature;
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 204 }));
+
+  render(<ConfigEditor initialConfig={config} onAuthError={() => false} />);
+  await user.click(screen.getByRole('button', { name: '展开 成员管理' }));
+
+  const memberCard = screen.getByRole('button', { name: `收起 ${legacyMember.name}` }).closest('.array-item');
+  const signature = within(memberCard).getByLabelText('个性签名');
+  expect(signature).toHaveValue('');
+
+  await user.type(signature, '一起冲向终点');
+  await user.click(screen.getByRole('button', { name: '保存全部配置' }));
+
+  const savedConfig = JSON.parse(fetch.mock.calls.at(-1)[1].body);
+  expect(savedConfig.roster[0]).toEqual(expect.objectContaining({
+    id: legacyMember.id,
+    avatar: legacyMember.avatar,
+    videoUrl: legacyMember.videoUrl,
+    signature: '一起冲向终点',
+  }));
+});
+
 it('collapses existing news into title category and date summaries', async () => {
   const user = userEvent.setup();
   const config = createSeedConfig();

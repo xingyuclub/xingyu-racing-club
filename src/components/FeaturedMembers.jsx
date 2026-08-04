@@ -87,7 +87,9 @@ export function FeaturedMembers({ members, onSelect }) {
           >
             <span
               className="driver-portrait"
-              style={member.avatar ? { '--member-image': `url("${member.avatar}")` } : undefined}
+              style={member.avatar && getPosition(index, activeIndex, members.length) !== 'is-hidden'
+                ? { '--member-image': `url("${member.avatar}")` }
+                : undefined}
               aria-hidden="true"
             />
             <span className="driver-footer">

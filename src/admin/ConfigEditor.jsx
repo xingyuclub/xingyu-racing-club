@@ -9,6 +9,15 @@ import { ScoreEditor } from './ScoreEditor.jsx';
 const clone = (value) => structuredClone(value);
 const labels = { name:'名称', heroLines:'首屏文案', label:'英文标识', motto:'车队口号', heroMedia:'首页主媒体', heroFallbackImage:'视频失败备用图', src:'素材路径', cover:'封面', id:'ID', role:'角色', signature:'个性签名', avatar:'头像', videoUrl:'视频地址', title:'标题', category:'分类', date:'日期', imageSrc:'资讯图片', imageAlt:'图片说明', summary:'摘要', body:'正文', coverSrc:'相册封面', photos:'照片', alt:'替代文本', featured:'精选', mediaType:'媒体类型', value:'数值' };
 const empty = { heroLines:'', roster:{ id:'',number:'',name:'',role:'队员',signature:'',basePoints:0,wins:0,avatar:'',videoUrl:'' }, news:{ id:'',title:'',category:'',date:'',imageSrc:'',imageAlt:'',summary:'',body:'',bodyHtml:'' }, albums:{ id:'',name:'',date:'',coverSrc:'',photos:[] }, photos:{ id:'',src:'',title:'',date:'',alt:'',featured:false,mediaType:'image',videoUrl:'' } };
+function createDraft(config) {
+  const draft = clone(config);
+  draft.roster = draft.roster.map((member) => ({
+    ...empty.roster,
+    ...member,
+    signature: typeof member.signature === 'string' ? member.signature : '',
+  }));
+  return draft;
+}
 function setAt(root, path, value) { const next=clone(root); let node=next; path.slice(0,-1).forEach((key)=>node=node[key]); node[path.at(-1)]=value; return next; }
 function nextMemberNumber(members) {
   const used = new Set(members.map((member) => String(member.number || '').trim()));
@@ -77,10 +86,10 @@ function AdminSection({ title, children }) {
   return <section className={`admin-section${collapsed ? ' is-collapsed' : ''}`}><button type="button" className="admin-section-toggle" aria-expanded={!collapsed} aria-label={`${collapsed ? '展开' : '收起'} ${title}`} onClick={()=>setCollapsed((value)=>!value)}><h2>{title}</h2>{collapsed ? <ChevronDown aria-hidden="true" size={18}/> : <ChevronUp aria-hidden="true" size={18}/>}</button>{!collapsed && children}</section>;
 }
 export function ConfigEditor({ initialConfig, onAuthError }) {
-  const [draft,setDraft]=useState(()=>clone(initialConfig)); const [files,setFiles]=useState([]); const [status,setStatus]=useState(''); const [saving,setSaving]=useState(false);
+  const [draft,setDraft]=useState(()=>createDraft(initialConfig)); const [files,setFiles]=useState([]); const [status,setStatus]=useState(''); const [saving,setSaving]=useState(false);
   const loadFiles=()=>listUploads().then((next)=>setFiles(Array.isArray(next)?next:[])).catch((e)=>{if(!onAuthError(e))setStatus(e.message)});
   useEffect(() => { loadFiles(); }, []);
-  const save=async()=>{setSaving(true);setStatus('');try{await saveConfig(draft);setStatus('已保存，前台刷新后可见最新内容');}catch(e){if(!onAuthError(e))setStatus([e.message,...(e.details||[])].join('\n'));}finally{setSaving(false)}};
+  const save=async()=>{setSaving(true);setStatus('');try{const normalized=createDraft(draft);await saveConfig(normalized);setDraft(normalized);setStatus('已保存，前台刷新后可见最新内容');}catch(e){if(!onAuthError(e))setStatus([e.message,...(e.details||[])].join('\n'));}finally{setSaving(false)}};
   const sections=[['基础信息',{team:draft.team,music:draft.music}],['统计数据',draft.stats],['成员管理',draft.roster],['新闻管理',draft.news],['相册管理',draft.albums]];
   const appendUpload=(file)=>setFiles((current)=>current.some((item)=>item.name===file.name)?current:[...current,file]);
   return <>{sections.map(([title,value],index)=><AdminSection title={title} key={title}><Tree value={value} path={index===0?[]:[['stats','roster','news','albums'][index-1]]} fieldKey={index===0?'base':['stats','roster','news','albums'][index-1]} fixed={title==='统计数据'} {...{draft,setDraft,roster:draft.roster,refresh:appendUpload}} /></AdminSection>)}<AdminSection title="星屿积分榜"><ScoreEditor config={draft} onChange={setDraft} /></AdminSection><AdminSection title="素材管理"><UploadLibrary files={files} setFiles={setFiles} onError={(e)=>setStatus(e.message)} /></AdminSection><div className="save-bar">{status && <p className={status.startsWith('已保存')?'admin-success':'admin-error'}>{status}</p>}<button disabled={saving} onClick={save}>保存全部配置</button></div></>;
