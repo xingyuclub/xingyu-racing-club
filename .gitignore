@@ -3,6 +3,7 @@
 node_modules/
 dist/
 coverage/
+.env
 # 临时/验证文件
 tmp/
 output/
@@ -17,5 +18,6 @@ server/data/site-config.json.bak
 server/data/site-config.json.next
 server/data/site-config.json.bak.next
 server/storage/uploads/
+server/storage/score-recognition/
 tools/
 logs/

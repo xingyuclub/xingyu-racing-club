@@ -2,7 +2,7 @@
 // 所有业务判断都在这里完成；AI 只负责提取截图事实。
 
 const INVISIBLE_CHARS = /[\u200B-\u200F\u202A-\u202E\u2060\uFEFF]/g;
-const TEAM_PREFIX = /^ˣʸ༩·/;
+const TEAM_PREFIX = /^(?:ˣʸ༩|xy(?:[roa²♂♀β]|\/[ac])?)\s*[·._-]\s*/i;
 const MAX_GAMES_PER_TYPE = 3;
 const MAX_TEAM_RACE_SCORE = 6;
 

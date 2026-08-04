@@ -117,6 +117,18 @@ describe('normalizeNickname', () => {
   it('strips the team prefix used by current roster names', () => {
     expect(normalizeNickname('ˣʸ༩·青山')).toBe('青山');
   });
+
+  it('strips common OCR variants of the team prefix', () => {
+    expect(normalizeNickname('xy² · 十二')).toBe('十二');
+    expect(normalizeNickname('xyr·黑岩')).toBe('黑岩');
+    expect(normalizeNickname('xyo - 十二')).toBe('十二');
+    expect(normalizeNickname('xy♂·黑岩')).toBe('黑岩');
+    expect(normalizeNickname('xy♀·初心')).toBe('初心');
+    expect(normalizeNickname('xya·稳稳')).toBe('稳稳');
+    expect(normalizeNickname('xy/a · Q3')).toBe('q3');
+    expect(normalizeNickname('xy/c·妄念')).toBe('妄念');
+    expect(normalizeNickname('xyβ·浪漫')).toBe('浪漫');
+  });
 });
 
 describe('buildMemberMatcher', () => {

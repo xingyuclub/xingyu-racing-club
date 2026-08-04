@@ -9,7 +9,7 @@ import { createConfigStore } from './lib/configStore.js';
 import { createAuth } from './lib/auth.js';
 import { hydrateSiteData } from '../src/data/siteConfig.js';
 import { createScoreRecognitionRouter } from './lib/scoreRecognitionRoutes.js';
-import OpenAI from 'openai';
+import { createOpenAiClient } from './lib/openaiClient.js';
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const defaultRootDir = resolve(dirname(currentFilePath), '..');
@@ -97,7 +97,10 @@ export async function createApp(options = {}) {
     }
   };
   const aiClient = options.aiClient ?? (process.env.OPENAI_API_KEY
-    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    ? createOpenAiClient({
+      apiKey: process.env.OPENAI_API_KEY,
+      baseURL: process.env.OPENAI_BASE_URL,
+    })
     : null);
   const scoreRecognitionRouter = createScoreRecognitionRouter({
     configStore: store,
