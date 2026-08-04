@@ -78,18 +78,51 @@ export function createScoreRecognitionRouter({
     }
   });
 
+  router.get('/batches/:id/images/:index', async (request, response, next) => {
+    try {
+      const image = await recognitionStore.readImage(request.params.id, Number(request.params.index));
+      response.type(image.mimeType).send(image.bytes);
+    } catch (error) {
+      if (error.message.includes('not found')) return response.status(404).json({ error: '截图不存在' });
+      next(error);
+    }
+  });
+
   router.post('/batches/:id/process', async (request, response, next) => {
     try {
       await recognitionStore.updateBatch(request.params.id, { status: 'processing' });
       const draft = await getService().previewBatch(request.params.id);
       response.json(draft);
-    } catch (error) { next(error); }
+    } catch (error) {
+      await recognitionStore.updateBatch(request.params.id, {
+        status: 'failed',
+        error: error.message,
+      }).catch(() => {});
+      response.status(error.statusCode || 422).json({ error: error.message });
+    }
   });
 
-  router.put('/batches/:id/draft', async (request, response, next) => {
+  router.put('/batches/:id/review', async (request, response, next) => {
     try {
-      const updated = await recognitionStore.updateBatch(request.params.id, { draft: request.body });
-      response.json(updated);
+      const { evidenceId, rank, memberId, ignored } = request.body || {};
+      if (typeof evidenceId !== 'string' || !evidenceId) {
+        return response.status(400).json({ error: '缺少证据 ID' });
+      }
+      if (rank !== undefined && (!Number.isInteger(rank) || rank < 1)) {
+        return response.status(400).json({ error: '名次必须是正整数' });
+      }
+      if (memberId !== undefined && (typeof memberId !== 'string' || !memberId)) {
+        return response.status(400).json({ error: '成员 ID 无效' });
+      }
+      if (ignored !== undefined && typeof ignored !== 'boolean') {
+        return response.status(400).json({ error: '忽略状态无效' });
+      }
+      response.json(await getService().reviewBatch(request.params.id, {
+        evidenceId,
+        rank,
+        memberId,
+        ignored,
+      }));
     } catch (error) { next(error); }
   });
 
@@ -100,7 +133,10 @@ export function createScoreRecognitionRouter({
       if (onConfigUpdate) onConfigUpdate();
       const config = await configStore.read();
       response.json({ committed: true, config });
-    } catch (error) { next(error); }
+    } catch (error) {
+      if (error.statusCode) return response.status(error.statusCode).json({ error: error.message });
+      next(error);
+    }
   });
 
   router.post('/batches/:id/retry', async (request, response, next) => {

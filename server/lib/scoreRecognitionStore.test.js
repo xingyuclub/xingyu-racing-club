@@ -63,6 +63,11 @@ describe('score recognition store', () => {
     const batch = await store.readBatch('batch-2');
     const saved = await readFile(batch.images[0].path);
     expect(saved).toEqual(bytes);
+    await expect(store.readImage('batch-2', 0)).resolves.toEqual({
+      mimeType: 'image/jpeg',
+      bytes,
+    });
+    await expect(store.readImage('batch-2', 9)).rejects.toThrow(/image not found/);
   });
 
   it('updates batch status and draft atomically', async () => {

@@ -8,15 +8,13 @@ import { createScoreRecognitionStore } from './scoreRecognitionStore.js';
 import { createScoreRecognitionService } from './scoreRecognitionService.js';
 
 const roster = [
-  { id: '1', name: '稳稳', number: '1', basePoints: 0, wins: 0 },
-  { id: '2', name: '闪电', number: '2', basePoints: 0, wins: 0 },
+  { id: 'r1', name: '稳稳' },
+  { id: 'r2', name: '闪电' },
 ];
-const scoreMembers = roster.map(({ id, name, basePoints, wins }) => ({
-  id,
-  name,
-  basePoints,
-  wins,
-}));
+const scoreMembers = [
+  { id: 's1', name: '稳稳', basePoints: 0, wins: 0 },
+  { id: 's2', name: '闪电', basePoints: 0, wins: 0 },
+];
 
 function createFakeConfigStore(config) {
   let current = config;
@@ -26,15 +24,38 @@ function createFakeConfigStore(config) {
   };
 }
 
-function setupService({ aiResponses, config }) {
-  const dataDir = join(rootDir, 'data');
-  const storageDir = join(rootDir, 'storage');
-  const store = createScoreRecognitionStore({ dataDir, storageDir });
+function baseConfig(overrides = {}) {
+  return {
+    roster,
+    scoreMembers,
+    dailyScores: [],
+    weekendScores: [],
+    memberAliases: [],
+    ...overrides,
+  };
+}
+
+function setupService({ aiResponses = [], config = baseConfig() } = {}) {
+  const store = createScoreRecognitionStore({
+    dataDir: join(rootDir, 'data'),
+    storageDir: join(rootDir, 'storage'),
+  });
   const configStore = createFakeConfigStore(config);
   const ai = { extractMatches: vi.fn() };
-  aiResponses.forEach((response) => ai.extractMatches.mockResolvedValueOnce(response));
+  for (const response of aiResponses) {
+    if (response instanceof Error) ai.extractMatches.mockRejectedValueOnce(response);
+    else ai.extractMatches.mockResolvedValueOnce(response);
+  }
   const service = createScoreRecognitionService({ ai, store, configStore });
   return { store, configStore, ai, service };
+}
+
+async function createBatch(store, {
+  id = 'b1',
+  raceType = 'team',
+  files = [{ name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' }],
+} = {}) {
+  await store.createBatch({ id, date: '2026-08-01', raceType, files });
 }
 
 let rootDir;
@@ -42,173 +63,145 @@ beforeEach(async () => { rootDir = await mkdtemp(join(tmpdir(), 'srv-')); });
 afterEach(async () => { await rm(rootDir, { recursive: true, force: true }); });
 
 describe('score recognition service', () => {
-  it('classifies mixed race types and matches team members with scores', async () => {
-    const config = { roster, scoreMembers, dailyScores: [], weekendScores: [], memberAliases: [] };
-    const { service, store } = setupService({
-      config,
-      aiResponses: [[
-        { title: '队内赛', date: '2026-08-01', time: '10:00:00',
-          participants: [{ nickname: '稳稳', rank: 1 }, { nickname: '路人', rank: 2 }, { nickname: '闪电', rank: 3 }] },
-        { title: '排位赛之夜', date: '2026-08-01', time: '11:00:00',
-          participants: [{ nickname: '稳稳', rank: 4 }, { nickname: '闪电', rank: 6 }] },
-      ]],
+  it('stores per-image observations and derives a reviewable draft', async () => {
+    const { service, store, ai } = setupService({
+      aiResponses: [[{ participants: [
+        { nickname: '稳稳', rank: 1 },
+        { nickname: '路人', rank: 2 },
+      ] }]],
     });
+    await createBatch(store);
 
-    await store.createBatch({ id: 'b1', date: '2026-08-01', raceType: 'team', files: [
-      { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
-    ]});
-    const preview = await service.previewBatch('b1');
+    const draft = await service.previewBatch('b1');
 
-    expect(preview.races).toHaveLength(2);
-    const team = preview.races.find((r) => r.type === 'team');
-    const ranked = preview.races.find((r) => r.type === 'ranked');
-    expect(team.members.map((m) => [m.id, m.score])).toEqual([['1', 3], ['2', 1]]);
-    expect(team.members.every((m) => m.slot === 0)).toBe(true);
-    expect(ranked.members.map((m) => [m.id, m.score])).toEqual([['1', 2], ['2', 1]]);
+    expect(draft.canCommit).toBe(false);
+    expect(draft.issues).toContainEqual({ evidenceId: 'i0-m0-p1', code: 'unmatched' });
+    expect(ai.extractMatches).toHaveBeenCalledWith({
+      imageBytes: Buffer.from([1]),
+      mimeType: 'image/jpeg',
+    });
+    const batch = await store.readBatch('b1');
+    expect(batch.status).toBe('ready');
+    expect(batch.observations).toEqual([{ imageIndex: 0, matches: [{ participants: [
+      { nickname: '稳稳', rank: 1 },
+      { nickname: '路人', rank: 2 },
+    ] }] }]);
+    expect(batch.reviews).toEqual({});
   });
 
-  it('skips duplicate races without consuming member slots', async () => {
-    const config = { roster, scoreMembers, dailyScores: [], weekendScores: [], memberAliases: [] };
-    const sameMatch = [{ title: '队内赛', date: '2026-08-01', time: '10:00:00',
-      participants: [{ nickname: '稳稳', rank: 1 }] }];
-    const { service, store } = setupService({ config, aiResponses: [sameMatch, sameMatch] });
+  it('recalculates after ignored, member, and rank reviews', async () => {
+    const { service, store } = setupService({
+      aiResponses: [[{ participants: [
+        { nickname: '稳稳', rank: 2 },
+        { nickname: '陌生名', rank: 1 },
+      ] }]],
+    });
+    await createBatch(store);
+    const first = await service.previewBatch('b1');
+    expect(first.canCommit).toBe(false);
 
-    await store.createBatch({ id: 'b2', date: '2026-08-01', raceType: 'team', files: [
+    const mapped = await service.reviewBatch('b1', {
+      evidenceId: 'i0-m0-p1', memberId: 'r2', ignored: false,
+    });
+    expect(mapped.canCommit).toBe(true);
+    expect(mapped.summary.map((item) => [item.name, item.score]))
+      .toEqual([['闪电', 2], ['稳稳', 1]]);
+
+    const ranked = await service.reviewBatch('b1', { evidenceId: 'i0-m0-p0', rank: 1 });
+    expect(ranked.canCommit).toBe(false);
+    expect(ranked.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'duplicate-rank' }),
+    ]));
+    expect((await store.readBatch('b1')).reviews).toEqual({
+      'i0-m0-p0': { rank: 1 },
+      'i0-m0-p1': { memberId: 'r2', ignored: false },
+    });
+  });
+
+  it('allows an unmatched participant to be explicitly ignored', async () => {
+    const { service, store } = setupService({
+      aiResponses: [[{ participants: [
+        { nickname: '稳稳', rank: 1 },
+        { nickname: '路人', rank: 2 },
+      ] }]],
+    });
+    await createBatch(store);
+    const first = await service.previewBatch('b1');
+
+    const reviewed = await service.reviewBatch('b1', {
+      evidenceId: first.issues[0].evidenceId,
+      ignored: true,
+    });
+
+    expect(reviewed.canCommit).toBe(true);
+    expect((await store.readBatch('b1')).reviews[first.issues[0].evidenceId])
+      .toEqual({ ignored: true });
+  });
+
+  it('rejects unknown evidence and member references without saving them', async () => {
+    const { service, store } = setupService({
+      aiResponses: [[{ participants: [{ nickname: '稳稳', rank: 1 }] }]],
+    });
+    await createBatch(store);
+    await service.previewBatch('b1');
+
+    await expect(service.reviewBatch('b1', { evidenceId: 'missing', ignored: true }))
+      .rejects.toMatchObject({ statusCode: 400 });
+    await expect(service.reviewBatch('b1', { evidenceId: 'i0-m0-p0', memberId: 'missing' }))
+      .rejects.toMatchObject({ statusCode: 400 });
+    expect((await store.readBatch('b1')).reviews).toEqual({});
+  });
+
+  it('identifies which image failed during sequential recognition', async () => {
+    const { service, store } = setupService({
+      aiResponses: [
+        [{ participants: [{ nickname: '稳稳', rank: 1 }] }],
+        new Error('模型超时'),
+      ],
+    });
+    await createBatch(store, { files: [
       { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
       { name: 'b.jpg', bytes: Buffer.from([2]), mimeType: 'image/jpeg' },
-    ]});
-    const preview = await service.previewBatch('b2');
-
-    expect(preview.races.filter((r) => !r.duplicate)).toHaveLength(1);
-    expect(preview.races.filter((r) => r.duplicate)).toHaveLength(1);
-  });
-
-  it('skips members already at the 3-game limit', async () => {
-    const config = {
-      roster,
-      scoreMembers,
-      dailyScores: [{ date: '2026-08-01', rows: [
-        { id: '1', teamRace: [3, 3, 3], openRace: [] },
-      ] }],
-      weekendScores: [], memberAliases: [],
-    };
-    const { service, store } = setupService({
-      config,
-      aiResponses: [[{ title: '队内赛', date: '2026-08-01', time: '10:00:00',
-        participants: [{ nickname: '稳稳', rank: 1 }, { nickname: '闪电', rank: 2 }] }]],
-    });
-
-    await store.createBatch({ id: 'b3', date: '2026-08-01', raceType: 'team', files: [
-      { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
-    ]});
-    const preview = await service.previewBatch('b3');
-
-    const steady = preview.races[0].members.find((m) => m.id === '1');
-    const bolt = preview.races[0].members.find((m) => m.id === '2');
-    expect(steady.skipped).toBe('member-limit');
-    expect(bolt.slot).toBe(0);
-  });
-
-  it('matches aliases and reports unmatched nicknames', async () => {
-    const config = {
-      roster,
-      scoreMembers,
-      dailyScores: [], weekendScores: [],
-      memberAliases: [{ memberId: '1', value: '老稳' }],
-    };
-    const { service, store } = setupService({
-      config,
-      aiResponses: [[{ title: '队内赛', date: '2026-08-01', time: '10:00:00',
-        participants: [{ nickname: '老稳', rank: 1 }, { nickname: '完全不认识', rank: 2 }] }]],
-    });
-
-    await store.createBatch({ id: 'b4', date: '2026-08-01', raceType: 'team', files: [
-      { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
-    ]});
-    const preview = await service.previewBatch('b4');
-
-    const alias = preview.races[0].members.find((m) => m.id === '1');
-    expect(alias.score).toBe(2);
-    expect(preview.races[0].unmatched).toEqual(['完全不认识']);
-  });
-
-  it('commits confirmed races into the config atomically and tracks the version', async () => {
-    const config = { roster, scoreMembers, dailyScores: [], weekendScores: [], memberAliases: [] };
-    const { service, store, configStore } = setupService({
-      config,
-      aiResponses: [[{ title: '队内赛', date: '2026-08-01', time: '10:00:00',
-        participants: [{ nickname: '稳稳', rank: 1 }] }]],
-    });
-
-    await store.createBatch({ id: 'b5', date: '2026-08-01', raceType: 'team', files: [
-      { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
-    ]});
-    const preview = await service.previewBatch('b5');
-    await service.commitBatch('b5', preview.rosterVersion);
-
-    const saved = await configStore.read();
-    expect(saved.dailyScores).toHaveLength(1);
-    expect(saved.dailyScores[0].date).toBe('2026-08-01');
-    expect(saved.dailyScores[0].rows[0]).toEqual({
-      id: '1',
-      teamRace: [1, null, null],
-      openRace: [null, null, null],
-    });
-    expect((await store.readBatch('b5')).status).toBe('committed');
-  });
-
-  it('writes a prefixed roster member into the existing unprefixed score identity', async () => {
-    const config = {
-      roster: [{ id: 'r1', name: 'ˣʸ༩·青山' }],
-      scoreMembers: [{ id: 'score:existing', name: '青山', basePoints: 0, wins: 0 }],
-      dailyScores: [],
-      weekendScores: [],
-      memberAliases: [],
-    };
-    const { service, store, configStore } = setupService({
-      config,
-      aiResponses: [[{
-        title: '队内赛',
-        date: '2026-08-01',
-        time: '10:00:00',
-        participants: [{ nickname: '青山', rank: 1 }],
-      }]],
-    });
-    await store.createBatch({ id: 'existing-score', date: '2026-08-01', raceType: 'team', files: [
-      { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
     ] });
 
-    const preview = await service.previewBatch('existing-score');
-    await service.commitBatch('existing-score', preview.rosterVersion);
-
-    const saved = await configStore.read();
-    expect(saved.dailyScores[0].rows[0].id).toBe('score:existing');
-    expect(saved.scoreMembers).toEqual(config.scoreMembers);
+    await expect(service.previewBatch('b1')).rejects.toThrow(/第 2 张截图.*模型超时/);
   });
 
-  it('creates a score member for a newly recognized roster name', async () => {
-    const config = {
-      roster: [{ id: 'r2', name: 'ˣʸ༩·新成员' }],
+  it('blocks unresolved drafts and commits reviewed evidence into the selected slot', async () => {
+    const { service, store, configStore } = setupService({
+      aiResponses: [[{ participants: [
+        { nickname: '稳稳', rank: 1 },
+        { nickname: '路人', rank: 2 },
+      ] }]],
+    });
+    await createBatch(store);
+    const draft = await service.previewBatch('b1');
+
+    await expect(service.commitBatch('b1', draft.rosterVersion))
+      .rejects.toMatchObject({ statusCode: 422 });
+    const reviewed = await service.reviewBatch('b1', { evidenceId: 'i0-m0-p1', ignored: true });
+    await service.commitBatch('b1', reviewed.rosterVersion);
+
+    const saved = await configStore.read();
+    expect(saved.dailyScores[0]).toEqual({
+      date: '2026-08-01',
+      rows: [{ id: 's1', teamRace: [2, null, null], openRace: [null, null, null] }],
+    });
+    expect((await store.readBatch('b1')).status).toBe('committed');
+  });
+
+  it('writes ranked scores into openRace and creates a missing score identity', async () => {
+    const config = baseConfig({
+      roster: [{ id: 'r3', name: 'ˣʸ༩·新成员' }],
       scoreMembers: [],
-      dailyScores: [],
-      weekendScores: [],
-      memberAliases: [],
-    };
+    });
     const { service, store, configStore } = setupService({
       config,
-      aiResponses: [[{
-        title: '队内赛',
-        date: '2026-08-01',
-        time: '10:00:00',
-        participants: [{ nickname: '新成员', rank: 1 }],
-      }]],
+      aiResponses: [[{ participants: [{ nickname: '新成员', rank: 4 }] }]],
     });
-    await store.createBatch({ id: 'new-score', date: '2026-08-01', raceType: 'team', files: [
-      { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
-    ] });
-
-    const preview = await service.previewBatch('new-score');
-    await service.commitBatch('new-score', preview.rosterVersion);
+    await createBatch(store, { raceType: 'ranked' });
+    const draft = await service.previewBatch('b1');
+    await service.commitBatch('b1', draft.rosterVersion);
 
     const saved = await configStore.read();
     expect(saved.scoreMembers).toContainEqual({
@@ -217,71 +210,45 @@ describe('score recognition service', () => {
       basePoints: 0,
       wins: 0,
     });
-    expect(saved.dailyScores[0].rows[0].id).toBe('score:%E6%96%B0%E6%88%90%E5%91%98');
+    expect(saved.dailyScores[0].rows[0].openRace).toEqual([1, null, null]);
   });
 
-  it('clears imported weekday score and total when a screenshot adds a race', async () => {
-    const config = {
-      roster,
-      scoreMembers,
-      dailyScores: [
-        {
-          date: '2026-07-30',
-          rows: [{ id: '1', teamRace: [1, null, null], openRace: [0, 0, 0], score: 99, total: 199 }],
-        },
-        {
-          date: '2026-07-31',
-          rows: [{ id: '1', teamRace: [2, 0, 0], openRace: [0, 0, 0], score: 2, total: 201 }],
-        },
-      ],
-      weekendScores: [],
-      memberAliases: [],
-    };
+  it('clears imported totals when adding a score', async () => {
+    const config = baseConfig({ dailyScores: [
+      { date: '2026-08-01', rows: [
+        { id: 's1', teamRace: [1, null, null], openRace: [null, null, null], score: 99, total: 199 },
+      ] },
+      { date: '2026-08-02', rows: [
+        { id: 's1', teamRace: [2, null, null], openRace: [null, null, null], score: 2, total: 201 },
+      ] },
+    ] });
     const { service, store, configStore } = setupService({
       config,
-      aiResponses: [[{
-        title: '队内赛',
-        date: '2026-07-30',
-        time: '10:00:00',
-        participants: [{ nickname: '稳稳', rank: 1 }],
-      }]],
+      aiResponses: [[{ participants: [{ nickname: '稳稳', rank: 1 }] }]],
     });
-
-    await store.createBatch({ id: 'replace-imported-fields', date: '2026-07-30', raceType: 'team', files: [
-      { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
-    ] });
-    const preview = await service.previewBatch('replace-imported-fields');
-    await service.commitBatch('replace-imported-fields', preview.rosterVersion);
+    await createBatch(store);
+    const draft = await service.previewBatch('b1');
+    await service.commitBatch('b1', draft.rosterVersion);
 
     const saved = await configStore.read();
-    const row = saved.dailyScores[0].rows[0];
-    expect(row.teamRace).toEqual([1, 1, null]);
-    expect(row).not.toHaveProperty('score');
-    expect(row).not.toHaveProperty('total');
-    expect(saved.dailyScores[1].rows[0]).toMatchObject({ score: 2 });
+    expect(saved.dailyScores[0].rows[0]).toMatchObject({ teamRace: [1, 1, null] });
+    expect(saved.dailyScores[0].rows[0]).not.toHaveProperty('score');
+    expect(saved.dailyScores[0].rows[0]).not.toHaveProperty('total');
     expect(saved.dailyScores[1].rows[0]).not.toHaveProperty('total');
   });
 
-  it('blocks commit when the roster version changed during preview', async () => {
-    const config = { roster, scoreMembers, dailyScores: [], weekendScores: [], memberAliases: [] };
+  it('blocks commit when the roster version changes after review', async () => {
     const { service, store, configStore } = setupService({
-      config,
-      aiResponses: [[{ title: '队内赛', date: '2026-08-01', time: '10:00:00',
-        participants: [{ nickname: '稳稳', rank: 1 }] }]],
+      aiResponses: [[{ participants: [{ nickname: '稳稳', rank: 1 }] }]],
     });
-
-    await store.createBatch({ id: 'b6', date: '2026-08-01', raceType: 'team', files: [
-      { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
-    ]});
-    const preview = await service.previewBatch('b6');
-
-    // Simulate an external roster change between preview and commit.
+    await createBatch(store);
+    const draft = await service.previewBatch('b1');
     const changed = await configStore.read();
-    changed.roster.push({ id: '3', name: '新人', number: '3', basePoints: 0, wins: 0 });
+    changed.roster.push({ id: 'r3', name: '新人' });
     await configStore.write(changed);
 
-    await expect(service.commitBatch('b6', preview.rosterVersion))
-      .rejects.toThrow(/roster|version|成员/i);
-    expect((await store.readBatch('b6')).status).not.toBe('committed');
+    await expect(service.commitBatch('b1', draft.rosterVersion))
+      .rejects.toMatchObject({ statusCode: 409 });
+    expect((await store.readBatch('b1')).status).toBe('ready');
   });
 });

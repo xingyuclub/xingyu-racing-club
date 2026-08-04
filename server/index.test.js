@@ -455,7 +455,10 @@ describe('score recognition API', () => {
     return { app, rootDir };
   }
 
-  const jpgBytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+  const jpgBytes = Buffer.from(
+    '/9j/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAj/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AKpAB//Z',
+    'base64',
+  );
 
   it('rejects unauthenticated access to recognition endpoints', async () => {
     const { app } = await createRecognitionFixture();
@@ -465,9 +468,6 @@ describe('score recognition API', () => {
 
   it('uploads screenshots, processes them with AI, and commits the result', async () => {
     const matches = [{
-      title: '队内赛',
-      date: '2026-08-01',
-      time: '10:00:00',
       participants: [{ nickname: '成员 01', rank: 1 }],
     }];
     const { app } = await createRecognitionFixture({ aiClient: createFakeAiClient(matches) });
@@ -482,8 +482,19 @@ describe('score recognition API', () => {
     const batchId = upload.body.id;
 
     const draft = await agent.post('/api/admin/score-recognition/batches/' + batchId + '/process').expect(200);
-    expect(draft.body.races).toHaveLength(1);
-    expect(draft.body.races[0].type).toBe('team');
+    expect(draft.body.canCommit).toBe(true);
+    expect(draft.body.summary).toEqual([
+      expect.objectContaining({ name: '成员 01', score: 1 }),
+    ]);
+    expect(draft.body.evidence).toEqual([
+      expect.objectContaining({ id: 'i0-m0-p0', rank: 1, slot: 0, score: 1 }),
+    ]);
+
+    const image = await agent
+      .get('/api/admin/score-recognition/batches/' + batchId + '/images/0')
+      .expect('content-type', /image\/jpeg/)
+      .expect(200);
+    expect(image.body).toEqual(jpgBytes);
 
     const commit = await agent
       .post('/api/admin/score-recognition/batches/' + batchId + '/commit')
@@ -491,6 +502,101 @@ describe('score recognition API', () => {
       .expect(200);
     expect(commit.body.committed).toBe(true);
     expect(commit.body.config.dailyScores.find((r) => r.date === '2026-08-01')).toBeTruthy();
+  });
+
+  it('reviews unmatched evidence before allowing commit', async () => {
+    const matches = [{ participants: [
+      { nickname: '成员 01', rank: 1 },
+      { nickname: '路人', rank: 2 },
+    ] }];
+    const { app } = await createRecognitionFixture({ aiClient: createFakeAiClient(matches) });
+    const { agent } = await loginAsAdmin(app);
+    const upload = await agent
+      .post('/api/admin/score-recognition/batches')
+      .field('date', '2026-08-01')
+      .field('raceType', 'team')
+      .attach('files', jpgBytes, { filename: 'shot.jpg', contentType: 'image/jpeg' })
+      .expect(201);
+    const url = '/api/admin/score-recognition/batches/' + upload.body.id;
+    const draft = await agent.post(url + '/process').expect(200);
+    expect(draft.body.canCommit).toBe(false);
+
+    await agent.post(url + '/commit')
+      .send({ rosterVersion: draft.body.rosterVersion })
+      .expect(422);
+    await agent.put(url + '/review')
+      .send({ evidenceId: 'missing', ignored: true })
+      .expect(400);
+    await agent.put(url + '/review')
+      .send({ evidenceId: 'i0-m0-p1', memberId: 'missing' })
+      .expect(400);
+
+    const reviewed = await agent.put(url + '/review')
+      .send({ evidenceId: 'i0-m0-p1', ignored: true })
+      .expect(200);
+    expect(reviewed.body.canCommit).toBe(true);
+    await agent.post(url + '/commit')
+      .send({ rosterVersion: reviewed.body.rosterVersion })
+      .expect(200);
+  });
+
+  it('reports the failing image number and marks the batch as failed', async () => {
+    let calls = 0;
+    const aiClient = {
+      chat: { completions: { create: async () => {
+        calls += 1;
+        if (calls === 2) throw new Error('模型超时');
+        return { choices: [{ message: { content: JSON.stringify({
+          matches: [{ participants: [{ nickname: '成员 01', rank: 1 }] }],
+        }) } }] };
+      } } },
+    };
+    const { app } = await createRecognitionFixture({ aiClient });
+    const { agent } = await loginAsAdmin(app);
+    const upload = await agent
+      .post('/api/admin/score-recognition/batches')
+      .field('date', '2026-08-01')
+      .field('raceType', 'team')
+      .attach('files', jpgBytes, { filename: 'one.jpg', contentType: 'image/jpeg' })
+      .attach('files', jpgBytes, { filename: 'two.jpg', contentType: 'image/jpeg' })
+      .expect(201);
+    const url = '/api/admin/score-recognition/batches/' + upload.body.id;
+
+    const response = await agent.post(url + '/process').expect(422);
+    expect(response.body.error).toMatch(/第 2 张截图.*模型超时/);
+    const detail = await agent.get(url).expect(200);
+    expect(detail.body).toMatchObject({ status: 'failed', error: expect.stringMatching(/第 2 张截图/) });
+  });
+
+  it('returns a useful recognition error and marks the batch as failed', async () => {
+    const aiClient = {
+      chat: {
+        completions: {
+          create: async () => ({ choices: [{ message: { content: 'not json' } }] }),
+        },
+      },
+    };
+    const { app } = await createRecognitionFixture({ aiClient });
+    const { agent } = await loginAsAdmin(app);
+    const upload = await agent
+      .post('/api/admin/score-recognition/batches')
+      .field('date', '2026-08-01')
+      .field('raceType', 'team')
+      .attach('files', jpgBytes, { filename: 'shot.jpg', contentType: 'image/jpeg' })
+      .expect(201);
+
+    const processResponse = await agent
+      .post('/api/admin/score-recognition/batches/' + upload.body.id + '/process')
+      .expect(422);
+    expect(processResponse.body.error).toMatch(/JSON/);
+
+    const detail = await agent
+      .get('/api/admin/score-recognition/batches/' + upload.body.id)
+      .expect(200);
+    expect(detail.body).toEqual(expect.objectContaining({
+      status: 'failed',
+      error: expect.stringMatching(/JSON/),
+    }));
   });
 
   it('rejects unsupported screenshot file types', async () => {

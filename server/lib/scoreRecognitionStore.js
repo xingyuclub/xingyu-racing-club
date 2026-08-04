@@ -114,9 +114,16 @@ export function createScoreRecognitionStore({ dataDir, storageDir, fileSystem: p
       .map(publicBatch);
   }
 
+  async function readImage(batchId, index) {
+    const batch = await readBatch(batchId);
+    const image = Number.isInteger(index) ? batch.images[index] : undefined;
+    if (!image) throw new Error(`image not found: ${batchId}/${index}`);
+    return { mimeType: image.mimeType, bytes: await fs.readFile(image.path) };
+  }
+
   async function retryBatch(batchId) {
     return updateBatch(batchId, { status: 'uploaded', error: undefined, draft: undefined });
   }
 
-  return { createBatch, readBatch, updateBatch, listBatches, retryBatch };
+  return { createBatch, readBatch, updateBatch, listBatches, readImage, retryBatch };
 }
