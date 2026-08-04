@@ -2,7 +2,7 @@
 
 当前项目根目录：`C:\Users\Admin\Documents\H5`
 
-最后更新：2026-08-03
+最后更新：2026-08-04
 
 ## 项目一句话
 这是一个基于 Vite + React 的星屿车队移动端 H5，核心是首页展示、成员阵容、积分榜、资讯、相册和音乐浮窗。
@@ -14,6 +14,8 @@
 - 积分派生与 Excel：`src/data/siteConfig.js`、`src/admin/scoreWorkbook.js`
 - 主要模块：`Hero`、`StatsBar`、`FeaturedMembers`、`GalleryPreview`、`Roster`、`Leaderboard`、`NewsFeed`、`AlbumPage`、`MusicPlayer`
 - 交互弹窗：成员视频、照片预览、资讯详情、积分详情
+- 截图识别管线：`server/lib/scoreRecognitionStore/Ai/Service/Routes.js`、`src/admin/ScoreRecognition.jsx`、`RecognitionHistory.jsx`、`WeekendScoreEditor.jsx`；Ollama 本地模型 `xingyu-score-recognition`（qwen2.5vl:7b）
+- 身份与计分纯函数：`src/data/scoreRules.js`（`extractHanCharacters` 汉字提取、`buildMemberMatcher` 汉字兜底、计分/去重/槽位）
 
 - 首屏品牌栏标题使用 `GradientText` 青蓝紫粉循环渐变，不再打字、删除或显示光标
 - 首屏支持后台配置 `team.heroLines` 多句文案；后台按“第 N 句”独立编辑，前端每句独立成行
@@ -56,6 +58,9 @@
 - Pit Wall 设计只能使用现有图片素材，实施时不得新增或生成视觉素材
 - 新视觉实施需要重点消除当前页面大段空白，同时保留内容默认可见和减少动态模式
 - 不得在当前原版分支直接落地 Pit Wall 样式，也不得在产品中加入永久主题切换；Pit Wall 新版已明确不启用，后续除非用户重新指定，否则不合并新版分支
+- 识别运行时索引 `server/data/score-recognition/score-recognition-index.json` 已被 Git 跟踪且持续产生大 diff，建议加入 `.gitignore` 并 `git rm --cached`（需用户确认）
+- 已 `ready` 的识别批次草稿由旧匹配逻辑生成（未匹配虚高），需重新打开/重新处理才会按新匹配器重算
+- 前端存在一批未提交功能改动（ShinyText 签名扫光、视频资源释放、成员头像懒加载、后台 signature 归一化、首页资讯上移），全量测试与构建已通过，待提交
 
 ## 验证状态
 - 2026-07-28 本轮最终验证：`npm test` 共 7 个测试文件、132 项测试通过
@@ -174,3 +179,8 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 2026-08-03 提交前审计已收口：周末输入改为本地日期和数值/null 存储；编辑或截图补录工作日时清除同成员本周后续旧总分；截图新数据用 null 区分空槽和真实 0 分，旧数字数组按全部槽位已占用处理以避免覆盖；普通 Excel 通过隐藏元数据无损往返工作日原始得分、总分和 null 空槽，修改赛局后会丢弃对应旧原始值；成员视频弹窗同时受视口宽高约束。`npm test -- --run` 通过 20 个文件、295 项测试，`npm run build` 通过；844x390 横屏实测弹窗完整位于视口内、视频保持 16:9、横向溢出为 0。
 
 - 2026-08-03 已完成后台签名与周末积分需求：七个后台顶层区块默认收起并可独立手动展开；成员管理新增个性签名，成员视频弹窗仅在签名非空时于视频上方显示，移除名称/关闭按钮并保留空白处、Escape 关闭；周末录入和积分明细的周六/周日数值列均支持从大到小排序；积分明细日期并集包含周末，周末公式字段按“周六上周积分/积分/得分/总分、周日积分/得分/总分”派生且只读；Excel 周末工作表导出派生后的公式值。已将完成提交合并到 `codex/config-admin-excel`，移除已干净的临时工作树；保留带用户改动的旧 `config-admin` 工作树不动。`npm test -- --run` 通过 20 个文件、295 项测试，`npm run build` 通过，主工作树干净。
+
+- 2026-08-04 已实现积分截图识别简化与本地识别：批次明确 `team`/`ranked`，AI 只输出 `{nickname, rank}`，后端确定性算分/去重/槽位/人物汇总，审核 UI 按人物折叠、异常默认展开、可修正或明确忽略后提交，可从识别历史恢复 ready 批次；API 为 127.0.0.1:3000。相关提交 `e782f6f`…`db4ff4a`、`02df5af`、`3000a17`
+- 2026-08-04 已实现截图昵称汉字兜底匹配：`scoreRules.js` 的 `extractHanCharacters`（NFC + `\p{Script=Han}`）与 `buildMemberMatcher` 唯一汉字索引（至少 2 个 Unicode 码点、冲突置空、别名不入索引）；提交 `612c1b1`、`ed28e92`
+- 2026-08-04 已扩展 `TEAM_PREFIX` 前缀正则（`xy` + 0-2 个乱码字符 + 分隔符），覆盖 `xyf`/`xy2`/`xy½`/`xy/`/`xy/2` 等 OCR 变体，纯英文成员 Q3/Rose/fafa 可自动匹配；真实数据未匹配从 29 次降到 11 次（其余为名单外路人）；全量 24 个测试文件 0 失败、构建通过；**该改动尚未提交**，需 `git add src/data/scoreRules.js src/data/scoreRules.test.js` 后提交
+- 2026-08-04 项目整理审计：存在一批未提交前端功能改动（来自并行会话，全量测试与构建均通过）——`ShinyText.jsx/css` 成员视频弹窗签名扫光、`VideoModal/PhotoModal` 关闭时释放视频资源（pause+清 src+load、preload=metadata）、`Roster`/`FeaturedMembers` 成员头像懒加载、`ConfigEditor` 保存前 signature 字符串归一化（防旧数据崩溃）、`App.jsx` 资讯上移至车队风采后；相关测试已同步，待提交
