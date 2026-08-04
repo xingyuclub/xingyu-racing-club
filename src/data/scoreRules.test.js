@@ -130,6 +130,16 @@ describe('normalizeNickname', () => {
     expect(normalizeNickname('xy/c·妄念')).toBe('妄念');
     expect(normalizeNickname('xyβ·浪漫')).toBe('浪漫');
   });
+
+  it('strips new OCR prefix variants seen in real screenshots', () => {
+    expect(normalizeNickname('xyf·Rose')).toBe('rose');
+    expect(normalizeNickname('xy2·Q3')).toBe('q3');
+    expect(normalizeNickname('xy½·Q3')).toBe('q3');
+    expect(normalizeNickname('xy/·Q3')).toBe('q3');
+    expect(normalizeNickname('xy/2·Q3')).toBe('q3');
+    expect(normalizeNickname('xy1·十二')).toBe('十二');
+    expect(normalizeNickname('xy³·稳稳')).toBe('稳稳');
+  });
 });
 
 describe('extractHanCharacters', () => {
@@ -224,6 +234,18 @@ describe('buildMemberMatcher', () => {
   it('matches through NFC-normalized Han sequences', () => {
     const match = buildMemberMatcher([{ id: 'nfc', name: '豈𠀀' }]);
     expect(match('x?\uF900𠀀99')).toBe('nfc');
+  });
+
+  it('matches Latin-only members across OCR prefix variants', () => {
+    const match = buildMemberMatcher([
+      { id: 'q3', name: 'ˣʸ༩·Q3' },
+      { id: 'rose', name: 'ˣʸ༩·Rose' },
+      { id: 'fafa', name: 'ˣʸ༩·fafa' },
+    ]);
+    expect(match('xy/·Q3')).toBe('q3');
+    expect(match('xy½·Q3')).toBe('q3');
+    expect(match('xyf·Rose')).toBe('rose');
+    expect(match('xy2·fafa')).toBe('fafa');
   });
 });
 
