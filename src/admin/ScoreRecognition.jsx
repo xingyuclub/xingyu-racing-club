@@ -3,12 +3,12 @@ import { Camera, CheckCircle2, Loader2, Upload, XCircle } from 'lucide-react';
 import {
   commitRecognitionBatch,
   processRecognitionBatch,
+  reviewRecognitionEvidence,
   uploadRecognitionBatch,
 } from './adminApi.js';
+import { RecognitionEvidence } from './RecognitionEvidence.jsx';
 
 const today = () => new Date().toISOString().slice(0, 10);
-
-const RACE_TYPE_LABEL = { team: '队内赛', ranked: '排位赛' };
 
 export function ScoreRecognition({ config, onCommitted }) {
   const [date, setDate] = useState(today());
@@ -46,6 +46,19 @@ export function ScoreRecognition({ config, onCommitted }) {
       const result = await commitRecognitionBatch(batchId, draft.rosterVersion);
       setStatus('committed');
       onCommitted?.(result.config);
+    } catch (next) {
+      setError(next.message);
+      setStatus('ready');
+    }
+  };
+
+  const review = async (change) => {
+    if (!batchId) return;
+    setStatus('reviewing');
+    setError('');
+    try {
+      setDraft(await reviewRecognitionEvidence(batchId, change));
+      setStatus('ready');
     } catch (next) {
       setError(next.message);
       setStatus('ready');
@@ -131,41 +144,22 @@ export function ScoreRecognition({ config, onCommitted }) {
         </div>
       )}
 
-      {draft && status === 'ready' && (
+      {draft && (status === 'ready' || status === 'reviewing') && (
         <div className="score-recognition-preview">
-          {(draft.races || []).map((race, index) => (
-            <div key={index} className={'score-recognition-race' + (race.duplicate ? ' is-duplicate' : '')}>
-              <div className="score-recognition-race-head">
-                <strong>{RACE_TYPE_LABEL[race.type] || race.type}</strong>
-                <span>{race.title}</span>
-                {race.duplicate && <em>重复，不录入</em>}
-              </div>
-              <table className="score-recognition-table">
-                <thead>
-                  <tr>
-                    <th>昵称</th>
-                    <th>名次</th>
-                    <th>得分</th>
-                    <th>状态</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {race.members.map((member, mIndex) => (
-                    <tr key={mIndex}>
-                      <td>{member.nickname}</td>
-                      <td>{member.rank}</td>
-                      <td>{member.score}</td>
-                      <td>{member.skipped ? '已达3局上限' : '第' + (member.slot + 1) + '槽'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {race.unmatched?.length > 0 && (
-                <small className="score-recognition-unmatched">未匹配：{race.unmatched.join('、')}</small>
-              )}
-            </div>
-          ))}
-          <button type="button" className="score-recognition-commit" onClick={commit}>
+          <RecognitionEvidence
+            batchId={batchId}
+            config={config}
+            draft={draft}
+            busy={status === 'reviewing'}
+            onReview={review}
+          />
+          {error && <div className="admin-error" role="alert"><XCircle aria-hidden="true" size={16} /> {error}</div>}
+          <button
+            type="button"
+            className="score-recognition-commit"
+            disabled={!draft.canCommit || status !== 'ready'}
+            onClick={commit}
+          >
             <CheckCircle2 aria-hidden="true" size={16} /> 提交确认
           </button>
         </div>

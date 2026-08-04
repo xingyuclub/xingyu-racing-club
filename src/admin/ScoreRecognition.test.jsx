@@ -7,17 +7,18 @@ import { reviewRecognitionEvidence } from './adminApi.js';
 afterEach(() => vi.unstubAllGlobals());
 
 const validDraft = {
-  races: [{
-    type: 'team',
-    title: '队内赛',
-    date: '2026-08-01',
-    time: '10:00:00',
-    members: [{ id: '1', nickname: '稳稳', rank: 1, score: 4, slot: 0 }],
-    unmatched: [],
+  canCommit: true,
+  summary: [{ id: '1', name: '稳稳', score: 4, evidenceIds: ['i0-m0-p0'] }],
+  evidence: [{
+    id: 'i0-m0-p0', imageIndex: 0, nickname: '稳稳', rank: 1,
+    score: 4, slot: 0, memberId: '1', memberName: '稳稳', scoreMemberId: '1',
   }],
+  issues: [],
   rosterVersion: 'roster-v1',
   batchDate: '2026-08-01',
 };
+
+const config = { roster: [{ id: '1', name: '稳稳' }] };
 
 it('uploads screenshots and processes them into a preview', async () => {
   const onCommitted = vi.fn();
@@ -26,7 +27,7 @@ it('uploads screenshots and processes them into a preview', async () => {
     .mockResolvedValueOnce({ ok: true, json: async () => validDraft });
   vi.stubGlobal('fetch', fetchMock);
 
-  render(<ScoreRecognition onCommitted={onCommitted} />);
+  render(<ScoreRecognition config={config} onCommitted={onCommitted} />);
   expect(screen.getByRole('radio', { name: '队内赛' })).toBeChecked();
   await userEvent.click(screen.getByRole('radio', { name: '排位赛' }));
 
@@ -38,7 +39,7 @@ it('uploads screenshots and processes them into a preview', async () => {
   await userEvent.upload(screen.getByLabelText('上传截图'), file);
 
   await waitFor(() => expect(screen.getByText('提交确认')).toBeInTheDocument());
-  expect(screen.getAllByText('队内赛').length).toBeGreaterThan(0);
+  expect(screen.getByText('稳稳')).toBeInTheDocument();
   const uploadBody = fetchMock.mock.calls[0][1].body;
   expect(uploadBody.get('raceType')).toBe('ranked');
 });
@@ -50,7 +51,7 @@ it('returns the committed server config to the editor', async () => {
     .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'batch-1' }) })
     .mockResolvedValueOnce({ ok: true, json: async () => validDraft })
     .mockResolvedValueOnce({ ok: true, json: async () => ({ committed: true, config: nextConfig }) }));
-  render(<ScoreRecognition onCommitted={onCommitted} />);
+  render(<ScoreRecognition config={config} onCommitted={onCommitted} />);
 
   await userEvent.upload(
     screen.getByLabelText('上传截图'),
@@ -80,7 +81,7 @@ it('sends evidence reviews as JSON', async () => {
 it('shows an error when upload fails', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: '无效日期' }) }));
 
-  render(<ScoreRecognition />);
+  render(<ScoreRecognition config={config} />);
   const file = new File(['img'], 'shot.jpg', { type: 'image/jpeg' });
   await userEvent.upload(screen.getByLabelText('上传截图'), file);
 
@@ -92,9 +93,29 @@ it('disables submit while processing', async () => {
     .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'batch-1', status: 'uploaded', date: '2026-08-01', images: [] }) })
     .mockImplementationOnce(() => new Promise(() => {})));
 
-  render(<ScoreRecognition />);
+  render(<ScoreRecognition config={config} />);
   await userEvent.type(screen.getByLabelText('批次日期'), '2026-08-01');
   await userEvent.upload(screen.getByLabelText('上传截图'), new File(['img'], 'shot.jpg', { type: 'image/jpeg' }));
 
   await waitFor(() => expect(screen.getByText('识别中…')).toBeInTheDocument());
+});
+
+it('disables commit while unresolved issues remain', async () => {
+  vi.stubGlobal('fetch', vi.fn()
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'batch-1' }) })
+    .mockResolvedValueOnce({ ok: true, json: async () => ({
+      ...validDraft,
+      canCommit: false,
+      issues: [{ evidenceId: 'i0-m0-p0', code: 'unmatched' }],
+      summary: [],
+      evidence: [{ id: 'i0-m0-p0', imageIndex: 0, nickname: '路人', rank: 1 }],
+    }) }));
+  render(<ScoreRecognition config={config} />);
+  await userEvent.upload(
+    screen.getByLabelText('上传截图'),
+    new File(['img'], 'shot.jpg', { type: 'image/jpeg' }),
+  );
+
+  expect(await screen.findByRole('button', { name: /提交确认/ })).toBeDisabled();
+  expect(screen.getByLabelText('未匹配昵称 路人 对应成员')).toBeVisible();
 });
