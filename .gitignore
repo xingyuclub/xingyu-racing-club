@@ -21,3 +21,4 @@ server/storage/uploads/
 server/storage/score-recognition/
 tools/
 logs/
+server/data/score-recognition/
