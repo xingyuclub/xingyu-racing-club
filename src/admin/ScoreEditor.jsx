@@ -216,7 +216,7 @@ export function ScoreEditor({ config, onChange }) {
         <button role="tab" aria-selected={tab === 'history'} className={tab === 'history' ? 'is-active' : ''} onClick={() => setTab('history')}>识别记录</button>
         <button role="tab" aria-selected={tab === 'members'} className={tab === 'members' ? 'is-active' : ''} onClick={() => setTab('members')}>队员管理</button>
       </div>
-      {tab === 'recognition' && <ScoreRecognition onCommitted={onChange} />}
+      {tab === 'recognition' && <ScoreRecognition config={config} onCommitted={onChange} />}
       {tab === 'weekend' && <WeekendScoreEditor config={config} onChange={onChange} />}
       {tab === 'history' && <RecognitionHistory />}
       {tab === 'members' && (

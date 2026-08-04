@@ -10,8 +10,9 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 const RACE_TYPE_LABEL = { team: '队内赛', ranked: '排位赛' };
 
-export function ScoreRecognition({ onCommitted }) {
+export function ScoreRecognition({ config, onCommitted }) {
   const [date, setDate] = useState(today());
+  const [raceType, setRaceType] = useState('team');
   const [status, setStatus] = useState('idle');
   const [draft, setDraft] = useState(null);
   const [batchId, setBatchId] = useState(null);
@@ -25,7 +26,7 @@ export function ScoreRecognition({ onCommitted }) {
     setError('');
     setDraft(null);
     try {
-      const batch = await uploadRecognitionBatch(date, files);
+      const batch = await uploadRecognitionBatch(date, raceType, files);
       setBatchId(batch.id);
       setStatus('processing');
       const result = await processRecognitionBatch(batch.id);
@@ -42,9 +43,9 @@ export function ScoreRecognition({ onCommitted }) {
     setStatus('committing');
     setError('');
     try {
-      await commitRecognitionBatch(batchId, draft.rosterVersion);
+      const result = await commitRecognitionBatch(batchId, draft.rosterVersion);
       setStatus('committed');
-      onCommitted?.();
+      onCommitted?.(result.config);
     } catch (next) {
       setError(next.message);
       setStatus('ready');
@@ -73,6 +74,29 @@ export function ScoreRecognition({ onCommitted }) {
             onChange={(event) => setDate(event.target.value)}
           />
         </label>
+        <fieldset className="score-recognition-types" disabled={status === 'processing' || status === 'uploading' || status === 'committing'}>
+          <legend>比赛类型</legend>
+          <label>
+            <input
+              type="radio"
+              name="recognition-race-type"
+              value="team"
+              checked={raceType === 'team'}
+              onChange={() => setRaceType('team')}
+            />
+            队内赛
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="recognition-race-type"
+              value="ranked"
+              checked={raceType === 'ranked'}
+              onChange={() => setRaceType('ranked')}
+            />
+            排位赛
+          </label>
+        </fieldset>
         <label className={'score-recognition-file' + (status === 'processing' || status === 'uploading' ? ' is-disabled' : '')}>
           <Upload aria-hidden="true" size={16} />
           上传截图
@@ -109,7 +133,7 @@ export function ScoreRecognition({ onCommitted }) {
 
       {draft && status === 'ready' && (
         <div className="score-recognition-preview">
-          {draft.races.map((race, index) => (
+          {(draft.races || []).map((race, index) => (
             <div key={index} className={'score-recognition-race' + (race.duplicate ? ' is-duplicate' : '')}>
               <div className="score-recognition-race-head">
                 <strong>{RACE_TYPE_LABEL[race.type] || race.type}</strong>
