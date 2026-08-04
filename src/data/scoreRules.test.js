@@ -5,6 +5,7 @@ import {
   buildDuplicateSignature,
   buildMemberMatcher,
   createScoreMemberId,
+  extractHanCharacters,
   invalidateFollowingWeekTotals,
   normalizeNickname,
   scoreRankedRace,
@@ -131,6 +132,19 @@ describe('normalizeNickname', () => {
   });
 });
 
+describe('extractHanCharacters', () => {
+  it('keeps Han characters in order and removes OCR symbols', () => {
+    expect(extractHanCharacters('xγ·黑岩_99')).toBe('黑岩');
+    expect(extractHanCharacters('এ᭄云嗔')).toBe('云嗔');
+    expect(extractHanCharacters('我懷念的')).toBe('我懷念的');
+  });
+
+  it('returns an empty string for Latin-only nicknames', () => {
+    expect(extractHanCharacters('Q3')).toBe('');
+    expect(extractHanCharacters('Rose')).toBe('');
+  });
+});
+
 describe('buildMemberMatcher', () => {
   const roster = [
     { id: '1', name: '青山' },
@@ -151,6 +165,46 @@ describe('buildMemberMatcher', () => {
   it('returns null for unknown nicknames', () => {
     const match = buildMemberMatcher(roster);
     expect(match('陌生人')).toBeNull();
+  });
+
+  it('falls back to a unique sequence of at least two Han characters', () => {
+    const match = buildMemberMatcher([
+      { id: 'black', name: 'ˣʸ༩·黑岩' },
+      { id: 'cloud', name: '云嗔' },
+      { id: 'memory', name: '我懷念的' },
+    ]);
+
+    expect(match('xγ·黑岩_99')).toBe('black');
+    expect(match('এ᭄云嗔')).toBe('cloud');
+    expect(match('noise我懷念的-7')).toBe('memory');
+  });
+
+  it('does not use partial, wrong, reordered, one-character, or Latin fallback', () => {
+    const match = buildMemberMatcher([
+      { id: 'black', name: '黑岩' },
+      { id: 'rice', name: '米' },
+      { id: 'q3', name: 'Q3' },
+    ]);
+
+    expect(match('黑')).toBeNull();
+    expect(match('黑岩额外')).toBeNull();
+    expect(match('黑炎')).toBeNull();
+    expect(match('岩黑')).toBeNull();
+    expect(match('米99')).toBeNull();
+    expect(match('Q3??')).toBeNull();
+    expect(match('米')).toBe('rice');
+    expect(match('Rose')).toBeNull();
+  });
+
+  it('returns null for Han sequence collisions while preserving exact aliases', () => {
+    const match = buildMemberMatcher([
+      { id: 'first', name: 'A·黑岩' },
+      { id: 'second', name: 'B·黑岩' },
+    ], [{ memberId: 'first', value: '旧黑岩' }]);
+
+    expect(match('黑岩')).toBeNull();
+    expect(match('旧黑岩')).toBe('first');
+    expect(match('A·黑岩')).toBe('first');
   });
 });
 

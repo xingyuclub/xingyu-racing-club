@@ -213,4 +213,21 @@ describe('buildRecognitionDraft', () => {
       scoreMemberId: 'score:%E9%BB%91%E5%B2%A9',
     });
   });
+
+  it('matches OCR symbol noise by a unique Han nickname and scores one point', () => {
+    const draft = buildDraft({
+      matches: [{ participants: [{ nickname: 'xγ_黑岩99', rank: 1 }] }],
+      config: {
+        roster: [{ id: 'roster-black', name: 'ˣʸ༩·黑岩' }],
+        memberAliases: [],
+        scoreMembers: [{ id: 's1', name: '黑岩' }],
+        dailyScores: [],
+      },
+    });
+
+    expect(draft).toMatchObject({ issues: [], canCommit: true });
+    expect(draft.summary).toEqual([
+      expect.objectContaining({ id: 's1', name: 'ˣʸ༩·黑岩', score: 1 }),
+    ]);
+  });
 });

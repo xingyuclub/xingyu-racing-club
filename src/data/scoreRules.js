@@ -6,6 +6,10 @@ const TEAM_PREFIX = /^(?:ˣʸ༩|xy(?:[roa²♂♀β]|\/[ac])?)\s*[·._-]\s*/i;
 const MAX_GAMES_PER_TYPE = 3;
 const MAX_TEAM_RACE_SCORE = 6;
 
+export function extractHanCharacters(value) {
+  return String(value ?? '').match(/\p{Script=Han}/gu)?.join('') ?? '';
+}
+
 export function normalizeNickname(value) {
   return String(value ?? '')
     .normalize('NFC')
@@ -30,13 +34,30 @@ export function buildScoreMemberMatcher(scoreMembers = []) {
 
 export function buildMemberMatcher(roster, aliases = []) {
   const lookup = new Map();
+  const hanLookup = new Map();
   for (const member of roster) {
-    lookup.set(normalizeNickname(member.name), member.id);
+    const normalizedName = normalizeNickname(member.name);
+    lookup.set(normalizedName, member.id);
+
+    const hanName = extractHanCharacters(normalizedName);
+    if (hanName.length < 2) continue;
+    if (!hanLookup.has(hanName)) {
+      hanLookup.set(hanName, member.id);
+    } else if (hanLookup.get(hanName) !== member.id) {
+      hanLookup.set(hanName, null);
+    }
   }
   for (const alias of aliases) {
     lookup.set(normalizeNickname(alias.value), alias.memberId);
   }
-  return (nickname) => lookup.get(normalizeNickname(nickname)) ?? null;
+  return (nickname) => {
+    const normalized = normalizeNickname(nickname);
+    if (lookup.has(normalized)) return lookup.get(normalized) ?? null;
+
+    const hanName = extractHanCharacters(normalized);
+    if (hanName.length < 2) return null;
+    return hanLookup.get(hanName) ?? null;
+  };
 }
 
 // 队内赛：所有实际参赛者计入人数，得分 = max(min(人数, 6) - 名次 + 1, 0)
