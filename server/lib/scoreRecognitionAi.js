@@ -1,15 +1,8 @@
-const isValidDateKey = (value) => {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const [year, month, day] = value.split('-').map(Number);
-  const date = new Date(year, month - 1, day);
-  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
-};
+import { prepareRecognitionImage } from './scoreRecognitionImage.js';
 
 function validateMatch(match, index) {
   const path = `matches[${index}]`;
   if (!match || typeof match !== 'object') throw new Error(`${path} must be an object`);
-  if (typeof match.title !== 'string') throw new Error(`${path}.title must be a string`);
-  if (!isValidDateKey(match.date)) throw new Error(`${path}.date must be a valid YYYY-MM-DD date`);
   if (!Array.isArray(match.participants) || match.participants.length === 0) {
     throw new Error(`${path}.participants must be a non-empty array`);
   }
@@ -24,30 +17,76 @@ function validateMatch(match, index) {
       throw new Error(`${pPath}.rank must be a positive integer`);
     }
     if (seenRanks.has(participant.rank)) {
-      throw new Error(`${pPath}.rank ${participant.rank} is duplicated within ${match.title || path}`);
+      throw new Error(`${pPath}.rank ${participant.rank} is duplicated within ${path}`);
     }
     seenRanks.add(participant.rank);
   });
 }
 
 const PROMPT = [
-  '你是一个赛车游戏截图解析助手。只提取截图中可见的事实，不计算积分，不猜测未知成员。',
-  '返回严格的 JSON：{ "matches": [ { "title": string, "date": "YYYY-MM-DD", "time": "HH:MM:SS", "participants": [ { "nickname": string, "rank": number } ] } ] }。',
-  '列表截图按从上到下拆成多场。名次是游戏结算显示的整数名次，从 1 开始。',
+  '你是一个赛车游戏截图解析助手。只读取截图中可见的玩家昵称和游戏名次。',
+  '返回严格的 JSON：{ "matches": [ { "participants": [ { "nickname": string, "rank": number } ] } ] }。',
+  '结算详情截图只有一场比赛，每个排名行都是该场比赛的一名参与者，绝不能把排名行拆成比赛。',
+  '结算详情即使按“胜利”和“失败”分成两个队伍区域，也仍是同一场比赛，必须把两区参与者合并到一个 match。',
+  '最近比赛列表截图才按比赛卡片拆成多场，每张卡片是一场比赛。',
+  '名次是从 1 开始的整数。除玩家昵称和游戏名次之外的其他信息一律忽略；无法确认昵称的行直接忽略，不要输出空参与者或空比赛。',
+  '不计算积分，不要根据成员名单猜测昵称。',
   '只输出 JSON，不要解释文字。',
 ].join('\n');
 
-export function createScoreRecognitionAi({ client, model = 'gpt-4o', clock = Date }) {
-  async function extractMatches({ imageBytes, mimeType, rosterHints = [] }) {
-    const dataUrl = `data:${mimeType};base64,${Buffer.from(imageBytes).toString('base64')}`;
-    const hintText = rosterHints.length
-      ? `\n当前车队成员昵称参考（仅供识别，不代表截图中一定出现）：${rosterHints.join('、')}`
-      : '';
+const RESPONSE_FORMAT = {
+  type: 'json_schema',
+  json_schema: {
+    name: 'score_matches',
+    strict: true,
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['matches'],
+      properties: {
+        matches: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['participants'],
+            properties: {
+              participants: {
+                type: 'array',
+                minItems: 1,
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['nickname', 'rank'],
+                  properties: {
+                    nickname: { type: 'string', minLength: 1 },
+                    rank: { type: 'integer', minimum: 1 },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
+export function createScoreRecognitionAi({
+  client,
+  model = 'gpt-4o',
+  imageProcessor = prepareRecognitionImage,
+}) {
+  async function extractMatches({ imageBytes, mimeType }) {
+    const prepared = await imageProcessor({ imageBytes, mimeType });
+    const dataUrl = `data:${prepared.mimeType};base64,${Buffer.from(prepared.imageBytes).toString('base64')}`;
 
     const response = await client.chat.completions.create({
       model,
+      temperature: 0,
+      response_format: RESPONSE_FORMAT,
       messages: [
-        { role: 'system', content: PROMPT + hintText },
+        { role: 'system', content: PROMPT },
         {
           role: 'user',
           content: [
@@ -61,9 +100,14 @@ export function createScoreRecognitionAi({ client, model = 'gpt-4o', clock = Dat
     const content = response?.choices?.[0]?.message?.content;
     if (typeof content !== 'string') throw new Error('AI 未返回文本内容');
 
+    const jsonContent = content
+      .trim()
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
     let parsed;
     try {
-      parsed = JSON.parse(content);
+      parsed = JSON.parse(jsonContent);
     } catch {
       throw new Error('AI 返回的内容不是合法 JSON');
     }

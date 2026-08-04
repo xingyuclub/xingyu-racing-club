@@ -4,10 +4,7 @@ import { createScoreRecognitionAi } from './scoreRecognitionAi.js';
 const validPayload = {
   matches: [
     {
-      title: '排位赛·组队道具',
-      date: '2026-07-27',
-      time: '16:50:53',
-      participants: [{ nickname: '稳稳', rank: 1 }, { nickname: '闪电', rank: 2 }],
+      participants: [{ nickname: '十二', rank: 2 }, { nickname: '黑岩', rank: 4 }],
     },
   ],
 };
@@ -22,15 +19,20 @@ const createFakeClient = (content) => ({
   },
 });
 
+const createAi = (client, options = {}) => createScoreRecognitionAi({
+  client,
+  imageProcessor: async ({ imageBytes, mimeType }) => ({ imageBytes, mimeType }),
+  ...options,
+});
+
 describe('score recognition AI adapter', () => {
   it('extracts structured matches from the model response', async () => {
     const client = createFakeClient(validPayload);
-    const ai = createScoreRecognitionAi({ client, model: 'gpt-4o' });
+    const ai = createAi(client, { model: 'gpt-4o' });
 
     const result = await ai.extractMatches({
       imageBytes: Buffer.from([0xff, 0xd8, 0xff]),
       mimeType: 'image/jpeg',
-      rosterHints: ['稳稳', '闪电'],
     });
 
     expect(result).toEqual(validPayload.matches);
@@ -46,9 +48,74 @@ describe('score recognition AI adapter', () => {
     );
   });
 
+  it('accepts JSON wrapped in a markdown code fence', async () => {
+    const client = {
+      chat: { completions: { create: vi.fn().mockResolvedValue({
+        choices: [{ message: { content: '```json\n' + JSON.stringify(validPayload) + '\n```' } }],
+      }) } },
+    };
+    const ai = createAi(client);
+
+    await expect(ai.extractMatches({
+      imageBytes: Buffer.from([]),
+      mimeType: 'image/jpeg',
+    })).resolves.toEqual(validPayload.matches);
+  });
+
+  it('constrains local vision models to the supported screenshot structures', async () => {
+    const client = createFakeClient(validPayload);
+    const ai = createAi(client);
+
+    await ai.extractMatches({
+      imageBytes: Buffer.from([]),
+      mimeType: 'image/jpeg',
+      rosterHints: ['十二', '黑岩'],
+      batchDate: '2026-08-03',
+    });
+
+    const request = client.chat.completions.create.mock.calls[0][0];
+    expect(request.messages[0].content).toContain('结算详情截图只有一场比赛');
+    expect(request.messages[0].content).toContain('按“胜利”和“失败”分成两个队伍区域');
+    expect(request.messages[0].content).toContain('最近比赛列表截图才按比赛卡片拆成多场');
+    expect(request.messages[0].content).not.toMatch(/日期|时间|MVP|胜负|地图/);
+    expect(request.messages[0].content).not.toContain('十二、黑岩');
+    expect(request.temperature).toBe(0);
+    const schema = request.response_format.json_schema.schema;
+    const matchSchema = schema.properties.matches.items;
+    expect(request.response_format.type).toBe('json_schema');
+    expect(request.response_format.json_schema.strict).toBe(true);
+    expect(schema.required).toEqual(['matches']);
+    expect(schema.additionalProperties).toBe(false);
+    expect(matchSchema.required).toEqual(['participants']);
+    expect(matchSchema.additionalProperties).toBe(false);
+    expect(Object.keys(matchSchema.properties)).toEqual(['participants']);
+  });
+
+  it('sends the prepared image to the model', async () => {
+    const client = createFakeClient(validPayload);
+    const imageProcessor = vi.fn().mockResolvedValue({
+      imageBytes: Buffer.from('prepared'),
+      mimeType: 'image/webp',
+    });
+    const ai = createScoreRecognitionAi({ client, imageProcessor });
+
+    await ai.extractMatches({
+      imageBytes: Buffer.from('source'),
+      mimeType: 'image/png',
+    });
+
+    expect(imageProcessor).toHaveBeenCalledWith({
+      imageBytes: Buffer.from('source'),
+      mimeType: 'image/png',
+    });
+    const request = client.chat.completions.create.mock.calls[0][0];
+    expect(request.messages[1].content[0].image_url.url)
+      .toBe(`data:image/webp;base64,${Buffer.from('prepared').toString('base64')}`);
+  });
+
   it('rejects a response without a matches array', async () => {
     const client = createFakeClient({ data: [] });
-    const ai = createScoreRecognitionAi({ client });
+    const ai = createAi(client);
     await expect(ai.extractMatches({ imageBytes: Buffer.from([]), mimeType: 'image/jpeg' }))
       .rejects.toThrow(/matches/);
   });
@@ -56,13 +123,10 @@ describe('score recognition AI adapter', () => {
   it('rejects duplicate ranks within a single match', async () => {
     const client = createFakeClient({
       matches: [{
-        title: '队内赛',
-        date: '2026-07-27',
-        time: '10:00:00',
         participants: [{ nickname: 'A', rank: 1 }, { nickname: 'B', rank: 1 }],
       }],
     });
-    const ai = createScoreRecognitionAi({ client });
+    const ai = createAi(client);
     await expect(ai.extractMatches({ imageBytes: Buffer.from([]), mimeType: 'image/jpeg' }))
       .rejects.toThrow(/rank/);
   });
@@ -70,13 +134,10 @@ describe('score recognition AI adapter', () => {
   it('rejects negative ranks', async () => {
     const client = createFakeClient({
       matches: [{
-        title: '队内赛',
-        date: '2026-07-27',
-        time: '10:00:00',
         participants: [{ nickname: 'A', rank: -1 }],
       }],
     });
-    const ai = createScoreRecognitionAi({ client });
+    const ai = createAi(client);
     await expect(ai.extractMatches({ imageBytes: Buffer.from([]), mimeType: 'image/jpeg' }))
       .rejects.toThrow(/rank/);
   });
@@ -84,36 +145,19 @@ describe('score recognition AI adapter', () => {
   it('rejects empty nicknames', async () => {
     const client = createFakeClient({
       matches: [{
-        title: '队内赛',
-        date: '2026-07-27',
-        time: '10:00:00',
         participants: [{ nickname: '  ', rank: 1 }],
       }],
     });
-    const ai = createScoreRecognitionAi({ client });
+    const ai = createAi(client);
     await expect(ai.extractMatches({ imageBytes: Buffer.from([]), mimeType: 'image/jpeg' }))
       .rejects.toThrow(/nickname/);
-  });
-
-  it('rejects invalid dates', async () => {
-    const client = createFakeClient({
-      matches: [{
-        title: '队内赛',
-        date: '2026-13-99',
-        time: '10:00:00',
-        participants: [{ nickname: 'A', rank: 1 }],
-      }],
-    });
-    const ai = createScoreRecognitionAi({ client });
-    await expect(ai.extractMatches({ imageBytes: Buffer.from([]), mimeType: 'image/jpeg' }))
-      .rejects.toThrow(/date/);
   });
 
   it('rejects a non-JSON model response', async () => {
     const client = {
       chat: { completions: { create: vi.fn().mockResolvedValue({ choices: [{ message: { content: 'not json' } }] }) } },
     };
-    const ai = createScoreRecognitionAi({ client });
+    const ai = createAi(client);
     await expect(ai.extractMatches({ imageBytes: Buffer.from([]), mimeType: 'image/jpeg' }))
       .rejects.toThrow(/JSON/);
   });
@@ -122,7 +166,7 @@ describe('score recognition AI adapter', () => {
     const client = {
       chat: { completions: { create: vi.fn().mockRejectedValue(new Error('rate limited')) } },
     };
-    const ai = createScoreRecognitionAi({ client });
+    const ai = createAi(client);
     await expect(ai.extractMatches({ imageBytes: Buffer.from([]), mimeType: 'image/jpeg' }))
       .rejects.toThrow('rate limited');
   });
