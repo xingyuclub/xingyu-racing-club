@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Camera, CheckCircle2, Loader2, Upload, XCircle } from 'lucide-react';
+import { Camera, CheckCircle2, Loader2, RefreshCw, Upload, XCircle } from 'lucide-react';
 import {
   commitRecognitionBatch,
   getRecognitionBatch,
   processRecognitionBatch,
+  rematchRecognitionBatch,
   reviewRecognitionEvidence,
   uploadRecognitionBatch,
 } from './adminApi.js';
@@ -14,11 +15,12 @@ const today = () => new Date().toISOString().slice(0, 10);
 export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
   const [date, setDate] = useState(today());
   const [raceType, setRaceType] = useState('team');
+  const [multiMatch, setMultiMatch] = useState(false);
   const [status, setStatus] = useState('idle');
   const [draft, setDraft] = useState(null);
   const [batchId, setBatchId] = useState(null);
   const [error, setError] = useState('');
-  const controlsDisabled = ['loading', 'uploading', 'processing', 'reviewing', 'committing'].includes(status);
+  const controlsDisabled = ['loading', 'uploading', 'processing', 'rematching', 'reviewing', 'committing'].includes(status);
 
   useEffect(() => {
     if (!initialBatchId) return undefined;
@@ -31,6 +33,7 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
       setBatchId(batch.id);
       setDate(batch.date);
       setRaceType(batch.raceType);
+      setMultiMatch(batch.multiMatch === true);
       setDraft(batch.draft);
       setStatus('ready');
     }).catch((next) => {
@@ -49,7 +52,7 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
     setError('');
     setDraft(null);
     try {
-      const batch = await uploadRecognitionBatch(date, raceType, files);
+      const batch = await uploadRecognitionBatch(date, raceType, files, multiMatch);
       setBatchId(batch.id);
       setStatus('processing');
       const result = await processRecognitionBatch(batch.id);
@@ -81,6 +84,19 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
     setError('');
     try {
       setDraft(await reviewRecognitionEvidence(batchId, change));
+      setStatus('ready');
+    } catch (next) {
+      setError(next.message);
+      setStatus('ready');
+    }
+  };
+
+  const rematch = async () => {
+    if (!batchId) return;
+    setStatus('rematching');
+    setError('');
+    try {
+      setDraft(await rematchRecognitionBatch(batchId));
       setStatus('ready');
     } catch (next) {
       setError(next.message);
@@ -133,6 +149,15 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
             排位赛
           </label>
         </fieldset>
+        <label className="score-recognition-multi">
+          <input
+            type="checkbox"
+            checked={multiMatch}
+            disabled={controlsDisabled}
+            onChange={(event) => setMultiMatch(event.target.checked)}
+          />
+          一张截图含多场比赛
+        </label>
         <label className={'score-recognition-file' + (controlsDisabled ? ' is-disabled' : '')}>
           <Upload aria-hidden="true" size={16} />
           上传截图
@@ -160,10 +185,10 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
         </div>
       )}
 
-      {(status === 'loading' || status === 'uploading' || status === 'processing' || status === 'committing') && (
+      {(status === 'loading' || status === 'uploading' || status === 'processing' || status === 'rematching' || status === 'committing') && (
         <div className="score-recognition-loading">
           <Loader2 aria-hidden="true" size={16} className="spin" />
-          {status === 'loading' ? '读取批次中…' : status === 'processing' ? '识别中…' : status === 'committing' ? '提交中…' : '上传中…'}
+          {status === 'loading' ? '读取批次中…' : status === 'processing' ? '识别中…' : status === 'rematching' ? '重新匹配中…' : status === 'committing' ? '提交中…' : '上传中…'}
         </div>
       )}
 
@@ -177,14 +202,24 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
             onReview={review}
           />
           {error && <div className="admin-error" role="alert"><XCircle aria-hidden="true" size={16} /> {error}</div>}
-          <button
-            type="button"
-            className="score-recognition-commit"
-            disabled={!draft.canCommit || status !== 'ready'}
-            onClick={commit}
-          >
-            <CheckCircle2 aria-hidden="true" size={16} /> 提交确认
-          </button>
+          <div className="score-recognition-actions">
+            <button
+              type="button"
+              className="score-recognition-rematch"
+              disabled={status !== 'ready'}
+              onClick={rematch}
+            >
+              <RefreshCw aria-hidden="true" size={16} /> 重新匹配
+            </button>
+            <button
+              type="button"
+              className="score-recognition-commit"
+              disabled={!draft.canCommit || status !== 'ready'}
+              onClick={commit}
+            >
+              <CheckCircle2 aria-hidden="true" size={16} /> 提交确认
+            </button>
+          </div>
         </div>
       )}
     </div>

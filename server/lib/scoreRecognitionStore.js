@@ -35,7 +35,7 @@ export function createScoreRecognitionStore({ dataDir, storageDir, fileSystem: p
     return rest;
   }
 
-  async function createBatch({ id, date, raceType, files = [] }) {
+  async function createBatch({ id, date, raceType, multiMatch = false, files = [] }) {
     await ensureDirs();
     const batchId = id ?? randomUUID();
     const batchDir = join(storageDir, batchId);
@@ -59,6 +59,7 @@ export function createScoreRecognitionStore({ dataDir, storageDir, fileSystem: p
       id: batchId,
       date,
       raceType,
+      multiMatch: Boolean(multiMatch),
       status: 'uploaded',
       images,
       createdAt: now,

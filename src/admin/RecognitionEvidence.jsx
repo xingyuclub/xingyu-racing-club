@@ -116,6 +116,11 @@ export function RecognitionEvidence({ batchId, config, draft, busy, onReview }) 
 
   return (
     <div className="recognition-review">
+      {draft.duplicateCount > 0 && (
+        <p className="recognition-duplicate-note" role="status">
+          已自动跳过 {draft.duplicateCount} 场与其他截图重复的比赛。
+        </p>
+      )}
       <section className="recognition-summary" aria-label="人物积分汇总">
         {draft.summary.map((member) => (
           <details key={member.id} className="recognition-member">

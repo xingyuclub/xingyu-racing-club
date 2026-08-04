@@ -91,6 +91,23 @@ describe('score recognition AI adapter', () => {
     expect(Object.keys(matchSchema.properties)).toEqual(['participants']);
   });
 
+  it('asks for every match in the image when multiMatch is enabled', async () => {
+    const client = createFakeClient(validPayload);
+    const ai = createAi(client);
+
+    await ai.extractMatches({
+      imageBytes: Buffer.from([]),
+      mimeType: 'image/jpeg',
+      multiMatch: true,
+    });
+
+    const request = client.chat.completions.create.mock.calls[0][0];
+    expect(request.messages[0].content).toContain('这张截图可能包含多场比赛');
+    expect(request.messages[0].content).toContain('逐场提取为一个 match');
+    expect(request.messages[0].content).toContain('若确认截图里只有一场比赛，则只输出一个 match');
+    expect(request.messages[0].content).not.toContain('结算详情截图只有一场比赛');
+  });
+
   it('sends the prepared image to the model', async () => {
     const client = createFakeClient(validPayload);
     const imageProcessor = vi.fn().mockResolvedValue({

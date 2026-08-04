@@ -58,6 +58,22 @@ it('shows an empty state when there are no batches', async () => {
   expect(await screen.findByText('暂无识别记录。')).toBeInTheDocument();
 });
 
+it('re-matches a ready batch and reloads the list', async () => {
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce({ ok: true, json: async () => ([{ id: 'batch-ready', status: 'ready', raceType: 'team', date: '2026-08-03', images: [{}], createdAt: '2026-08-03T10:00:00Z' }]) })
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'batch-ready', status: 'ready' }) })
+    .mockResolvedValueOnce({ ok: true, json: async () => ([{ id: 'batch-ready', status: 'ready', raceType: 'team', date: '2026-08-03', images: [{}], createdAt: '2026-08-03T10:00:00Z' }]) });
+  vi.stubGlobal('fetch', fetchMock);
+
+  render(<RecognitionHistory />);
+
+  const rematchButton = await screen.findByRole('button', { name: /重新匹配批次/ });
+  await userEvent.click(rematchButton);
+
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+  expect(fetchMock.mock.calls[1][0]).toContain('/rematch');
+});
+
 it('shows an error message when the list fails to load', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: '未登录' }) }));
 

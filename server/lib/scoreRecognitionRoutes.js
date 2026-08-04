@@ -54,12 +54,13 @@ export function createScoreRecognitionRouter({
         if (!SCORE_RACE_TYPES.has(raceType)) {
           return response.status(400).json({ error: '请选择队内赛或排位赛' });
         }
+        const multiMatch = request.body?.multiMatch === 'true' || request.body?.multiMatch === true;
         const files = (request.files || []).map((file) => ({
           name: file.originalname,
           bytes: file.buffer,
           mimeType: file.mimetype,
         }));
-        const batch = await recognitionStore.createBatch({ id: randomUUID(), date, raceType, files });
+        const batch = await recognitionStore.createBatch({ id: randomUUID(), date, raceType, multiMatch, files });
         response.status(201).json(batch);
       } catch (nextError) { next(nextError); }
     });
@@ -133,6 +134,15 @@ export function createScoreRecognitionRouter({
       if (onConfigUpdate) onConfigUpdate();
       const config = await configStore.read();
       response.json({ committed: true, config });
+    } catch (error) {
+      if (error.statusCode) return response.status(error.statusCode).json({ error: error.message });
+      next(error);
+    }
+  });
+
+  router.post('/batches/:id/rematch', async (request, response, next) => {
+    try {
+      response.json(await getService().rematchBatch(request.params.id));
     } catch (error) {
       if (error.statusCode) return response.status(error.statusCode).json({ error: error.message });
       next(error);

@@ -33,6 +33,7 @@ export function createScoreRecognitionService({ ai, store, configStore }) {
           matches: await ai.extractMatches({
             imageBytes: await readFile(image.path),
             mimeType: image.mimeType,
+            multiMatch: batch.multiMatch === true,
           }),
         });
       } catch (error) {
@@ -70,6 +71,22 @@ export function createScoreRecognitionService({ ai, store, configStore }) {
     };
     const draft = buildRecognitionDraft({ batch, observations: batch.observations, reviews, config });
     await store.updateBatch(batchId, { reviews, draft });
+    return draft;
+  }
+
+  async function rematchBatch(batchId) {
+    const batch = await store.readBatch(batchId);
+    if (!batch.observations || batch.observations.length === 0) {
+      throw Object.assign(new Error('该批次还没有识别结果，请先执行识别'), { statusCode: 400 });
+    }
+    const config = await configStore.read();
+    const draft = buildRecognitionDraft({
+      batch,
+      observations: batch.observations,
+      reviews: batch.reviews || {},
+      config,
+    });
+    await store.updateBatch(batchId, { status: 'ready', draft, error: undefined });
     return draft;
   }
 
@@ -129,5 +146,5 @@ export function createScoreRecognitionService({ ai, store, configStore }) {
     return { committed: true };
   }
 
-  return { previewBatch, reviewBatch, commitBatch };
+  return { previewBatch, reviewBatch, rematchBatch, commitBatch };
 }

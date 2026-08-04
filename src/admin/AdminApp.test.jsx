@@ -6,7 +6,7 @@ import AdminApp from './AdminApp.jsx';
 import { ConfigEditor } from './ConfigEditor.jsx';
 import { UploadField } from './UploadField.jsx';
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); });
 
 it('starts every top-level admin section collapsed and expands them independently', async () => {
   const user = userEvent.setup();
@@ -29,6 +29,7 @@ it('logs in, edits public content, uploads a cover, and saves the draft', async 
   const user = userEvent.setup();
   const config = createSeedConfig();
   vi.stubGlobal('fetch', vi.fn()
+    .mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({ error: '请先登录' }) })
     .mockResolvedValueOnce({ ok: true, status: 204 })
     .mockResolvedValueOnce({ ok: true, json: async () => config })
     .mockResolvedValueOnce({ ok: true, json: async () => [] })
@@ -188,3 +189,73 @@ it('keeps a news card expanded while its editable ID changes', async () => {
   expect(within(section).getByLabelText('标题')).toHaveValue(config.news[0].title);
   expect(within(section).getByRole('button', { name: `收起 ${config.news[0].title}` })).toBeInTheDocument();
 });
+
+it('skips the login form when the session is still valid', async () => {
+  const config = createSeedConfig();
+  vi.stubGlobal('fetch', vi.fn()
+    .mockResolvedValueOnce({ ok: true, json: async () => config })
+    .mockResolvedValue({ ok: true, json: async () => [] }));
+
+  render(<AdminApp />);
+
+  expect(await screen.findByRole('button', { name: '展开 基础信息' })).toBeInTheDocument();
+  expect(screen.queryByLabelText('账号')).not.toBeInTheDocument();
+});
+
+it('remembers credentials and auto-logs-in on the next visit', async () => {
+  const user = userEvent.setup();
+  const config = createSeedConfig();
+  const sessionCheck = { ok: false, status: 401, json: async () => ({ error: '请先登录' }) };
+  const loginOk = { ok: true, status: 204 };
+  const configOk = { ok: true, json: async () => config };
+
+  vi.stubGlobal('fetch', vi.fn()
+    .mockResolvedValueOnce(sessionCheck)
+    .mockResolvedValueOnce(loginOk)
+    .mockResolvedValueOnce(configOk)
+    .mockResolvedValue({ ok: true, json: async () => [] }));
+
+  const first = render(<AdminApp />);
+  await user.type(screen.getByLabelText('账号'), 'admin');
+  await user.type(screen.getByLabelText('密码'), 'test-password');
+  await user.click(screen.getByRole('checkbox', { name: '记住密码' }));
+  await user.click(screen.getByRole('button', { name: '登录' }));
+
+  expect(await screen.findByRole('button', { name: '展开 基础信息' })).toBeInTheDocument();
+  expect(JSON.parse(localStorage.getItem('xingyu-admin-remember'))).toEqual({
+    username: 'admin',
+    password: 'test-password',
+  });
+  first.unmount();
+
+  vi.stubGlobal('fetch', vi.fn()
+    .mockResolvedValueOnce(sessionCheck)
+    .mockResolvedValueOnce(loginOk)
+    .mockResolvedValueOnce(configOk)
+    .mockResolvedValue({ ok: true, json: async () => [] }));
+
+  render(<AdminApp />);
+  expect(await screen.findByRole('button', { name: '展开 基础信息' })).toBeInTheDocument();
+});
+
+it('clears remembered credentials when the checkbox is unchecked', async () => {
+  localStorage.setItem('xingyu-admin-remember', JSON.stringify({ username: 'admin', password: 'old' }));
+  const user = userEvent.setup();
+  const config = createSeedConfig();
+  vi.stubGlobal('fetch', vi.fn()
+    .mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({ error: '请先登录' }) })
+    .mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({ error: '账号或密码错误' }) })
+    .mockResolvedValueOnce({ ok: true, status: 204 })
+    .mockResolvedValueOnce({ ok: true, json: async () => config })
+    .mockResolvedValue({ ok: true, json: async () => [] }));
+
+  render(<AdminApp />);
+
+  expect(await screen.findByRole('checkbox', { name: '记住密码' })).toBeChecked();
+  await user.click(screen.getByRole('checkbox', { name: '记住密码' }));
+  await user.click(screen.getByRole('button', { name: '登录' }));
+
+  expect(await screen.findByRole('button', { name: '展开 基础信息' })).toBeInTheDocument();
+  expect(localStorage.getItem('xingyu-admin-remember')).toBeNull();
+});
+

@@ -29,10 +29,11 @@ export function listRecognitionBatches() {
 export function getRecognitionBatch(id) {
   return call('/api/admin/score-recognition/batches/' + encodeURIComponent(id));
 }
-export function uploadRecognitionBatch(date, raceType, files) {
+export function uploadRecognitionBatch(date, raceType, files, multiMatch = false) {
   const body = new FormData();
   body.append('date', date);
   body.append('raceType', raceType);
+  if (multiMatch) body.append('multiMatch', 'true');
   files.forEach((file) => body.append('files', file));
   return call('/api/admin/score-recognition/batches', { method: 'POST', body });
 }
@@ -50,4 +51,7 @@ export function reviewRecognitionEvidence(id, change) {
 }
 export function retryRecognitionBatch(id) {
   return call('/api/admin/score-recognition/batches/' + encodeURIComponent(id) + '/retry', { method: 'POST' });
+}
+export function rematchRecognitionBatch(id) {
+  return call('/api/admin/score-recognition/batches/' + encodeURIComponent(id) + '/rematch', { method: 'POST' });
 }

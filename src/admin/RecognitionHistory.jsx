@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { RefreshCw, AlertCircle } from 'lucide-react';
-import { listRecognitionBatches, retryRecognitionBatch } from './adminApi.js';
+import { listRecognitionBatches, rematchRecognitionBatch, retryRecognitionBatch } from './adminApi.js';
 
 const STATUS_LABEL = {
   uploaded: '待处理',
@@ -49,6 +49,19 @@ export function RecognitionHistory({ onOpen }) {
     }
   };
 
+  const rematch = async (id) => {
+    setBusyId(id);
+    setError('');
+    try {
+      await rematchRecognitionBatch(id);
+      await load();
+    } catch (next) {
+      setError(next.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className="recognition-history" data-testid="recognition-history">
       <div className="recognition-history-toolbar">
@@ -80,6 +93,17 @@ export function RecognitionHistory({ onOpen }) {
               {batch.committedAt && <span>提交 {formatTime(batch.committedAt)}</span>}
             </div>
             <div className="recognition-history-actions">
+              {batch.status === 'ready' && batch.raceType && (
+                <button
+                  type="button"
+                  disabled={busyId === batch.id}
+                  onClick={() => rematch(batch.id)}
+                  aria-label={`重新匹配批次 ${batch.id.slice(0, 8)}`}
+                >
+                  <RefreshCw aria-hidden="true" size={14} />
+                  重新匹配
+                </button>
+              )}
               {batch.status === 'ready' && batch.raceType && (
                 <button
                   type="button"

@@ -62,6 +62,7 @@ function matchMembers(races, config) {
 function validateRaces(races) {
   const issues = [];
   for (const race of races) {
+    if (race.duplicate) continue;
     const rankCounts = new Map();
     for (const item of race.evidence) {
       if (Number.isInteger(item.rank) && item.rank > 0) {
@@ -170,9 +171,9 @@ function summarize(races) {
 export function buildRecognitionDraft({ batch, observations, reviews = {}, config }) {
   const races = buildRaces(observations || [], reviews);
   matchMembers(races, config);
+  markDuplicates(races, batch);
   const issues = validateRaces(races);
   scoreRaces(races, batch.raceType);
-  markDuplicates(races, batch);
   assignSlots(races, config, batch);
 
   return {
@@ -182,6 +183,7 @@ export function buildRecognitionDraft({ batch, observations, reviews = {}, confi
     rosterVersion: computeRosterVersion(config),
     evidence: races.flatMap((race) => race.evidence).map(({ reviewedMemberId, ...item }) => item),
     summary: summarize(races),
+    duplicateCount: races.filter((race) => race.duplicate).length,
     issues,
     canCommit: issues.length === 0,
   };

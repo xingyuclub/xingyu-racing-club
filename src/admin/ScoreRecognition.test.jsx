@@ -141,3 +141,35 @@ it('restores a ready batch for continued review', async () => {
     expect.objectContaining({ credentials: 'include' }),
   );
 });
+
+it('sends the multi-match flag with the upload', async () => {
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'batch-1', status: 'uploaded', date: '2026-08-01', images: [] }) })
+    .mockResolvedValueOnce({ ok: true, json: async () => validDraft });
+  vi.stubGlobal('fetch', fetchMock);
+
+  render(<ScoreRecognition config={config} />);
+  await userEvent.click(screen.getByRole('checkbox', { name: '一张截图含多场比赛' }));
+  await userEvent.upload(
+    screen.getByLabelText('上传截图'),
+    new File(['img'], 'shot.jpg', { type: 'image/jpeg' }),
+  );
+
+  await waitFor(() => expect(screen.getByText('提交确认')).toBeInTheDocument());
+  expect(fetchMock.mock.calls[0][1].body.get('multiMatch')).toBe('true');
+});
+
+it('re-matches the current batch from stored observations', async () => {
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'batch-ready', date: '2026-08-03', raceType: 'team', status: 'ready', draft: validDraft }) })
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ ...validDraft, summary: [{ ...validDraft.summary[0], score: 9 }] }) });
+  vi.stubGlobal('fetch', fetchMock);
+
+  render(<ScoreRecognition config={config} initialBatchId="batch-ready" />);
+
+  const rematchButton = await screen.findByRole('button', { name: /重新匹配/ });
+  await userEvent.click(rematchButton);
+
+  await waitFor(() => expect(screen.getByText('+9 分')).toBeInTheDocument());
+  expect(fetchMock.mock.calls[1][0]).toContain('/rematch');
+});

@@ -79,6 +79,7 @@ describe('score recognition service', () => {
     expect(ai.extractMatches).toHaveBeenCalledWith({
       imageBytes: Buffer.from([1]),
       mimeType: 'image/jpeg',
+      multiMatch: false,
     });
     const batch = await store.readBatch('b1');
     expect(batch.status).toBe('ready');
@@ -235,6 +236,49 @@ describe('score recognition service', () => {
     expect(saved.dailyScores[0].rows[0]).not.toHaveProperty('score');
     expect(saved.dailyScores[0].rows[0]).not.toHaveProperty('total');
     expect(saved.dailyScores[1].rows[0]).not.toHaveProperty('total');
+  });
+
+  it('re-matches stored observations with the current matcher without calling the AI again', async () => {
+    const { service, store, ai } = setupService({
+      aiResponses: [[{ participants: [
+        { nickname: '稳稳', rank: 1 },
+        { nickname: '路人', rank: 2 },
+      ] }]],
+    });
+    await createBatch(store);
+    const first = await service.previewBatch('b1');
+    expect(first.issues).toContainEqual({ evidenceId: 'i0-m0-p1', code: 'unmatched' });
+    expect(ai.extractMatches).toHaveBeenCalledTimes(1);
+
+    const rematched = await service.rematchBatch('b1');
+
+    expect(ai.extractMatches).toHaveBeenCalledTimes(1);
+    expect(rematched.canCommit).toBe(false);
+    expect(rematched.issues).toContainEqual({ evidenceId: 'i0-m0-p1', code: 'unmatched' });
+    expect((await store.readBatch('b1')).status).toBe('ready');
+  });
+
+  it('rematch applies alias changes to stored observations', async () => {
+    const { service, store, configStore } = setupService({
+      aiResponses: [[{ participants: [{ nickname: '旧名', rank: 1 }] }]],
+    });
+    await createBatch(store);
+    const first = await service.previewBatch('b1');
+    expect(first.issues).toContainEqual({ evidenceId: 'i0-m0-p0', code: 'unmatched' });
+
+    const changed = await configStore.read();
+    changed.memberAliases = [{ memberId: 'r1', value: '旧名' }];
+    await configStore.write(changed);
+
+    const rematched = await service.rematchBatch('b1');
+    expect(rematched.canCommit).toBe(true);
+    expect(rematched.evidence[0]).toMatchObject({ memberId: 'r1', memberName: '稳稳' });
+  });
+
+  it('rejects rematch before the batch has been recognized', async () => {
+    const { service, store } = setupService();
+    await createBatch(store);
+    await expect(service.rematchBatch('b1')).rejects.toMatchObject({ statusCode: 400 });
   });
 
   it('blocks commit when the roster version changes after review', async () => {

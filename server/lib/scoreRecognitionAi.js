@@ -23,16 +23,23 @@ function validateMatch(match, index) {
   });
 }
 
-const PROMPT = [
-  '你是一个赛车游戏截图解析助手。只读取截图中可见的玩家昵称和游戏名次。',
-  '返回严格的 JSON：{ "matches": [ { "participants": [ { "nickname": string, "rank": number } ] } ] }。',
-  '结算详情截图只有一场比赛，每个排名行都是该场比赛的一名参与者，绝不能把排名行拆成比赛。',
-  '结算详情即使按“胜利”和“失败”分成两个队伍区域，也仍是同一场比赛，必须把两区参与者合并到一个 match。',
-  '最近比赛列表截图才按比赛卡片拆成多场，每张卡片是一场比赛。',
-  '名次是从 1 开始的整数。除玩家昵称和游戏名次之外的其他信息一律忽略；无法确认昵称的行直接忽略，不要输出空参与者或空比赛。',
-  '不计算积分，不要根据成员名单猜测昵称。',
-  '只输出 JSON，不要解释文字。',
-].join('\n');
+function buildPrompt({ multiMatch }) {
+  const rules = [
+    '你是一个赛车游戏截图解析助手。只读取截图中可见的玩家昵称和游戏名次。',
+    '返回严格的 JSON：{ "matches": [ { "participants": [ { "nickname": string, "rank": number } ] } ] }。',
+    multiMatch
+      ? '这张截图可能包含多场比赛：例如一张图里上下或左右并列两套结算卡片，每套是一场比赛，请逐场提取为一个 match，一场都不能漏；同一场比赛的排名行绝不能拆成多个 match。'
+      : '结算详情截图只有一场比赛，每个排名行都是该场比赛的一名参与者，绝不能把排名行拆成比赛。',
+    '结算详情即使按“胜利”和“失败”分成两个队伍区域，也仍是同一场比赛，必须把两区参与者合并到一个 match。',
+    multiMatch
+      ? '若确认截图里只有一场比赛，则只输出一个 match。'
+      : '最近比赛列表截图才按比赛卡片拆成多场，每张卡片是一场比赛。',
+    '名次是从 1 开始的整数。除玩家昵称和游戏名次之外的其他信息一律忽略；无法确认昵称的行直接忽略，不要输出空参与者或空比赛。',
+    '不计算积分，不要根据成员名单猜测昵称。',
+    '只输出 JSON，不要解释文字。',
+  ];
+  return rules.join('\n');
+}
 
 const RESPONSE_FORMAT = {
   type: 'json_schema',
@@ -77,7 +84,7 @@ export function createScoreRecognitionAi({
   model = 'gpt-4o',
   imageProcessor = prepareRecognitionImage,
 }) {
-  async function extractMatches({ imageBytes, mimeType }) {
+  async function extractMatches({ imageBytes, mimeType, multiMatch = false }) {
     const prepared = await imageProcessor({ imageBytes, mimeType });
     const dataUrl = `data:${prepared.mimeType};base64,${Buffer.from(prepared.imageBytes).toString('base64')}`;
 
@@ -86,7 +93,7 @@ export function createScoreRecognitionAi({
       temperature: 0,
       response_format: RESPONSE_FORMAT,
       messages: [
-        { role: 'system', content: PROMPT },
+        { role: 'system', content: buildPrompt({ multiMatch }) },
         {
           role: 'user',
           content: [

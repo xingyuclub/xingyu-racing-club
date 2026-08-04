@@ -214,6 +214,53 @@ describe('buildRecognitionDraft', () => {
     });
   });
 
+  it('skips duplicate races across images without blocking commit', () => {
+    const draft = buildRecognitionDraft({
+      batch: { id: 'b1', date: '2026-08-03', raceType: 'team' },
+      observations: [
+        { imageIndex: 0, matches: [{ participants: [
+          { nickname: '十二', rank: 1 },
+          { nickname: '黑岩', rank: 2 },
+        ] }] },
+        { imageIndex: 1, matches: [{ participants: [
+          { nickname: '十二', rank: 1 },
+          { nickname: '黑岩', rank: 2 },
+        ] }] },
+      ],
+      reviews: {},
+      config,
+    });
+
+    expect(draft.duplicateCount).toBe(1);
+    expect(draft.issues).toEqual([]);
+    expect(draft.canCommit).toBe(true);
+    expect(draft.summary.map((member) => member.name).sort()).toEqual(['十二', '黑岩']);
+    expect(draft.evidence.find((item) => item.id === 'i1-m0-p0')).toMatchObject({ duplicate: true });
+  });
+
+  it('does not surface extra issues from a duplicate race', () => {
+    const draft = buildRecognitionDraft({
+      batch: { id: 'b1', date: '2026-08-03', raceType: 'team' },
+      observations: [
+        { imageIndex: 0, matches: [{ participants: [
+          { nickname: '十二', rank: 1 },
+          { nickname: '路人', rank: 2 },
+        ] }] },
+        { imageIndex: 1, matches: [{ participants: [
+          { nickname: '十二', rank: 1 },
+          { nickname: '路人', rank: 2 },
+        ] }] },
+      ],
+      reviews: {},
+      config,
+    });
+
+    expect(draft.duplicateCount).toBe(1);
+    expect(draft.issues).toEqual([{ evidenceId: 'i0-m0-p1', code: 'unmatched' }]);
+    expect(draft.evidence.find((item) => item.id === 'i1-m0-p1')).toMatchObject({ duplicate: true });
+    expect(draft.evidence.filter((item) => item.id.startsWith('i1-') && item.duplicate)).toHaveLength(2);
+  });
+
   it('matches OCR symbol noise by a unique Han nickname and scores one point', () => {
     const draft = buildDraft({
       matches: [{ participants: [{ nickname: 'xγ_黑岩99', rank: 1 }] }],

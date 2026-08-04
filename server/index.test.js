@@ -504,6 +504,58 @@ describe('score recognition API', () => {
     expect(commit.body.config.dailyScores.find((r) => r.date === '2026-08-01')).toBeTruthy();
   });
 
+  it('re-matches a processed batch from stored observations', async () => {
+    const matches = [{ participants: [
+      { nickname: '成员 01', rank: 1 },
+      { nickname: '路人', rank: 2 },
+    ] }];
+    const { app } = await createRecognitionFixture({ aiClient: createFakeAiClient(matches) });
+    const { agent } = await loginAsAdmin(app);
+    const upload = await agent
+      .post('/api/admin/score-recognition/batches')
+      .field('date', '2026-08-01')
+      .field('raceType', 'team')
+      .attach('files', jpgBytes, { filename: 'shot.jpg', contentType: 'image/jpeg' })
+      .expect(201);
+    await agent.post('/api/admin/score-recognition/batches/' + upload.body.id + '/process').expect(200);
+
+    const rematched = await agent
+      .post('/api/admin/score-recognition/batches/' + upload.body.id + '/rematch')
+      .expect(200);
+    expect(rematched.body.canCommit).toBe(false);
+    expect(rematched.body.issues).toEqual([{ evidenceId: 'i0-m0-p1', code: 'unmatched' }]);
+  });
+
+  it('stores and passes a multi-match flag into the AI prompt', async () => {
+    const prompts = [];
+    const { app } = await createRecognitionFixture({
+      aiClient: {
+        chat: {
+          completions: {
+            create: async (payload) => {
+              prompts.push(payload);
+              return { choices: [{ message: { content: JSON.stringify({
+                matches: [{ participants: [{ nickname: '成员 01', rank: 1 }] }],
+              }) } }] };
+            },
+          },
+        },
+      },
+    });
+    const { agent } = await loginAsAdmin(app);
+    const upload = await agent
+      .post('/api/admin/score-recognition/batches')
+      .field('date', '2026-08-01')
+      .field('raceType', 'team')
+      .field('multiMatch', 'true')
+      .attach('files', jpgBytes, { filename: 'shot.jpg', contentType: 'image/jpeg' })
+      .expect(201);
+    expect(upload.body.multiMatch).toBe(true);
+
+    await agent.post('/api/admin/score-recognition/batches/' + upload.body.id + '/process').expect(200);
+    expect(prompts[0].messages[0].content).toContain('这张截图可能包含多场比赛');
+  });
+
   it('reviews unmatched evidence before allowing commit', async () => {
     const matches = [{ participants: [
       { nickname: '成员 01', rank: 1 },
