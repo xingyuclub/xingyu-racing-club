@@ -45,6 +45,7 @@ const nextNumericValue = (values, format = String) => {
 export function ScoreEditor({ config, onChange }) {
   const [errors, setErrors] = useState([]);
   const [tab, setTab] = useState('scores');
+  const [recognitionBatchId, setRecognitionBatchId] = useState(null);
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(false);
   const [sortKeys, setSortKeys] = useState({});
@@ -216,9 +217,18 @@ export function ScoreEditor({ config, onChange }) {
         <button role="tab" aria-selected={tab === 'history'} className={tab === 'history' ? 'is-active' : ''} onClick={() => setTab('history')}>识别记录</button>
         <button role="tab" aria-selected={tab === 'members'} className={tab === 'members' ? 'is-active' : ''} onClick={() => setTab('members')}>队员管理</button>
       </div>
-      {tab === 'recognition' && <ScoreRecognition config={config} onCommitted={onChange} />}
+      {tab === 'recognition' && (
+        <ScoreRecognition
+          config={config}
+          initialBatchId={recognitionBatchId}
+          onCommitted={onChange}
+        />
+      )}
       {tab === 'weekend' && <WeekendScoreEditor config={config} onChange={onChange} />}
-      {tab === 'history' && <RecognitionHistory />}
+      {tab === 'history' && <RecognitionHistory onOpen={(id) => {
+        setRecognitionBatchId(id);
+        setTab('recognition');
+      }} />}
       {tab === 'members' && (
         <div className="score-roster-manager">
           <div className="score-roster-toolbar">

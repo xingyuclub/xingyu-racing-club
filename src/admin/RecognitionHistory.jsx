@@ -20,7 +20,7 @@ const STATUS_CLASS = {
 
 const formatTime = (value) => (value ? new Date(value).toLocaleString('zh-CN') : '—');
 
-export function RecognitionHistory() {
+export function RecognitionHistory({ onOpen }) {
   const [batches, setBatches] = useState([]);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
@@ -80,6 +80,18 @@ export function RecognitionHistory() {
               {batch.committedAt && <span>提交 {formatTime(batch.committedAt)}</span>}
             </div>
             <div className="recognition-history-actions">
+              {batch.status === 'ready' && batch.raceType && (
+                <button
+                  type="button"
+                  onClick={() => onOpen?.(batch.id)}
+                  aria-label={`继续审核批次 ${batch.id.slice(0, 8)}`}
+                >
+                  继续审核
+                </button>
+              )}
+              {batch.status === 'ready' && !batch.raceType && (
+                <span className="recognition-history-legacy">旧版批次需重新上传</span>
+              )}
               {batch.status === 'failed' && (
                 <button
                   type="button"

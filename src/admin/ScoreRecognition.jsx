@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Camera, CheckCircle2, Loader2, Upload, XCircle } from 'lucide-react';
 import {
   commitRecognitionBatch,
+  getRecognitionBatch,
   processRecognitionBatch,
   reviewRecognitionEvidence,
   uploadRecognitionBatch,
@@ -10,13 +11,35 @@ import { RecognitionEvidence } from './RecognitionEvidence.jsx';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-export function ScoreRecognition({ config, onCommitted }) {
+export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
   const [date, setDate] = useState(today());
   const [raceType, setRaceType] = useState('team');
   const [status, setStatus] = useState('idle');
   const [draft, setDraft] = useState(null);
   const [batchId, setBatchId] = useState(null);
   const [error, setError] = useState('');
+  const controlsDisabled = ['loading', 'uploading', 'processing', 'reviewing', 'committing'].includes(status);
+
+  useEffect(() => {
+    if (!initialBatchId) return undefined;
+    let active = true;
+    setStatus('loading');
+    setError('');
+    getRecognitionBatch(initialBatchId).then((batch) => {
+      if (!active) return;
+      if (!batch.raceType || !batch.draft) throw new Error('旧版批次需重新上传');
+      setBatchId(batch.id);
+      setDate(batch.date);
+      setRaceType(batch.raceType);
+      setDraft(batch.draft);
+      setStatus('ready');
+    }).catch((next) => {
+      if (!active) return;
+      setError(next.message);
+      setStatus('failed');
+    });
+    return () => { active = false; };
+  }, [initialBatchId]);
 
   const upload = async (event) => {
     const files = [...(event.target.files || [])];
@@ -83,11 +106,11 @@ export function ScoreRecognition({ config, onCommitted }) {
             type="date"
             aria-label="批次日期"
             value={date}
-            disabled={status === 'processing' || status === 'uploading' || status === 'committing'}
+            disabled={controlsDisabled}
             onChange={(event) => setDate(event.target.value)}
           />
         </label>
-        <fieldset className="score-recognition-types" disabled={status === 'processing' || status === 'uploading' || status === 'committing'}>
+        <fieldset className="score-recognition-types" disabled={controlsDisabled}>
           <legend>比赛类型</legend>
           <label>
             <input
@@ -110,7 +133,7 @@ export function ScoreRecognition({ config, onCommitted }) {
             排位赛
           </label>
         </fieldset>
-        <label className={'score-recognition-file' + (status === 'processing' || status === 'uploading' ? ' is-disabled' : '')}>
+        <label className={'score-recognition-file' + (controlsDisabled ? ' is-disabled' : '')}>
           <Upload aria-hidden="true" size={16} />
           上传截图
           <input
@@ -118,7 +141,7 @@ export function ScoreRecognition({ config, onCommitted }) {
             accept="image/jpeg,image/png"
             multiple
             aria-label="上传截图"
-            disabled={status === 'processing' || status === 'uploading' || status === 'committing'}
+            disabled={controlsDisabled}
             onChange={upload}
           />
         </label>
@@ -137,10 +160,10 @@ export function ScoreRecognition({ config, onCommitted }) {
         </div>
       )}
 
-      {(status === 'uploading' || status === 'processing' || status === 'committing') && (
+      {(status === 'loading' || status === 'uploading' || status === 'processing' || status === 'committing') && (
         <div className="score-recognition-loading">
           <Loader2 aria-hidden="true" size={16} className="spin" />
-          {status === 'processing' ? '识别中…' : status === 'committing' ? '提交中…' : '上传中…'}
+          {status === 'loading' ? '读取批次中…' : status === 'processing' ? '识别中…' : status === 'committing' ? '提交中…' : '上传中…'}
         </div>
       )}
 

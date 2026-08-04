@@ -119,3 +119,25 @@ it('disables commit while unresolved issues remain', async () => {
   expect(await screen.findByRole('button', { name: /提交确认/ })).toBeDisabled();
   expect(screen.getByLabelText('未匹配昵称 路人 对应成员')).toBeVisible();
 });
+
+it('restores a ready batch for continued review', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      id: 'batch-ready',
+      date: '2026-08-03',
+      raceType: 'ranked',
+      status: 'ready',
+      draft: { ...validDraft, summary: [{ ...validDraft.summary[0], score: 8 }] },
+    }),
+  }));
+
+  render(<ScoreRecognition config={config} initialBatchId="batch-ready" />);
+
+  expect(await screen.findByText('+8 分')).toBeInTheDocument();
+  expect(screen.getByRole('radio', { name: '排位赛' })).toBeChecked();
+  expect(fetch).toHaveBeenCalledWith(
+    '/api/admin/score-recognition/batches/batch-ready',
+    expect.objectContaining({ credentials: 'include' }),
+  );
+});

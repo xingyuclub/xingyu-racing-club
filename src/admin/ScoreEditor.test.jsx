@@ -306,4 +306,32 @@ describe('ScoreEditor', () => {
     await waitFor(() => expect(screen.getByText('积分明细 第8行 日期：日期无效')).toBeInTheDocument());
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it('opens a ready recognition batch from history', async () => {
+    const config = createConfig();
+    const draft = {
+      canCommit: true,
+      rosterVersion: 'v1',
+      summary: [{ id: 's1', name: '稳稳', score: 8, evidenceIds: ['i0-m0-p0'] }],
+      evidence: [{
+        id: 'i0-m0-p0', imageIndex: 0, nickname: '稳稳', rank: 1,
+        score: 8, slot: 0, memberId: config.roster[0].id, memberName: '稳稳', scoreMemberId: 's1',
+      }],
+      issues: [],
+    };
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ([{
+        id: 'batch-ready', status: 'ready', raceType: 'team', date: '2026-08-03', images: [{}],
+      }]) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({
+        id: 'batch-ready', status: 'ready', raceType: 'team', date: '2026-08-03', draft,
+      }) }));
+    render(<ScoreEditor config={config} onChange={() => {}} />);
+
+    await userEvent.click(screen.getByRole('tab', { name: '识别记录' }));
+    await userEvent.click(await screen.findByRole('button', { name: /继续审核/ }));
+
+    expect(await screen.findByRole('button', { name: '查看稳稳的依据' })).toHaveTextContent('+8 分');
+    expect(screen.getByRole('tab', { name: '截图识别' })).toHaveAttribute('aria-selected', 'true');
+  });
 });
