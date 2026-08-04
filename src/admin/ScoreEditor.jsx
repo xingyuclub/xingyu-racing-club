@@ -165,6 +165,7 @@ export function ScoreEditor({ config, onChange }) {
       ),
       name: '新队员',
       role: '队员',
+      signature: '',
       basePoints: 0,
       wins: 0,
       avatar: '',

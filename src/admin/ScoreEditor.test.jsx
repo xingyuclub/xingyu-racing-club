@@ -246,6 +246,7 @@ describe('ScoreEditor', () => {
     await user.click(screen.getByRole('button', { name: '新增队员' }));
 
     expect(onChange.mock.calls.at(-1)[0].roster).toHaveLength(3);
+    expect(onChange.mock.calls.at(-1)[0].roster[2].signature).toBe('');
     expect(screen.getByRole('textbox', { name: '队员 3 名称' })).toHaveValue('新队员');
 
     await user.click(screen.getByRole('button', { name: '删除队员 3' }));
