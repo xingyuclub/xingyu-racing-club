@@ -940,7 +940,7 @@ describe('App', () => {
     expect(container.querySelector('.hero-frame')).not.toBeInTheDocument();
     expect(container.querySelector('.hero-topline')).not.toBeInTheDocument();
     expect(container.querySelectorAll('.leader-row.is-podium')).toHaveLength(3);
-    expect(container.querySelectorAll('.leader-row')).toHaveLength(10);
+    expect(container.querySelectorAll('.leader-row')).toHaveLength(30);
     expect(container.querySelector('.news-image')).toBeInTheDocument();
     expect(screen.queryAllByText(/\d+ 胜/)).toHaveLength(0);
   });

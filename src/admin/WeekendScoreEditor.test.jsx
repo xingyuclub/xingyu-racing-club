@@ -6,11 +6,13 @@ import { WeekendScoreEditor } from './WeekendScoreEditor.jsx';
 
 const baseConfig = {
   roster: [
-    { id: 'backend-1', name: '后台青山', number: '01' },
+    { id: 'r1', name: '青山', number: '01' },
+    { id: 'r2', name: 'ˣʸ༩·喵酱', number: '02' },
   ],
   scoreMembers: [
     { id: '1', name: '青山', basePoints: 0, wins: 0 },
     { id: '2', name: '喵酱', basePoints: 0, wins: 0 },
+    { id: '3', name: 'Excel历史人物', basePoints: 0, wins: 0 },
   ],
   weekendScores: [],
   dailyScores: [],
@@ -23,18 +25,18 @@ function StatefulEditor({ initial }) {
   return <WeekendScoreEditor config={config} onChange={setConfig} />;
 }
 
-it('renders a fixed Saturday and Sunday table with every score member', () => {
+it('renders a fixed Saturday and Sunday table with every roster member', () => {
   render(<WeekendScoreEditor config={baseConfig} onChange={vi.fn()} />);
 
   expect(screen.getByText(/周六（/)).toBeInTheDocument();
   expect(screen.getByText(/周日（/)).toBeInTheDocument();
   expect(screen.getAllByText('青山')).toHaveLength(2);
-  expect(screen.getAllByText('喵酱')).toHaveLength(2);
+  expect(screen.getAllByText(/喵酱/)).toHaveLength(2);
   expect(screen.getByLabelText('周六 青山 积分')).toBeInTheDocument();
   expect(screen.getByLabelText('周六 青山 上周积分')).toBeInTheDocument();
   expect(screen.queryByLabelText('周日 青山 上周积分')).not.toBeInTheDocument();
-  expect(screen.getByLabelText('周日 喵酱 总分')).toBeInTheDocument();
-  expect(screen.queryByText('后台青山')).not.toBeInTheDocument();
+  expect(screen.getByLabelText('周日 ˣʸ༩·喵酱 总分')).toBeInTheDocument();
+  expect(screen.queryByText('Excel历史人物')).not.toBeInTheDocument();
 });
 
 it('writes the edited value into the matching weekendScores row', async () => {
@@ -158,4 +160,43 @@ it('loads existing weekendScores values into the inputs', () => {
 
   expect(screen.getByLabelText('周六 青山 积分')).toHaveValue(100);
   expect(screen.getByLabelText('周六 青山 上周积分')).toHaveValue(90);
+});
+
+it('creates a score member identity when a roster member has none yet', async () => {
+  const onChange = vi.fn();
+  function Spy() {
+    const [config, setConfig] = useState({
+      ...baseConfig,
+      roster: [...baseConfig.roster, { id: 'r9', name: '泉舒', number: '03' }],
+    });
+    return <WeekendScoreEditor config={config} onChange={(next) => { setConfig(next); onChange(next); }} />;
+  }
+  render(<Spy />);
+
+  expect(screen.getAllByText('泉舒')).toHaveLength(2);
+  await userEvent.type(screen.getByLabelText('周六 泉舒 积分'), '60');
+
+  const last = onChange.mock.calls.at(-1)[0];
+  const id = 'score:' + encodeURIComponent('泉舒');
+  expect(last.scoreMembers.some((member) => member.id === id && member.name === '泉舒')).toBe(true);
+  expect(last.weekendScores[0].rows.find((row) => row.id === id).points).toBe(60);
+});
+
+it('reflects roster changes from member management immediately', async () => {
+  function RosterSync() {
+    const [config, setConfig] = useState(baseConfig);
+    return (
+      <>
+        <button onClick={() => setConfig((current) => ({ ...current, roster: [...current.roster, { id: 'r9', name: '泉舒', number: '03' }] }))}>
+          新增队员
+        </button>
+        <WeekendScoreEditor config={config} onChange={setConfig} />
+      </>
+    );
+  }
+  render(<RosterSync />);
+
+  expect(screen.queryByText('泉舒')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: '新增队员' }));
+  expect(screen.getAllByText('泉舒')).toHaveLength(2);
 });

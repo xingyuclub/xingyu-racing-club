@@ -122,7 +122,6 @@ export function hydrateSiteData(rawConfig) {
       (left, right) =>
         right.total - left.total || left.name.localeCompare(right.name),
     )
-    .slice(0, 10)
     .map((row, index) => ({
       id: row.id,
       rank: index + 1,

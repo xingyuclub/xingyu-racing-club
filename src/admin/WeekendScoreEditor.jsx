@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ArrowDownWideNarrow } from 'lucide-react';
 import { hydrateSiteData } from '../data/siteConfig.js';
+import { buildScoreMemberMatcher, createScoreMemberId } from '../data/scoreRules.js';
 
 const clone = (value) => structuredClone(value);
 
@@ -36,6 +37,21 @@ export function WeekendScoreEditor({ config, onChange }) {
     date: getWeekendDate(monday, day.offset),
   }));
 
+  // 队员管理名单实时驱动：每个队员按归一化昵称解析到积分人物身份，
+  // 缺失时按名字生成确定性 ID，首次填写时再补建积分人物。
+  const memberRows = useMemo(() => {
+    const matcher = buildScoreMemberMatcher(config.scoreMembers || []);
+    return (config.roster || []).map((member) => {
+      const matched = matcher(member.name);
+      if (matched) return { ...member, scoreId: matched };
+      try {
+        return { ...member, scoreId: createScoreMemberId(member.name) };
+      } catch {
+        return { ...member, scoreId: `score:roster-${member.id}` };
+      }
+    });
+  }, [config.roster, config.scoreMembers]);
+
   const scoresByDate = useMemo(() => {
     const map = new Map();
     for (const round of config.weekendScores || []) {
@@ -53,12 +69,13 @@ export function WeekendScoreEditor({ config, onChange }) {
     return map;
   }, [hydrated.dailyScores]);
 
-  const getRow = (date, memberId) => {
+  const getRow = (date, member) => {
+    const id = member.scoreId;
     const round = scoresByDate.get(date);
-    const source = round?.rows.find((row) => row.id === memberId) || { id: memberId };
-    const projected = projectedRowsByKey.get(`${date}|${memberId}`);
+    const source = round?.rows.find((row) => row.id === id) || { id };
+    const projected = projectedRowsByKey.get(`${date}|${id}`);
     return {
-      id: memberId,
+      id,
       previousPoints: projected?.previousPoints ?? source.previousPoints ?? null,
       points: source.points ?? projected?.points ?? null,
       score: projected?.score ?? source.score ?? null,
@@ -67,9 +84,15 @@ export function WeekendScoreEditor({ config, onChange }) {
     };
   };
 
-  const updateField = (date, memberId, field, value) => {
+  const updateField = (date, member, field, value) => {
     const next = clone(config);
     if (!Array.isArray(next.weekendScores)) next.weekendScores = [];
+    if (!Array.isArray(next.scoreMembers)) next.scoreMembers = [];
+
+    const id = member.scoreId;
+    if (!next.scoreMembers.some((entry) => entry.id === id)) {
+      next.scoreMembers.push({ id, name: member.name, basePoints: 0, wins: 0 });
+    }
 
     let round = next.weekendScores.find((entry) => entry.date === date);
     if (!round) {
@@ -77,9 +100,9 @@ export function WeekendScoreEditor({ config, onChange }) {
       next.weekendScores.push(round);
     }
 
-    let row = round.rows.find((entry) => entry.id === memberId);
+    let row = round.rows.find((entry) => entry.id === id);
     if (!row) {
-      row = { id: memberId, previousPoints: null, points: null, score: null, total: null };
+      row = { id, previousPoints: null, points: null, score: null, total: null };
       round.rows.push(row);
     }
     row[field] = numericInputValue(value);
@@ -88,11 +111,11 @@ export function WeekendScoreEditor({ config, onChange }) {
 
   const sortMembers = (day) => {
     const field = sortKeys[day.date];
-    const members = [...(config.scoreMembers || [])];
+    const members = [...memberRows];
     if (!field) return members;
     return members.sort((left, right) => {
-      const leftValue = getRow(day.date, left.id)[field];
-      const rightValue = getRow(day.date, right.id)[field];
+      const leftValue = getRow(day.date, left)[field];
+      const rightValue = getRow(day.date, right)[field];
       const leftNumber = leftValue == null || leftValue === '' ? Number.NEGATIVE_INFINITY : Number(leftValue);
       const rightNumber = rightValue == null || rightValue === '' ? Number.NEGATIVE_INFINITY : Number(rightValue);
       return rightNumber - leftNumber || String(left.name || '').localeCompare(String(right.name || ''));
@@ -128,7 +151,7 @@ export function WeekendScoreEditor({ config, onChange }) {
             </thead>
             <tbody>
               {sortMembers(day).map((member) => {
-                const row = getRow(day.date, member.id);
+                const row = getRow(day.date, member);
                 return (
                   <tr key={member.id}>
                     <td>{member.name}</td>
@@ -139,7 +162,7 @@ export function WeekendScoreEditor({ config, onChange }) {
                           aria-label={day.label + ' ' + member.name + ' 上周积分'}
                           value={row.previousPoints ?? ''}
                           readOnly={row.previousPointsInherited}
-                          onChange={(event) => updateField(day.date, member.id, 'previousPoints', event.target.value)}
+                          onChange={(event) => updateField(day.date, member, 'previousPoints', event.target.value)}
                         />
                       </td>
                     )}
@@ -148,14 +171,14 @@ export function WeekendScoreEditor({ config, onChange }) {
                         type="number"
                         aria-label={day.label + ' ' + member.name + ' 积分'}
                         value={row.points ?? ''}
-                        onChange={(event) => updateField(day.date, member.id, 'points', event.target.value)}
+                        onChange={(event) => updateField(day.date, member, 'points', event.target.value)}
                       />
                     </td>
                     <td>
                       <input
                         type="number"
                         aria-label={day.label + ' ' + member.name + ' 得分'}
-                          value={row.score ?? ''}
+                        value={row.score ?? ''}
                         readOnly
                       />
                     </td>
@@ -163,7 +186,7 @@ export function WeekendScoreEditor({ config, onChange }) {
                       <input
                         type="number"
                         aria-label={day.label + ' ' + member.name + ' 总分'}
-                          value={row.total ?? ''}
+                        value={row.total ?? ''}
                         readOnly
                       />
                     </td>

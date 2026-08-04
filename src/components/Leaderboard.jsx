@@ -25,7 +25,7 @@ export function Leaderboard({ rows, onOpenDetails, scoreDate }) {
       </div>
       <div className="leaderboard-frame">
         <div className="leaderboard">
-          {rows.slice(0, 10).map((row, index) => (
+          {rows.map((row, index) => (
             <article
               className={`leader-row${index < 3 ? ' is-podium' : ''}`}
               key={row.id}
