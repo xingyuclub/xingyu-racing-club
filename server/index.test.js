@@ -476,6 +476,7 @@ describe('score recognition API', () => {
     const upload = await agent
       .post('/api/admin/score-recognition/batches')
       .field('date', '2026-08-01')
+      .field('raceType', 'team')
       .attach('files', jpgBytes, { filename: 'shot.jpg', contentType: 'image/jpeg' })
       .expect(201);
     const batchId = upload.body.id;
@@ -498,6 +499,7 @@ describe('score recognition API', () => {
     await agent
       .post('/api/admin/score-recognition/batches')
       .field('date', '2026-08-01')
+      .field('raceType', 'team')
       .attach('files', Buffer.from('not an image'), { filename: 'doc.txt', contentType: 'text/plain' })
       .expect(400);
   });
@@ -508,7 +510,43 @@ describe('score recognition API', () => {
     await agent
       .post('/api/admin/score-recognition/batches')
       .field('date', 'invalid')
+      .field('raceType', 'team')
       .expect(400);
+  });
+
+  it('requires a race type', async () => {
+    const { app } = await createRecognitionFixture();
+    const { agent } = await loginAsAdmin(app);
+    const response = await agent
+      .post('/api/admin/score-recognition/batches')
+      .field('date', '2026-08-01')
+      .expect(400);
+
+    expect(response.body).toEqual({ error: '请选择队内赛或排位赛' });
+  });
+
+  it('rejects an invalid race type', async () => {
+    const { app } = await createRecognitionFixture();
+    const { agent } = await loginAsAdmin(app);
+    const response = await agent
+      .post('/api/admin/score-recognition/batches')
+      .field('date', '2026-08-01')
+      .field('raceType', 'other')
+      .expect(400);
+
+    expect(response.body).toEqual({ error: '请选择队内赛或排位赛' });
+  });
+
+  it('creates a ranked race batch', async () => {
+    const { app } = await createRecognitionFixture();
+    const { agent } = await loginAsAdmin(app);
+    const response = await agent
+      .post('/api/admin/score-recognition/batches')
+      .field('date', '2026-08-01')
+      .field('raceType', 'ranked')
+      .expect(201);
+
+    expect(response.body.raceType).toBe('ranked');
   });
 
   it('lists and reads batches after creation', async () => {
@@ -517,6 +555,7 @@ describe('score recognition API', () => {
     const created = await agent
       .post('/api/admin/score-recognition/batches')
       .field('date', '2026-08-01')
+      .field('raceType', 'team')
       .attach('files', jpgBytes, { filename: 'a.jpg', contentType: 'image/jpeg' })
       .expect(201);
 

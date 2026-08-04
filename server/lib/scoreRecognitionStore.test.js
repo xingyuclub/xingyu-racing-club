@@ -26,6 +26,7 @@ describe('score recognition store', () => {
     const batch = await store.createBatch({
       id: 'batch-1',
       date: '2026-08-01',
+      raceType: 'team',
       files: [
         { name: 'a.jpg', bytes: Buffer.from([0xff, 0xd8, 0xff]), mimeType: 'image/jpeg' },
         { name: 'b.png', bytes: Buffer.from([0x89, 0x50, 0x4e, 0x47]), mimeType: 'image/png' },
@@ -35,15 +36,18 @@ describe('score recognition store', () => {
     expect(batch.id).toBe('batch-1');
     expect(batch.status).toBe('uploaded');
     expect(batch.date).toBe('2026-08-01');
+    expect(batch.raceType).toBe('team');
     expect(batch.images).toHaveLength(2);
     expect(batch.images.map((image) => image.originalName)).toEqual(['a.jpg', 'b.png']);
 
     const stored = await store.readBatch('batch-1');
     expect(stored.status).toBe('uploaded');
+    expect(stored.raceType).toBe('team');
 
     const all = await store.listBatches();
     expect(all).toHaveLength(1);
     expect(all[0].id).toBe('batch-1');
+    expect(all[0].raceType).toBe('team');
   });
 
   it('persists original image bytes to the batch storage directory', async () => {
@@ -52,6 +56,7 @@ describe('score recognition store', () => {
     await store.createBatch({
       id: 'batch-2',
       date: '2026-08-01',
+      raceType: 'team',
       files: [{ name: 'shot.jpg', bytes, mimeType: 'image/jpeg' }],
     });
 
@@ -65,6 +70,7 @@ describe('score recognition store', () => {
     await store.createBatch({
       id: 'batch-3',
       date: '2026-08-01',
+      raceType: 'team',
       files: [{ name: 'x.jpg', bytes: Buffer.from([0xff]), mimeType: 'image/jpeg' }],
     });
 
@@ -84,6 +90,7 @@ describe('score recognition store', () => {
     await store.createBatch({
       id: 'batch-4',
       date: '2026-08-01',
+      raceType: 'team',
       files: [{ name: 'fail.png', bytes, mimeType: 'image/png' }],
     });
     await store.updateBatch('batch-4', { status: 'failed', error: 'timeout' });
@@ -99,9 +106,9 @@ describe('score recognition store', () => {
   it('survives concurrent index updates without corrupting the index', async () => {
     const store = createScoreRecognitionStore({ dataDir, storageDir });
     await Promise.all([
-      store.createBatch({ id: 'b-a', date: '2026-08-01', files: [] }),
-      store.createBatch({ id: 'b-b', date: '2026-08-01', files: [] }),
-      store.createBatch({ id: 'b-c', date: '2026-08-01', files: [] }),
+      store.createBatch({ id: 'b-a', date: '2026-08-01', raceType: 'team', files: [] }),
+      store.createBatch({ id: 'b-b', date: '2026-08-01', raceType: 'team', files: [] }),
+      store.createBatch({ id: 'b-c', date: '2026-08-01', raceType: 'team', files: [] }),
     ]);
 
     const all = await store.listBatches();

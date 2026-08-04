@@ -6,6 +6,7 @@ import { createScoreRecognitionAi } from './scoreRecognitionAi.js';
 import { createScoreRecognitionService } from './scoreRecognitionService.js';
 
 const SCORE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png']);
+const SCORE_RACE_TYPES = new Set(['team', 'ranked']);
 
 export function createScoreRecognitionRouter({
   configStore,
@@ -49,12 +50,16 @@ export function createScoreRecognitionRouter({
         if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
           return response.status(400).json({ error: '必须提供有效的批次日期' });
         }
+        const raceType = request.body?.raceType;
+        if (!SCORE_RACE_TYPES.has(raceType)) {
+          return response.status(400).json({ error: '请选择队内赛或排位赛' });
+        }
         const files = (request.files || []).map((file) => ({
           name: file.originalname,
           bytes: file.buffer,
           mimeType: file.mimetype,
         }));
-        const batch = await recognitionStore.createBatch({ id: randomUUID(), date, files });
+        const batch = await recognitionStore.createBatch({ id: randomUUID(), date, raceType, files });
         response.status(201).json(batch);
       } catch (nextError) { next(nextError); }
     });

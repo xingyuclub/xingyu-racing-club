@@ -54,7 +54,7 @@ describe('score recognition service', () => {
       ]],
     });
 
-    await store.createBatch({ id: 'b1', date: '2026-08-01', files: [
+    await store.createBatch({ id: 'b1', date: '2026-08-01', raceType: 'team', files: [
       { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
     ]});
     const preview = await service.previewBatch('b1');
@@ -73,7 +73,7 @@ describe('score recognition service', () => {
       participants: [{ nickname: '稳稳', rank: 1 }] }];
     const { service, store } = setupService({ config, aiResponses: [sameMatch, sameMatch] });
 
-    await store.createBatch({ id: 'b2', date: '2026-08-01', files: [
+    await store.createBatch({ id: 'b2', date: '2026-08-01', raceType: 'team', files: [
       { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
       { name: 'b.jpg', bytes: Buffer.from([2]), mimeType: 'image/jpeg' },
     ]});
@@ -98,7 +98,7 @@ describe('score recognition service', () => {
         participants: [{ nickname: '稳稳', rank: 1 }, { nickname: '闪电', rank: 2 }] }]],
     });
 
-    await store.createBatch({ id: 'b3', date: '2026-08-01', files: [
+    await store.createBatch({ id: 'b3', date: '2026-08-01', raceType: 'team', files: [
       { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
     ]});
     const preview = await service.previewBatch('b3');
@@ -122,7 +122,7 @@ describe('score recognition service', () => {
         participants: [{ nickname: '老稳', rank: 1 }, { nickname: '完全不认识', rank: 2 }] }]],
     });
 
-    await store.createBatch({ id: 'b4', date: '2026-08-01', files: [
+    await store.createBatch({ id: 'b4', date: '2026-08-01', raceType: 'team', files: [
       { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
     ]});
     const preview = await service.previewBatch('b4');
@@ -140,7 +140,7 @@ describe('score recognition service', () => {
         participants: [{ nickname: '稳稳', rank: 1 }] }]],
     });
 
-    await store.createBatch({ id: 'b5', date: '2026-08-01', files: [
+    await store.createBatch({ id: 'b5', date: '2026-08-01', raceType: 'team', files: [
       { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
     ]});
     const preview = await service.previewBatch('b5');
@@ -174,7 +174,7 @@ describe('score recognition service', () => {
         participants: [{ nickname: '青山', rank: 1 }],
       }]],
     });
-    await store.createBatch({ id: 'existing-score', date: '2026-08-01', files: [
+    await store.createBatch({ id: 'existing-score', date: '2026-08-01', raceType: 'team', files: [
       { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
     ] });
 
@@ -203,7 +203,7 @@ describe('score recognition service', () => {
         participants: [{ nickname: '新成员', rank: 1 }],
       }]],
     });
-    await store.createBatch({ id: 'new-score', date: '2026-08-01', files: [
+    await store.createBatch({ id: 'new-score', date: '2026-08-01', raceType: 'team', files: [
       { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
     ] });
 
@@ -247,7 +247,7 @@ describe('score recognition service', () => {
       }]],
     });
 
-    await store.createBatch({ id: 'replace-imported-fields', date: '2026-07-30', files: [
+    await store.createBatch({ id: 'replace-imported-fields', date: '2026-07-30', raceType: 'team', files: [
       { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
     ] });
     const preview = await service.previewBatch('replace-imported-fields');
@@ -270,7 +270,7 @@ describe('score recognition service', () => {
         participants: [{ nickname: '稳稳', rank: 1 }] }]],
     });
 
-    await store.createBatch({ id: 'b6', date: '2026-08-01', files: [
+    await store.createBatch({ id: 'b6', date: '2026-08-01', raceType: 'team', files: [
       { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
     ]});
     const preview = await service.previewBatch('b6');
