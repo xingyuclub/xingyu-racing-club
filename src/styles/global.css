@@ -483,220 +483,13 @@ h2 {
     transform 220ms ease;
 }
 
-.roster-grid {
+.roster-section .roster-dome {
   position: relative;
-  display: grid;
-  place-items: center;
   width: 100%;
-  min-height: 380px;
+  height: clamp(480px, 72vw, 640px);
   overflow: hidden;
-  padding: 36px 0 54px;
-  background: transparent;
-  cursor: grab;
-  perspective: 860px;
-  perspective-origin: 50% 48%;
-  touch-action: pan-y;
-  user-select: none;
-}
-
-.roster-wheel--ambient {
-  isolation: isolate;
-}
-
-.roster-wheel--ambient::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 4;
-  width: 48px;
-  pointer-events: none;
-  background: linear-gradient(90deg, transparent, var(--page-bg) 82%);
-}
-
-.roster-grid::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 4;
-  width: 48px;
-  pointer-events: none;
-  background: linear-gradient(90deg, var(--page-bg) 18%, transparent);
-}
-
-.roster-wheel--cylindrical.is-accelerating {
-  cursor: grabbing;
-}
-
-.roster-wheel--cylindrical.is-paused {
-  cursor: default;
-}
-
-.roster-wheel--cylindrical.is-settling .roster-card {
-  filter: none;
-}
-
-.roster-cylinder {
-  --wheel-radius: clamp(210px, 56vw, 330px);
-  position: relative;
-  width: min(100%, 390px);
-  height: 304px;
-  transform: translateZ(calc(var(--wheel-radius) * -1));
-  transform-style: preserve-3d;
-}
-
-.roster-card {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: clamp(128px, 36vw, 178px);
-  height: 276px;
-  display: grid;
-  align-content: end;
-  overflow: hidden;
-  padding: 16px;
-  color: #ffffff;
-  text-align: left;
-  border: 1px solid rgba(255, 255, 255, 0.78);
-  border-radius: 9px;
-  background: var(--surface);
-  box-shadow:
-    0 28px 54px rgba(41, 106, 202, 0.16),
-    0 12px 28px rgba(19, 28, 55, 0.16);
-  backface-visibility: hidden;
-  opacity: var(--card-opacity, 0);
-  pointer-events: none;
-  transform:
-    translate(-50%, -50%)
-    rotateY(calc(var(--card-angle) - var(--rotation, 0deg)))
-    translateZ(calc(var(--wheel-radius) + var(--card-lift, 0px)))
-    scale(var(--card-scale, 1));
-  transform-style: preserve-3d;
-  filter: none;
-  transition: box-shadow 280ms ease;
-  will-change: transform, opacity;
-}
-
-.roster-card.is-visible {
-  pointer-events: auto;
-}
-
-.roster-card.is-centered {
-  box-shadow:
-    0 34px 68px rgba(41, 106, 202, 0.24),
-    0 16px 34px rgba(19, 28, 55, 0.22);
-}
-
-.roster-card.is-hovered {
-  z-index: 500 !important;
-  opacity: 1;
-  filter: none;
-  transform:
-    translate(-50%, -52%)
-    rotateY(calc(var(--card-angle) - var(--rotation, 0deg)))
-    translateZ(calc(var(--wheel-radius) + 34px))
-    scale(1.04);
-}
-
-.roster-avatar {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  width: 100%;
-  height: 100%;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  color: #ffffff;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 3.9rem;
-  background:
-    radial-gradient(circle at 24% 22%, rgba(255, 255, 255, 0.86), transparent 18%),
-    radial-gradient(circle at 70% 18%, rgba(252, 211, 145, 0.82), transparent 22%),
-    radial-gradient(circle at 35% 62%, rgba(128, 221, 255, 0.76), transparent 30%),
-    linear-gradient(135deg, #eaf7ff 0%, #72baff 42%, #ffd9a1 100%);
-  opacity: 1;
-}
-
-.roster-card:nth-child(3n + 2) .roster-avatar {
-  background:
-    radial-gradient(circle at 22% 28%, rgba(255, 255, 255, 0.86), transparent 18%),
-    radial-gradient(circle at 72% 34%, rgba(255, 168, 108, 0.78), transparent 26%),
-    radial-gradient(circle at 44% 70%, rgba(255, 239, 205, 0.92), transparent 34%),
-    linear-gradient(145deg, #ffe8c7 0%, #f7b26a 46%, #ffffff 100%);
-}
-
-.roster-card:nth-child(3n) .roster-avatar {
-  background:
-    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.82), transparent 18%),
-    radial-gradient(circle at 74% 26%, rgba(131, 214, 255, 0.78), transparent 24%),
-    radial-gradient(circle at 44% 72%, rgba(67, 139, 221, 0.76), transparent 30%),
-    linear-gradient(145deg, #eefbff 0%, #9fdfff 42%, #367fd0 100%);
-}
-
-.roster-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.roster-mark {
-  position: absolute;
-  right: 18px;
-  bottom: 28px;
-  width: 34px;
-  height: 34px;
-  border: 2px solid rgba(255, 255, 255, 0.82);
-}
-
-.roster-mark::before,
-.roster-mark::after {
-  content: "";
-  position: absolute;
-  border: 2px solid rgba(255, 255, 255, 0.76);
-}
-
-.roster-mark::before {
-  inset: 6px auto auto 6px;
-  width: 12px;
-  height: 12px;
-  border-right: 0;
-  border-bottom: 0;
-}
-
-.roster-mark::after {
-  right: 5px;
-  bottom: 5px;
-  width: 12px;
-  height: 12px;
-  border-top: 0;
-  border-left: 0;
-}
-
-.roster-identity {
-  position: relative;
-  z-index: 2;
-  min-width: 0;
-  display: grid;
-  gap: 5px;
-}
-
-.roster-identity strong {
-  overflow: hidden;
-  max-width: 100%;
-  color: #ffffff;
-  font-size: 0.9rem;
-  text-shadow: 0 8px 20px rgba(0, 0, 0, 0.42);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.roster-identity small {
-  color: var(--muted);
-  font-size: 0.62rem;
+  border-radius: 24px;
+  background: #0d1428;
 }
 
 .leaderboard {
@@ -717,6 +510,28 @@ h2 {
 
 .leaderboard-frame .leaderboard {
   border-top: 0;
+}
+
+.leaderboard-more {
+  display: block;
+  width: 100%;
+  margin-top: 18px;
+  padding: 12px;
+  text-align: center;
+  color: var(--signal);
+  font-weight: 700;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #ffffff;
+  cursor: pointer;
+  transition:
+    border-color 220ms ease,
+    background 220ms ease;
+}
+
+.leaderboard-more:hover {
+  border-color: var(--signal);
+  background: #f4f9ff;
 }
 
 .leader-row {
@@ -816,6 +631,7 @@ h2 {
   min-width: 0;
   padding: 0;
   color: inherit;
+  text-decoration: none;
   text-align: left;
   border: 1px solid var(--line);
   background: #ffffff;
@@ -912,6 +728,17 @@ h2 {
 
 .news-modal-meta .eyebrow {
   margin: 0;
+}
+
+.news-page .news-modal-meta {
+  align-items: center;
+  flex-direction: row;
+  gap: 16px;
+  padding-right: 0;
+}
+
+.news-page .album-header h1 {
+  margin: 2px 0 12px;
 }
 
 .photo-modal.news-modal > h2 {
@@ -1198,7 +1025,6 @@ h2 {
 }
 
 [data-reveal] .member-card,
-[data-reveal] .roster-grid:not(.roster-wheel--cinematic) .roster-card,
 [data-reveal] .leader-row,
 [data-reveal] .news-item {
   opacity: 0;
@@ -1206,7 +1032,6 @@ h2 {
 }
 
 [data-reveal].is-visible .member-card,
-[data-reveal].is-visible .roster-grid:not(.roster-wheel--cinematic) .roster-card,
 [data-reveal].is-visible .leader-row,
 [data-reveal].is-visible .news-item {
   opacity: 1;
@@ -1219,7 +1044,6 @@ h2 {
   transition-duration: 520ms, 520ms, 220ms;
 }
 
-[data-reveal].is-visible .roster-grid:not(.roster-wheel--cinematic) .roster-card,
 [data-reveal].is-visible .leader-row,
 [data-reveal].is-visible .news-item {
   transition-property: opacity, transform, background-color;
@@ -1250,18 +1074,6 @@ button:focus-visible {
 
   .leader-row:hover {
     background-color: rgba(255, 255, 255, 0.025);
-  }
-
-  .roster-card:hover {
-    filter: none;
-    box-shadow:
-      0 32px 72px rgba(0, 0, 0, 0.5),
-      0 0 38px rgba(70, 144, 255, 0.18);
-    transform:
-      translate(-50%, -52%)
-      rotateY(calc(var(--card-angle) - var(--rotation, 0deg)))
-      translateZ(calc(var(--wheel-radius) + 18px))
-      scale(calc(var(--card-scale, 1) + 0.02));
   }
 
   .news-item:hover {
@@ -1494,7 +1306,7 @@ button:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
   .music-player > img {
-    animation: none;
+    animation-duration: 8s !important;
   }
 }
 
@@ -1515,8 +1327,7 @@ button:focus-visible {
 
   [data-reveal],
   [data-reveal] .member-card,
-  [data-reveal] .roster-grid:not(.roster-wheel--cinematic) .roster-card,
-  [data-reveal] .leader-row,
+    [data-reveal] .leader-row,
   [data-reveal] .news-item {
     opacity: 1;
     transform: none;
@@ -1528,14 +1339,6 @@ button:focus-visible {
     opacity: 1;
     transform: none;
     animation: none !important;
-  }
-
-  .roster-card {
-    transition: opacity 0.01ms linear;
-  }
-
-  .roster-card {
-    transition: opacity 0.01ms linear;
   }
 
   /* Keep the featured carousel readable while preserving its timed rotation. */
@@ -1797,12 +1600,13 @@ button:focus-visible {
 
 /* ===== 相册独立页 ===== */
 .album-shell {
-  padding: 56px 0 80px;
+  padding: 0 0 80px;
 }
 
 .album-page {
   width: min(calc(100% - 32px), 1120px);
   margin: 0 auto;
+  padding-top: 10px;
 }
 
 .album-header {
@@ -2413,6 +2217,7 @@ button:focus-visible {
   text-align: center;
   color: var(--signal);
   font-weight: 700;
+  text-decoration: none;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #ffffff;

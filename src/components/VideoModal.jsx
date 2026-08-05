@@ -50,6 +50,7 @@ export function VideoModal({ member, onClose }) {
               shineColor="#ffffff"
               speed={3.8}
               direction="left"
+              respectReducedMotion={false}
             />
           </p>
         )}

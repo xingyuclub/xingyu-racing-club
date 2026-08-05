@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ArrowDownWideNarrow, Download, FileDown, Plus, Trash2, Upload, X } from 'lucide-react';
 import { hydrateSiteData } from '../data/siteConfig.js';
-import { invalidateFollowingWeekTotals } from '../data/scoreRules.js';
+import { createScoreMemberId, invalidateFollowingWeekTotals } from '../data/scoreRules.js';
 import {
   downloadScoreWorkbook,
   mergeScoreImport,
@@ -35,12 +35,6 @@ const dateWeekday = (dateKey) => {
   return new Date(year, month - 1, day).getDay();
 };
 const weekendLabel = (dateKey) => dateWeekday(dateKey) === 6 ? '周六' : '周日';
-const nextNumericValue = (values, format = String) => {
-  const used = new Set(values.map((value) => String(value || '').trim()));
-  let value = 1;
-  while (used.has(format(value))) value += 1;
-  return format(value);
-};
 
 export function ScoreEditor({ config, onChange }) {
   const [errors, setErrors] = useState([]);
@@ -150,32 +144,30 @@ export function ScoreEditor({ config, onChange }) {
     setDate(date);
   };
 
-  const updateRosterName = (index, name) => {
+  const updateScoreMemberName = (index, name) => {
     const next = clone(config);
-    next.roster[index].name = name;
+    next.scoreMembers[index].name = name;
     onChange(next);
   };
-  const addRosterMember = () => {
+  const addScoreMember = () => {
     const next = clone(config);
-    next.roster.push({
-      id: nextNumericValue(next.roster.map((member) => member.id)),
-      number: nextNumericValue(
-        next.roster.map((member) => member.number),
-        (value) => String(value).padStart(2, '0'),
-      ),
-      name: '新队员',
-      role: '队员',
-      signature: '',
-      basePoints: 0,
-      wins: 0,
-      avatar: '',
-      videoUrl: '',
-    });
+    if (!Array.isArray(next.scoreMembers)) next.scoreMembers = [];
+    const baseName = '新积分队员';
+    const used = new Set(next.scoreMembers.map((member) => member.id));
+    let name = baseName;
+    let suffix = 2;
+    let id = createScoreMemberId(name);
+    while (used.has(id)) {
+      name = `${baseName}${suffix}`;
+      suffix += 1;
+      id = createScoreMemberId(name);
+    }
+    next.scoreMembers.push({ id, name, basePoints: 0, wins: 0 });
     onChange(next);
   };
-  const removeRosterMember = (index) => {
+  const removeScoreMember = (index) => {
     const next = clone(config);
-    next.roster.splice(index, 1);
+    next.scoreMembers.splice(index, 1);
     onChange(next);
   };
 
@@ -216,15 +208,18 @@ export function ScoreEditor({ config, onChange }) {
         <button role="tab" aria-selected={tab === 'recognition'} className={tab === 'recognition' ? 'is-active' : ''} onClick={() => setTab('recognition')}>截图识别</button>
         <button role="tab" aria-selected={tab === 'weekend'} className={tab === 'weekend' ? 'is-active' : ''} onClick={() => setTab('weekend')}>周末录入</button>
         <button role="tab" aria-selected={tab === 'history'} className={tab === 'history' ? 'is-active' : ''} onClick={() => setTab('history')}>识别记录</button>
-        <button role="tab" aria-selected={tab === 'members'} className={tab === 'members' ? 'is-active' : ''} onClick={() => setTab('members')}>队员管理</button>
+        <button role="tab" aria-selected={tab === 'members'} className={tab === 'members' ? 'is-active' : ''} onClick={() => setTab('members')}>积分队员</button>
       </div>
-      {tab === 'recognition' && (
+      <div
+        className={'score-recognition-panel' + (tab === 'recognition' ? '' : ' is-hidden')}
+        data-testid="score-recognition-panel"
+      >
         <ScoreRecognition
           config={config}
           initialBatchId={recognitionBatchId}
           onCommitted={onChange}
         />
-      )}
+      </div>
       {tab === 'weekend' && <WeekendScoreEditor config={config} onChange={onChange} />}
       {tab === 'history' && <RecognitionHistory onOpen={(id) => {
         setRecognitionBatchId(id);
@@ -233,36 +228,35 @@ export function ScoreEditor({ config, onChange }) {
       {tab === 'members' && (
         <div className="score-roster-manager">
           <div className="score-roster-toolbar">
-            <button type="button" onClick={addRosterMember}>
+            <button type="button" onClick={addScoreMember}>
               <Plus aria-hidden="true" size={16} />
-              新增队员
+              新增积分队员
             </button>
           </div>
           <div className="score-roster-table-wrap">
           <table className="score-roster-table">
             <thead>
-              <tr><th>姓名</th><th>ID</th><th>角色</th><th><span className="sr-only">操作</span></th></tr>
+              <tr><th>姓名</th><th>ID</th><th><span className="sr-only">操作</span></th></tr>
             </thead>
             <tbody>
-              {config.roster.map((member, index) => (
+              {(config.scoreMembers || []).map((member, index) => (
                 <tr key={member.id}>
                   <td>
                     <input
                       type="text"
-                      aria-label={`队员 ${index + 1} 名称`}
+                      aria-label={`积分队员 ${index + 1} 名称`}
                       value={member.name}
-                      onChange={(event) => updateRosterName(index, event.target.value)}
+                      onChange={(event) => updateScoreMemberName(index, event.target.value)}
                     />
                   </td>
                   <td>{member.id}</td>
-                  <td>{member.role}</td>
                   <td>
                     <button
                       className="score-delete"
                       type="button"
-                      title={`删除队员 ${index + 1}`}
-                      aria-label={`删除队员 ${index + 1}`}
-                      onClick={() => removeRosterMember(index)}
+                      title={`删除积分队员 ${index + 1}`}
+                      aria-label={`删除积分队员 ${index + 1}`}
+                      onClick={() => removeScoreMember(index)}
                     >
                       <Trash2 aria-hidden="true" size={16} />
                     </button>

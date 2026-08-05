@@ -14,6 +14,7 @@ import { NewsFeed } from './components/NewsFeed.jsx';
 import { NewsDetailPage } from './components/NewsDetailPage.jsx';
 
 const globalStyles = readFileSync('src/styles/global.css', 'utf8');
+const domeGalleryStyles = readFileSync('src/components/DomeGallery.css', 'utf8');
 
 let mediaPlay;
 let mediaPause;
@@ -187,17 +188,16 @@ describe('App', () => {
     expect(screen.queryByRole('heading', { name: teamData.team.motto })).not.toBeInTheDocument();
   });
 
-  it('renders 8 featured member buttons and 30 roster cards', () => {
+  it('renders 8 featured member buttons and the full roster dome', () => {
     const { container } = render(<App />);
 
     expect(screen.getAllByRole('button', { name: /查看成员 \d+ 高光视频/ })).toHaveLength(8);
     const roster = screen.getByTestId('roster-grid');
-    expect(roster).toHaveClass('roster-wheel--cinematic');
-    expect(roster).toHaveClass('roster-wheel--ambient');
-    expect(roster).toHaveClass('roster-wheel--cylindrical');
-    expect(within(roster).getAllByTestId('roster-card')).toHaveLength(30);
-    expect(within(roster).getAllByTestId('roster-avatar')).toHaveLength(30);
-    expect(within(roster).getByRole('button', { name: '查看成员 01 卡片详情' })).toBeInTheDocument();
+    expect(roster).toHaveClass('roster-dome');
+    expect(within(roster).getAllByTestId('roster-tile')).toHaveLength(120);
+    expect(
+      within(roster).getAllByRole('button', { name: '查看成员 01 卡片详情' }).length,
+    ).toBeGreaterThan(0);
   });
 
   it('renders a click-to-play muted looping hero video', () => {
@@ -333,25 +333,27 @@ describe('App', () => {
     expect(container.querySelector('.leaderboard-frame .electric-border-canvas')).not.toBeInTheDocument();
   });
 
-  it('arranges the full roster around an auto-rolling cylinder', () => {
+  it('arranges the full roster around a static dome sphere', async () => {
+    vi.useFakeTimers();
     render(<App />);
 
     const roster = screen.getByTestId('roster-grid');
-    const cylinder = within(roster).getByTestId('roster-cylinder');
-    const cards = within(roster).getAllByTestId('roster-card');
-    const rotation = Number.parseFloat(cylinder.style.getPropertyValue('--rotation'));
+    const sphere = within(roster).getByTestId('roster-sphere');
+    const readRotation = () => {
+      const match = sphere.style.transform.match(/rotateY\((-?[\d.]+)deg\)/);
+      return match ? Number.parseFloat(match[1]) : 0;
+    };
 
-    expect(cylinder).toHaveStyle({ '--member-count': '30' });
-    expect(rotation).toBeCloseTo(0, 3);
-    expect(cylinder.style.getPropertyValue('--speed')).toContain('deg/s');
-    expect(cards[0]).toHaveStyle({ '--card-angle': '0deg' });
-    expect(cards[1]).toHaveStyle({ '--card-angle': '12deg' });
-    expect(cards[6]).toHaveClass('is-visible');
-    expect(cards[7]).toHaveAttribute('aria-hidden', 'true');
-    expect(cards.filter((card) => card.classList.contains('is-centered'))).toEqual([cards[0]]);
+    expect(within(roster).getAllByTestId('roster-tile')).toHaveLength(120);
+    expect(readRotation()).toBeCloseTo(0, 1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(readRotation()).toBeCloseTo(0, 3);
   });
 
-  it('loads roster portraits only while their cards are visible', () => {
+  it('renders every roster portrait in the dome with native lazy loading', () => {
     const members = Array.from({ length: 30 }, (_, index) => ({
       id: String(index + 1),
       name: `成员 ${index + 1}`,
@@ -360,180 +362,126 @@ describe('App', () => {
     render(<Roster members={members} />);
 
     const roster = screen.getByTestId('roster-grid');
-    const cards = within(roster).getAllByTestId('roster-card');
-    const touchPointerEvent = (type, clientX) => {
-      const event = new MouseEvent(type, { bubbles: true, clientX });
-      Object.defineProperties(event, {
-        pointerId: { value: 12 },
-        pointerType: { value: 'touch' },
-      });
-      return event;
-    };
+    const tiles = within(roster).getAllByTestId('roster-tile');
+    const loadedSources = new Set(
+      tiles
+        .map((tile) => tile.querySelector('img')?.getAttribute('src'))
+        .filter((src) => src),
+    );
 
-    expect(cards[12].querySelector('img')).not.toHaveAttribute('src');
-    fireEvent(roster, touchPointerEvent('pointerdown', 260));
-    fireEvent(roster, touchPointerEvent('pointermove', 140));
-
-    expect(cards[12]).toHaveClass('is-visible');
-    expect(cards[12].querySelector('img')).toHaveAttribute('src');
-    expect(cards[24]).toHaveAttribute('aria-hidden', 'true');
-    expect(cards[24].querySelector('img')).not.toHaveAttribute('src');
+    expect(loadedSources.size).toBe(30);
+    tiles.forEach((tile) => {
+      expect(tile.querySelector('img')).toHaveAttribute('loading', 'lazy');
+    });
   });
 
-  it('keeps touch swipes interactive without entering the desktop hover pause state', () => {
-    render(<App />);
-
-    const roster = screen.getByTestId('roster-grid');
-    const cylinder = within(roster).getByTestId('roster-cylinder');
-    const card = within(roster).getAllByTestId('roster-card')[0];
-    const initialRotation = Number.parseFloat(cylinder.style.getPropertyValue('--rotation'));
-    const touchPointerEvent = (type, clientX = 0) => {
-      const event = new MouseEvent(type, { bubbles: true, clientX });
-      Object.defineProperties(event, {
-        pointerId: { value: 7 },
-        pointerType: { value: 'touch' },
-      });
-      return event;
-    };
-
-    fireEvent(card, touchPointerEvent('pointerover'));
-    fireEvent(roster, touchPointerEvent('pointerdown', 260));
-    fireEvent(roster, touchPointerEvent('pointermove', 140));
-    fireEvent(roster, touchPointerEvent('pointerup', 140));
-
-    expect(Number.parseFloat(cylinder.style.getPropertyValue('--rotation'))).not.toBe(initialRotation);
-    expect(card).not.toHaveClass('is-hovered');
-    expect(roster).not.toHaveClass('is-paused');
-    expect(roster).toHaveClass('is-settling');
-  });
-
-  it('pauses automatic roster rotation while a finger is held down and resumes on release', async () => {
+  it('keeps touch swipes interactive without auto rotation or hover pause', async () => {
     vi.useFakeTimers();
     render(<App />);
 
     const roster = screen.getByTestId('roster-grid');
-    const cylinder = within(roster).getByTestId('roster-cylinder');
-    const touchPointerEvent = (type, clientX = 0) => {
-      const event = new MouseEvent(type, { bubbles: true, clientX });
+    const sphere = within(roster).getByTestId('roster-sphere');
+    const main = roster.querySelector('.sphere-main');
+    const readRotation = () => {
+      const match = sphere.style.transform.match(/rotateY\((-?[\d.]+)deg\)/);
+      return match ? Number.parseFloat(match[1]) : 0;
+    };
+    const touchPointerEvent = (type) => {
+      const event = new MouseEvent(type, { bubbles: true });
       Object.defineProperties(event, {
-        pointerId: { value: 8 },
+        pointerId: { value: 7 },
         pointerType: { value: 'touch' },
+        isPrimary: { value: true },
       });
       return event;
     };
 
-    fireEvent(roster, touchPointerEvent('pointerdown', 220));
-    const heldRotation = Number.parseFloat(cylinder.style.getPropertyValue('--rotation'));
-
-    expect(roster).toHaveClass('is-paused');
-    expect(Number.parseFloat(cylinder.style.getPropertyValue('--speed'))).toBe(0);
+    fireEvent(main, touchPointerEvent('pointerenter'));
+    fireEvent(main, touchPointerEvent('pointerleave'));
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(320);
+      await vi.advanceTimersByTimeAsync(2000);
     });
-    expect(Number.parseFloat(cylinder.style.getPropertyValue('--rotation'))).toBeCloseTo(heldRotation, 3);
+    expect(readRotation()).toBeCloseTo(0, 3);
+  });
 
-    fireEvent(roster, touchPointerEvent('pointerup', 220));
-    expect(roster).toHaveClass('is-settling');
+  it('rotates the roster sphere only by dragging', () => {
+    render(<App />);
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(320);
+    const roster = screen.getByTestId('roster-grid');
+    const sphere = within(roster).getByTestId('roster-sphere');
+    const main = roster.querySelector('.sphere-main');
+    const readRotation = () => {
+      const match = sphere.style.transform.match(/rotateY\((-?[\d.]+)deg\)/);
+      return match ? Number.parseFloat(match[1]) : 0;
+    };
+    const pointer = (type, clientX, clientY) =>
+      new MouseEvent(type, { bubbles: true, clientX, clientY });
+
+    const start = readRotation();
+    act(() => {
+      fireEvent(main, pointer('pointerdown', 200, 200));
+      fireEvent(main, pointer('pointermove', 260, 210));
+      fireEvent(main, pointer('pointermove', 320, 220));
+      fireEvent(main, pointer('pointerup', 320, 220));
     });
-    expect(Number.parseFloat(cylinder.style.getPropertyValue('--rotation'))).not.toBeCloseTo(heldRotation, 3);
+
+    expect(readRotation()).not.toBeCloseTo(start, 3);
   });
 
   it('opens a roster video after a touch tap with slight finger movement', () => {
     render(<App />);
 
     const roster = screen.getByTestId('roster-grid');
-    const card = within(roster).getAllByTestId('roster-card')[0];
+    const tile = within(roster).getAllByRole('button', { name: '查看成员 01 卡片详情' })[0];
     const touchPointerEvent = (type, clientX) => {
       const event = new MouseEvent(type, { bubbles: true, clientX });
       Object.defineProperties(event, {
         pointerId: { value: 9 },
         pointerType: { value: 'touch' },
+        isPrimary: { value: true },
       });
       return event;
     };
 
-    fireEvent(card, touchPointerEvent('pointerdown', 220));
-    fireEvent(card, touchPointerEvent('pointermove', 214));
-    fireEvent(card, touchPointerEvent('pointerup', 214));
-    fireEvent.click(card);
+    fireEvent(tile, touchPointerEvent('pointerdown', 220));
+    fireEvent(tile, touchPointerEvent('pointermove', 214));
+    fireEvent(tile, touchPointerEvent('pointerup', 214));
+    fireEvent.click(tile);
 
     expect(screen.getByRole('dialog')).toHaveTextContent('高光视频素材待替换');
   });
 
-  it('accelerates the roster cylinder in the swipe direction and eases back to base speed', async () => {
+  it('keeps the roster sphere static under hover (no auto rotation)', async () => {
     vi.useFakeTimers();
     render(<App />);
 
     const roster = screen.getByTestId('roster-grid');
-    const cylinder = within(roster).getByTestId('roster-cylinder');
-    const readSpeed = () => Number.parseFloat(cylinder.style.getPropertyValue('--speed'));
-    const baseSpeed = 10.59;
+    const sphere = within(roster).getByTestId('roster-sphere');
+    const main = roster.querySelector('.sphere-main');
+    const readRotation = () => {
+      const match = sphere.style.transform.match(/rotateY\((-?[\d.]+)deg\)/);
+      return match ? Number.parseFloat(match[1]) : 0;
+    };
 
-    fireEvent(roster, new MouseEvent('pointerdown', { bubbles: true, clientX: 260 }));
-    fireEvent(roster, new MouseEvent('pointermove', { bubbles: true, clientX: 130 }));
+    fireEvent.pointerEnter(main);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(80);
+      await vi.advanceTimersByTimeAsync(600);
     });
+    expect(readRotation()).toBeCloseTo(0, 3);
 
-    expect(roster).toHaveClass('is-accelerating');
-    const acceleratedSpeed = readSpeed();
-    expect(acceleratedSpeed).toBeGreaterThan(baseSpeed);
-
-    fireEvent(roster, new MouseEvent('pointermove', { bubbles: true, clientX: 290 }));
+    fireEvent.pointerLeave(main);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(240);
+      await vi.advanceTimersByTimeAsync(2000);
     });
-
-    expect(readSpeed()).toBeLessThan(acceleratedSpeed);
-
-    fireEvent(roster, new MouseEvent('pointerup', { bubbles: true, clientX: 290 }));
-
-    expect(roster).not.toHaveClass('is-accelerating');
-    expect(roster).toHaveClass('is-settling');
-
-    act(() => vi.advanceTimersByTime(160));
-    expect(readSpeed()).toBeLessThan(acceleratedSpeed);
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1600);
-    });
-    expect(readSpeed()).toBeLessThan(acceleratedSpeed);
-    expect(roster).toHaveClass('is-settling');
+    expect(readRotation()).toBeCloseTo(0, 3);
   });
 
-  it('pauses the roster cylinder on hover and enlarges the hovered card', async () => {
-    vi.useFakeTimers();
-    render(<App />);
-
-    const roster = screen.getByTestId('roster-grid');
-    const cylinder = within(roster).getByTestId('roster-cylinder');
-    const card = within(roster).getAllByTestId('roster-card')[0];
-    const readSpeed = () => Number.parseFloat(cylinder.style.getPropertyValue('--speed'));
-
-    fireEvent.pointerEnter(roster);
-    fireEvent.pointerEnter(card);
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1200);
-    });
-
-    expect(roster).toHaveClass('is-paused');
-    expect(card).toHaveClass('is-hovered');
-    expect(Math.abs(readSpeed())).toBeLessThan(1);
-
-    fireEvent.pointerLeave(card);
-    fireEvent.pointerLeave(roster);
-    expect(card).not.toHaveClass('is-hovered');
-  });
-
-  it('opens member details from a full roster card', async () => {
+  it('opens member details from a full roster tile', async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: '查看成员 01 卡片详情' }));
+    await user.click(screen.getAllByRole('button', { name: '查看成员 01 卡片详情' })[0]);
 
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).queryByText('成员 01')).not.toBeInTheDocument();
@@ -554,17 +502,16 @@ describe('App', () => {
 
   it('keeps primary member covers clear while preserving positional depth', () => {
     const style = document.createElement('style');
-    style.textContent = globalStyles;
+    style.textContent = `${globalStyles}\n${domeGalleryStyles}`;
     document.head.append(style);
     const rules = Array.from(style.sheet.cssRules);
     const ruleStyle = (selector) => rules.find((rule) => rule.selectorText === selector)?.style;
 
     expect(ruleStyle('.driver-portrait::after').opacity).toBe('1');
     expect(ruleStyle('.driver-card.is-next').opacity).toBe('0.72');
-    expect(ruleStyle('.roster-card').filter).toBe('none');
-    expect(ruleStyle('.roster-card').opacity).toContain('--card-opacity');
-    expect(ruleStyle('.roster-avatar').opacity).toBe('1');
-    expect(ruleStyle('.roster-card::before')).toBeUndefined();
+    expect(ruleStyle('.item__image img,\n.item__placeholder').filter).toContain('var(--image-filter');
+    expect(ruleStyle('.item__image::before')).toBeUndefined();
+    expect(ruleStyle('.overlay')).not.toBeUndefined();
 
     style.remove();
   });
@@ -589,6 +536,49 @@ describe('App', () => {
 
     const activeCard = container.querySelector('.driver-card.is-active');
     expect(activeCard).toHaveClass('carousel-card');
+  });
+
+  it('pauses the featured carousel while the member video dialog is open', () => {
+    vi.useFakeTimers();
+    const { container } = render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '查看成员 01 高光视频' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    act(() => vi.advanceTimersByTime(4000));
+    expect(container.querySelector('.driver-card.is-active')).toHaveTextContent('成员 01');
+
+    fireEvent.click(container.querySelector('.video-modal-backdrop'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    act(() => vi.advanceTimersByTime(4000));
+    expect(container.querySelector('.driver-card.is-active')).toHaveTextContent('成员 02');
+  });
+
+  it('keeps the roster sphere static while the member video dialog is open', async () => {
+    vi.useFakeTimers();
+    const { container } = render(<App />);
+    const roster = screen.getByTestId('roster-grid');
+    const sphere = within(roster).getByTestId('roster-sphere');
+    const readRotation = () => {
+      const match = sphere.style.transform.match(/rotateY\((-?[\d.]+)deg\)/);
+      return match ? Number.parseFloat(match[1]) : 0;
+    };
+
+    fireEvent.click(screen.getByRole('button', { name: '查看成员 01 高光视频' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    const heldRotation = readRotation();
+    act(() => vi.advanceTimersByTime(600));
+    expect(readRotation()).toBeCloseTo(heldRotation, 3);
+
+    fireEvent.click(container.querySelector('.video-modal-backdrop'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(readRotation()).toBeCloseTo(heldRotation, 3);
   });
 
   it('switches to the next driver after a left swipe', () => {
@@ -619,6 +609,32 @@ describe('App', () => {
     expect(screen.getAllByTestId('album-photo')[0].querySelector('img')).not.toHaveClass('photo-card-image--contain');
   });
 
+  it('shows the homepage hero module at the top of every secondary page', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const heroName = teamData.team.heroLines.join('\n');
+    const expectHeroAbove = (pageHeading) => {
+      const heroHeading = screen.getByRole('heading', { name: heroName });
+      expect(heroHeading).toBeInTheDocument();
+      expect(heroHeading.compareDocumentPosition(pageHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(document.querySelector('.hero-brand-bar')).toBeInTheDocument();
+      expect(document.querySelector('.hero-section')).not.toBeInTheDocument();
+    };
+
+    await user.click(screen.getByRole('button', { name: '查看更多相册' }));
+    expect(window.location.hash).toBe('#album');
+    expectHeroAbove(screen.getByRole('heading', { name: '车队相册' }));
+
+    await user.click(screen.getByRole('button', { name: '返回首页' }));
+    await user.click(await screen.findByRole('link', { name: '查看更多动态' }));
+    expect(window.location.hash).toBe('#news');
+    expectHeroAbove(screen.getByRole('heading', { name: '车队动态' }));
+
+    await user.click(screen.getByRole('link', { name: '查看资讯 赛季积分榜更新' }));
+    expect(window.location.hash).toBe(`#news/${teamData.news[0].id}`);
+    expectHeroAbove(screen.getByRole('heading', { name: '赛季积分榜更新' }));
+  });
   it('opens and closes a configured photo preview', async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -763,6 +779,20 @@ describe('App', () => {
     const signatureText = container.querySelector('.member-video-signature .shiny-text');
     expect(signatureText).toHaveTextContent('一路向星光');
     expect(signatureText).toHaveStyle({ color: '#7C3AED' });
+  });
+
+  it('keeps the member signature animation running when reduced motion is enabled', () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true })));
+    const { container } = render(
+      <VideoModal
+        member={{ name: '成员 01', signature: '一路向星光', videoUrl: '/videos/member-01.mp4' }}
+        onClose={() => {}}
+      />,
+    );
+
+    const signatureText = container.querySelector('.member-video-signature .shiny-text');
+    expect(signatureText).not.toHaveClass('shiny-text--static');
+    expect(signatureText).toHaveStyle({ backgroundImage: expect.stringContaining('linear-gradient') });
   });
 
   it('omits a blank member signature', () => {
@@ -937,9 +967,20 @@ describe('App', () => {
     expect(container.querySelector('.hero-frame')).not.toBeInTheDocument();
     expect(container.querySelector('.hero-topline')).not.toBeInTheDocument();
     expect(container.querySelectorAll('.leader-row.is-podium')).toHaveLength(3);
-    expect(container.querySelectorAll('.leader-row')).toHaveLength(30);
+    expect(container.querySelectorAll('.leader-row')).toHaveLength(10);
+    expect(screen.getByRole('button', { name: '查看完整榜单' })).toBeInTheDocument();
     expect(container.querySelector('.news-image')).toBeInTheDocument();
     expect(screen.queryAllByText(/\d+ 胜/)).toHaveLength(0);
+  });
+
+  it('expands the leaderboard to every member on demand', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '查看完整榜单' }));
+
+    expect(container.querySelectorAll('.leader-row')).toHaveLength(30);
+    expect(screen.queryByRole('button', { name: '查看完整榜单' })).not.toBeInTheDocument();
   });
 
   it('uses the mobile-first site shell', () => {
@@ -1139,7 +1180,7 @@ describe('App', () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole('link', { name: '查看更多新闻' }));
+    await user.click(await screen.findByRole('link', { name: '查看更多动态' }));
     expect(window.location.hash).toBe('#news');
     expect(await screen.findByRole('tab', { name: '全部' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '公告' })).toBeInTheDocument();
@@ -1197,6 +1238,18 @@ describe('App', () => {
 
     const legacy = screen.getByText((content, element) => element?.classList?.contains('news-article-legacy'));
     expect(legacy).toHaveTextContent(teamData.news[0].body);
+  });
+
+  it('renders the detail title above the category and date row', () => {
+    const { container } = render(<NewsDetailPage news={[teamData.news[0]]} newsId={teamData.news[0].id} />);
+
+    const header = container.querySelector('.album-header');
+    const directChildren = Array.from(header.children);
+    const titleIndex = directChildren.findIndex((child) => child.tagName === 'H1');
+    const metaIndex = directChildren.findIndex((child) => child.classList.contains('news-modal-meta'));
+    expect(titleIndex).toBeGreaterThan(-1);
+    expect(metaIndex).toBeGreaterThan(-1);
+    expect(titleIndex).toBeLessThan(metaIndex);
   });
 
   it('shows an empty state for a missing news id', () => {

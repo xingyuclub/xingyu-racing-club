@@ -654,12 +654,47 @@ describe('score recognition API', () => {
   it('rejects unsupported screenshot file types', async () => {
     const { app } = await createRecognitionFixture();
     const { agent } = await loginAsAdmin(app);
-    await agent
+    const response = await agent
       .post('/api/admin/score-recognition/batches')
       .field('date', '2026-08-01')
       .field('raceType', 'team')
       .attach('files', Buffer.from('not an image'), { filename: 'doc.txt', contentType: 'text/plain' })
       .expect(400);
+
+    expect(response.body).toEqual({ error: '截图仅支持 JPG 或 PNG' });
+  });
+
+  it('rejects more than 20 screenshots in one batch', async () => {
+    const { app } = await createRecognitionFixture();
+    const { agent } = await loginAsAdmin(app);
+    let upload = agent
+      .post('/api/admin/score-recognition/batches')
+      .field('date', '2026-08-01')
+      .field('raceType', 'team');
+    for (let index = 0; index < 21; index += 1) {
+      upload = upload.attach('files', jpgBytes, {
+        filename: `shot-${index}.jpg`,
+        contentType: 'image/jpeg',
+      });
+    }
+
+    const response = await upload.expect(400);
+    expect(response.body).toEqual({ error: '一次最多上传 20 张截图' });
+  });
+
+  it('rejects a screenshot larger than 10MB', async () => {
+    const { app } = await createRecognitionFixture();
+    const { agent } = await loginAsAdmin(app);
+    const bigBytes = Buffer.alloc(10 * 1024 * 1024 + 1, 1);
+
+    const response = await agent
+      .post('/api/admin/score-recognition/batches')
+      .field('date', '2026-08-01')
+      .field('raceType', 'team')
+      .attach('files', bigBytes, { filename: 'big.jpg', contentType: 'image/jpeg' })
+      .expect(400);
+
+    expect(response.body).toEqual({ error: '截图大小不能超过 10MB' });
   });
 
   it('requires a valid batch date', async () => {

@@ -22,3 +22,4 @@ server/storage/score-recognition/
 tools/
 logs/
 server/data/score-recognition/
+server/data/*.bak*

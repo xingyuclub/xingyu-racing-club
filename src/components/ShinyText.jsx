@@ -20,6 +20,7 @@ export default function ShinyText({
   pauseOnHover = false,
   direction = 'left',
   delay = 0,
+  respectReducedMotion = true,
 }) {
   const isReducedMotion = useReducedMotion() === true;
   const isPaused = useRef(false);
@@ -29,7 +30,7 @@ export default function ShinyText({
   const directionValue = useRef(direction === 'left' ? 1 : -1);
   const animationDuration = Math.max(speed, 0.1) * 1000;
   const delayDuration = Math.max(delay, 0) * 1000;
-  const isStatic = disabled || isReducedMotion;
+  const isStatic = disabled || (respectReducedMotion && isReducedMotion);
 
   useAnimationFrame((time) => {
     if (isStatic || isPaused.current) {

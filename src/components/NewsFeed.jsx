@@ -36,7 +36,7 @@ export function NewsFeed({ items }) {
         ))}
       </div>
       <a className="news-more" href="#news">
-        查看更多新闻
+        查看更多动态
       </a>
     </section>
   );

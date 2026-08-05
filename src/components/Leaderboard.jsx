@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 const formatDate = (dateKey) => {
   if (!dateKey) return '';
   const [year, month, day] = dateKey.split('-').map(Number);
@@ -5,6 +7,8 @@ const formatDate = (dateKey) => {
 };
 
 export function Leaderboard({ rows, onOpenDetails, scoreDate }) {
+  const [showAll, setShowAll] = useState(false);
+  const visibleRows = showAll ? rows : rows.slice(0, 10);
   return (
     <section className="section-block" aria-labelledby="leaderboard-title" data-reveal>
       <div className="section-heading section-heading--action-right">
@@ -25,7 +29,7 @@ export function Leaderboard({ rows, onOpenDetails, scoreDate }) {
       </div>
       <div className="leaderboard-frame">
         <div className="leaderboard">
-          {rows.map((row, index) => (
+          {visibleRows.map((row, index) => (
             <article
               className={`leader-row${index < 3 ? ' is-podium' : ''}`}
               key={row.id}
@@ -44,6 +48,11 @@ export function Leaderboard({ rows, onOpenDetails, scoreDate }) {
           ))}
         </div>
       </div>
+      {rows.length > 10 && !showAll && (
+        <button className="leaderboard-more" type="button" onClick={() => setShowAll(true)}>
+          查看完整榜单
+        </button>
+      )}
     </section>
   );
 }

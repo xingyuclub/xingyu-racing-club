@@ -216,40 +216,45 @@ describe('ScoreEditor', () => {
     expect(latest.dailyScores[0].rows[0].teamRace[0]).toBe(1);
   });
 
-  it('manages roster names without showing Excel-only score members', async () => {
+  it('manages score member names without showing roster-only members', async () => {
     const user = userEvent.setup();
     const config = createConfig();
     config.roster[0].name = '后台队员';
-    config.scoreMembers[0].name = 'Excel历史人物';
+    config.scoreMembers[0].name = '积分人物甲';
     const onChange = vi.fn();
 
     render(<ScoreEditorHarness initialConfig={config} onChange={onChange} />);
-    await user.click(screen.getByRole('tab', { name: '队员管理' }));
+    await user.click(screen.getByRole('tab', { name: '积分队员' }));
 
-    expect(screen.getByDisplayValue('后台队员')).toBeInTheDocument();
-    expect(screen.queryByDisplayValue('Excel历史人物')).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue('积分人物甲')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('后台队员')).not.toBeInTheDocument();
 
-    const input = screen.getByRole('textbox', { name: '队员 1 名称' });
+    const input = screen.getByRole('textbox', { name: '积分队员 1 名称' });
     await user.clear(input);
-    await user.type(input, '新后台名称');
+    await user.type(input, '新积分名称');
 
-    expect(onChange.mock.calls.at(-1)[0].roster[0].name).toBe('新后台名称');
+    expect(onChange.mock.calls.at(-1)[0].scoreMembers[0].name).toBe('新积分名称');
+    expect(onChange.mock.calls.at(-1)[0].roster[0].name).toBe('后台队员');
   });
 
-  it('adds and removes roster members from the score member manager', async () => {
+  it('adds and removes score members without touching the roster', async () => {
     const user = userEvent.setup();
     const config = createConfig();
     const onChange = vi.fn();
 
     render(<ScoreEditorHarness initialConfig={config} onChange={onChange} />);
-    await user.click(screen.getByRole('tab', { name: '队员管理' }));
-    await user.click(screen.getByRole('button', { name: '新增队员' }));
+    await user.click(screen.getByRole('tab', { name: '积分队员' }));
+    await user.click(screen.getByRole('button', { name: '新增积分队员' }));
 
-    expect(onChange.mock.calls.at(-1)[0].roster).toHaveLength(3);
-    expect(onChange.mock.calls.at(-1)[0].roster[2].signature).toBe('');
-    expect(screen.getByRole('textbox', { name: '队员 3 名称' })).toHaveValue('新队员');
+    const latest = onChange.mock.calls.at(-1)[0];
+    expect(latest.scoreMembers).toHaveLength(3);
+    expect(latest.scoreMembers[2].name).toBe('新积分队员');
+    expect(latest.scoreMembers[2].id).toMatch(/^score:/);
+    expect(latest.roster).toHaveLength(2);
+    expect(screen.getByRole('textbox', { name: '积分队员 3 名称' })).toHaveValue('新积分队员');
 
-    await user.click(screen.getByRole('button', { name: '删除队员 3' }));
+    await user.click(screen.getByRole('button', { name: '删除积分队员 3' }));
+    expect(onChange.mock.calls.at(-1)[0].scoreMembers).toHaveLength(2);
     expect(onChange.mock.calls.at(-1)[0].roster).toHaveLength(2);
   });
 
@@ -334,5 +339,23 @@ describe('ScoreEditor', () => {
 
     expect(await screen.findByRole('button', { name: '查看稳稳的依据' })).toHaveTextContent('+8 分');
     expect(screen.getByRole('tab', { name: '截图识别' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('keeps the screenshot recognition page state when switching tabs', async () => {
+    const user = userEvent.setup();
+    const config = createConfig();
+    render(<ScoreEditor config={config} onChange={() => {}} />);
+
+    await user.click(screen.getByRole('tab', { name: '截图识别' }));
+    await user.click(screen.getByRole('radio', { name: '排位赛' }));
+    expect(screen.getByRole('radio', { name: '排位赛' })).toBeChecked();
+
+    await user.click(screen.getByRole('tab', { name: '积分明细' }));
+    const panel = screen.getByTestId('score-recognition-panel');
+    expect(panel).toHaveClass('is-hidden');
+
+    await user.click(screen.getByRole('tab', { name: '截图识别' }));
+    expect(panel).not.toHaveClass('is-hidden');
+    expect(screen.getByRole('radio', { name: '排位赛' })).toBeChecked();
   });
 });

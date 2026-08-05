@@ -73,11 +73,11 @@ export function NewsDetailPage({ news, newsId }) {
             分享
           </button>
         </div>
+        <h1 id="news-detail-title">{item.title}</h1>
         <div className="news-modal-meta">
           <p className="eyebrow">{item.category}</p>
           <time dateTime={item.date}>{item.date}</time>
         </div>
-        <h1 id="news-detail-title">{item.title}</h1>
       </header>
 
       <img className="news-cover-image" src={item.imageSrc} alt={item.imageAlt} data-reveal />

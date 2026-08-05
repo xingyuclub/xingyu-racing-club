@@ -57,6 +57,7 @@ export default function App() {
     return (
       <>
         <main className="site-shell album-shell">
+          <Hero team={siteData.team} showMedia={false} />
           <AlbumPage albums={siteData.albums} onBack={goHome} onOpenPhoto={setSelectedPhoto} />
           <PhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} />
         </main>
@@ -72,6 +73,7 @@ export default function App() {
     return (
       <>
         <main className="site-shell album-shell">
+          <Hero team={siteData.team} showMedia={false} />
           {route.name === 'news' ? (
             <NewsPage
               news={siteData.news}
@@ -95,7 +97,11 @@ export default function App() {
       <main className="site-shell">
         <Hero team={siteData.team} />
         <StatsBar stats={siteData.stats} />
-        <FeaturedMembers members={siteData.featuredMembers} onSelect={setSelectedMember} />
+        <FeaturedMembers
+          members={siteData.featuredMembers}
+          onSelect={setSelectedMember}
+          paused={selectedMember !== null}
+        />
         <NewsFeed items={getHomeNews(siteData.news)} />
         <GalleryPreview
           photos={siteData.gallery}

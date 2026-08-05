@@ -7,6 +7,23 @@ import { createScoreRecognitionService } from './scoreRecognitionService.js';
 
 const SCORE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png']);
 const SCORE_RACE_TYPES = new Set(['team', 'ranked']);
+const SCREENSHOT_MAX_BYTES = 10 * 1024 * 1024;
+const SCREENSHOT_MAX_FILES = 20;
+
+function screenshotUploadError(message) {
+  return Object.assign(new Error(message), { statusCode: 400 });
+}
+
+function mapScreenshotUploadError(error) {
+  if (!(error instanceof multer.MulterError)) return error;
+  if (error.code === 'LIMIT_FILE_SIZE') {
+    return screenshotUploadError(`截图大小不能超过 ${SCREENSHOT_MAX_BYTES / 1024 / 1024}MB`);
+  }
+  if (error.code === 'LIMIT_FILE_COUNT' || error.code === 'LIMIT_UNEXPECTED_FILE') {
+    return screenshotUploadError(`一次最多上传 ${SCREENSHOT_MAX_FILES} 张截图`);
+  }
+  return screenshotUploadError('上传文件不符合要求，请通过“上传截图”选择 JPG/PNG 图片');
+}
 
 export function createScoreRecognitionRouter({
   configStore,
@@ -20,7 +37,7 @@ export function createScoreRecognitionRouter({
   const recognitionStore = createScoreRecognitionStore({ dataDir, storageDir, fileSystem });
   const screenshotUpload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 },
+    limits: { fileSize: SCREENSHOT_MAX_BYTES },
     fileFilter(_request, file, callback) {
       if (!SCORE_IMAGE_TYPES.has(file.mimetype)) {
         callback(Object.assign(new Error('截图仅支持 JPG 或 PNG'), { statusCode: 400 }));
@@ -43,8 +60,11 @@ export function createScoreRecognitionRouter({
   const router = Router();
 
   router.post('/batches', (request, response, next) => {
-    screenshotUpload.array('files', 20)(request, response, async (error) => {
-      if (error) return next(error);
+    screenshotUpload.array('files', SCREENSHOT_MAX_FILES)(request, response, async (error) => {
+      if (error) {
+        next(mapScreenshotUploadError(error));
+        return;
+      }
       try {
         const date = request.body?.date;
         if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {

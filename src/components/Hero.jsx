@@ -4,7 +4,7 @@ import GradientText from './GradientText.jsx';
 const HERO_GRADIENT_COLORS = ['#40ffaa', '#4079ff', '#a85cff', '#ff5e9f', '#40ffaa'];
 const DEFAULT_HERO_FALLBACK_IMAGE = '/images/hero-home.png';
 
-export function Hero({ team }) {
+export function Hero({ team, showMedia = true }) {
   const heroLines = Array.isArray(team.heroLines) && team.heroLines.length
     ? team.heroLines
     : [team.name];
@@ -43,6 +43,7 @@ export function Hero({ team }) {
           ))}
         </h1>
       </div>
+      {showMedia && (
       <section
         className={`hero-section${hasMedia ? '' : ' hero-section--empty'}`}
         aria-labelledby="team-title"
@@ -93,6 +94,7 @@ export function Hero({ team }) {
           <div className="hero-media" aria-hidden="true" />
         )}
       </section>
+      )}
     </div>
   );
 }

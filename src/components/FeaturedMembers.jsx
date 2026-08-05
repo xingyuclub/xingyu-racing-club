@@ -12,7 +12,7 @@ function getPosition(index, activeIndex, count) {
   return 'is-hidden';
 }
 
-export function FeaturedMembers({ members, onSelect }) {
+export function FeaturedMembers({ members, onSelect, paused = false }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [interactionKey, setInteractionKey] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -20,14 +20,14 @@ export function FeaturedMembers({ members, onSelect }) {
   const didSwipe = useRef(false);
 
   useEffect(() => {
-    if (isDragging || members.length < 2) return undefined;
+    if (paused || isDragging || members.length < 2) return undefined;
 
     const timer = window.setInterval(() => {
       setActiveIndex((index) => (index + 1) % members.length);
     }, 4000);
 
     return () => window.clearInterval(timer);
-  }, [interactionKey, isDragging, members.length]);
+  }, [interactionKey, isDragging, members.length, paused]);
 
   const selectIndex = (index) => {
     setActiveIndex((index + members.length) % members.length);

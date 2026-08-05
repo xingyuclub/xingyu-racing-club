@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ArrowDownWideNarrow } from 'lucide-react';
 import { hydrateSiteData } from '../data/siteConfig.js';
-import { buildScoreMemberMatcher, createScoreMemberId } from '../data/scoreRules.js';
 
 const clone = (value) => structuredClone(value);
 
@@ -37,20 +36,10 @@ export function WeekendScoreEditor({ config, onChange }) {
     date: getWeekendDate(monday, day.offset),
   }));
 
-  // 队员管理名单实时驱动：每个队员按归一化昵称解析到积分人物身份，
-  // 缺失时按名字生成确定性 ID，首次填写时再补建积分人物。
-  const memberRows = useMemo(() => {
-    const matcher = buildScoreMemberMatcher(config.scoreMembers || []);
-    return (config.roster || []).map((member) => {
-      const matched = matcher(member.name);
-      if (matched) return { ...member, scoreId: matched };
-      try {
-        return { ...member, scoreId: createScoreMemberId(member.name) };
-      } catch {
-        return { ...member, scoreId: `score:roster-${member.id}` };
-      }
-    });
-  }, [config.roster, config.scoreMembers]);
+  // 周末录入由积分榜人员名单独立驱动，与队员阵容互不影响。
+  const memberRows = useMemo(() =>
+    (config.scoreMembers || []).map((member) => ({ ...member, scoreId: member.id })),
+  [config.scoreMembers]);
 
   const scoresByDate = useMemo(() => {
     const map = new Map();
@@ -87,13 +76,8 @@ export function WeekendScoreEditor({ config, onChange }) {
   const updateField = (date, member, field, value) => {
     const next = clone(config);
     if (!Array.isArray(next.weekendScores)) next.weekendScores = [];
-    if (!Array.isArray(next.scoreMembers)) next.scoreMembers = [];
 
     const id = member.scoreId;
-    if (!next.scoreMembers.some((entry) => entry.id === id)) {
-      next.scoreMembers.push({ id, name: member.name, basePoints: 0, wins: 0 });
-    }
-
     let round = next.weekendScores.find((entry) => entry.date === date);
     if (!round) {
       round = { date, rows: [] };
