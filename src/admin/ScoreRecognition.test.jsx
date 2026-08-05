@@ -173,3 +173,18 @@ it('re-matches the current batch from stored observations', async () => {
   await waitFor(() => expect(screen.getByText('+9 分')).toBeInTheDocument());
   expect(fetchMock.mock.calls[1][0]).toContain('/rematch');
 });
+
+it('re-runs AI recognition on the stored screenshots', async () => {
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'batch-ready', date: '2026-08-03', raceType: 'team', status: 'ready', draft: validDraft }) })
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ ...validDraft, summary: [{ ...validDraft.summary[0], score: 10 }] }) });
+  vi.stubGlobal('fetch', fetchMock);
+
+  render(<ScoreRecognition config={config} initialBatchId="batch-ready" />);
+
+  const reprocessButton = await screen.findByRole('button', { name: /重新识别/ });
+  await userEvent.click(reprocessButton);
+
+  await waitFor(() => expect(screen.getByText('+10 分')).toBeInTheDocument());
+  expect(fetchMock.mock.calls[1][0]).toContain('/process');
+});

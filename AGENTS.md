@@ -2,7 +2,7 @@
 
 当前项目根目录：`C:\Users\Admin\Documents\H5`
 
-最后更新：2026-08-04
+最后更新：2026-08-05
 
 ## 项目一句话
 这是一个基于 Vite + React 的星屿车队移动端 H5，核心是首页展示、成员阵容、积分榜、资讯、相册和音乐浮窗。
@@ -189,3 +189,5 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 2026-08-04 已完成后台三项功能与识别批次清理：① 识别批次索引与存储已清空（9 个旧批次、8 个存储目录移除；已提交积分保留在 `site-config.json`，识别历史从空开始）；② 识别页与识别历史新增“重新匹配”按钮，不重新调 AI，从已存 observations 用当前匹配/别名规则重算草稿；③ 后台登录页新增“记住密码”勾选（存 `localStorage['xingyu-admin-remember']`，下次访问自动填充并尝试自动登录，取消勾选即清除）；④ 截图识别新增“一张截图含多场比赛”开关（AI 提示词按多场逐场提取，跨截图重复场次按内容签名自动跳过、不计分、提示“已自动跳过 N 场重复比赛”，不影响提交）。全量 24 个测试文件 371 项通过，构建通过；API 3000 与前端 4173 正常，rematch 路由未登录返回 401。测试环境注意：本机 `vite.config.js` 因 esbuild 目录权限无法直接加载，需用 `node tmp/run-tests.mjs`（inline config + `node_modules/.tmp-react-setup.js` 提供全局 React）跑测试、`node tmp/run-build.mjs` 跑构建。**该改动尚未提交**，待 `git add` + `git commit`
 - 2026-08-04 后台周末录入已改为实时跟随“队员管理”名单：`WeekendScoreEditor` 的成员列表改由 `config.roster` 驱动（登录获取新配置即刷新；队员管理增删改后同页切换即同步），每个队员按归一化昵称（`buildScoreMemberMatcher`，含 `ˣʸ༩·` 前缀剥离）解析到既有积分人物身份，缺失时按 `createScoreMemberId` 生成确定性 ID，首次填写时自动补建 `scoreMembers` 条目（满足 `weekendScores` 行必须引用已有积分人物的校验）；Excel 导入的历史非名单积分人物不再出现在周末录入表中，其数据仍保留在 `weekendScores` 并正常参与积分派生。前端排行榜已移除 Top-10 限制：`hydrateSiteData` 与 `Leaderboard` 不再 `slice(0, 10)`，首页积分榜显示最新积分日当天所有有分数的队员（seed 下 30 行）。`npm test` 24 个测试文件 373 项通过（触摸拖拽 `is-settling` 为既有偶发时序失败，重跑通过），`npm run build` 通过，前端 4173（preview 服务 dist）与 API 3000 正常。**该改动尚未提交**，待 `git add` + `git commit`
 - 2026-08-04 排行榜“仍只显示前 10”根因：服务端 `server/index.js` 的 `GET /api/config` 用同一 `src/data/siteConfig.js` 的 `hydrateSiteData` 预计算 `leaderboard`，代码已去 slice 但运行中的 node 进程（旧 PID 32868）内存仍是旧模块，重启后返回 21 项（最新积分日 2026-08-03 全部有分队员）。教训：改 `siteConfig.js` 后除前端刷新外，**必须重启 3000 的 API 进程**才会生效（前端 4173 页面数据来自 `/api/config`）。当前 API PID 47228（`node server/index.js`，非 dev，同时服务 dist）。改动已在提交 `edefe9c` 中，工作区干净
+
+- 2026-08-05 截图识别准确率排查与修复（识图不准 >50% 的根因已定位）：识别走本地 Ollama（模型 xingyu-score-recognition，qwen2.5vl:7b，127.0.0.1:11434）。旧提示词要求“无法确认昵称的行直接忽略”，模型对模糊行直接丢行——实测 9 图批次中 06.jpg 漏掉第 4 名“美人书”，导致该场参赛人数按 5 人计、其余 5 人分数全部偏低 1 分且漏行者 0 分。本轮修复：① 提示词改为“必须列出每一行、名次连续、昵称原样抄写不删减、忽略时间/分数/攻击/防御/援助等其他列”（server/lib/scoreRecognitionAi.js）；② 队内赛参赛人数改为取该场最高可见名次，漏中间行时其余成员仍按正确人数计分（server/lib/scoreRecognitionDraft.js）；③ 名次不连续时预览新增非阻塞“疑似漏行”警告（src/admin/RecognitionEvidence.jsx）；④ 后台新增“重新识别”按钮，复用已上传截图重新调 AI 提取（src/admin/ScoreRecognition.jsx，调用既有 POST /batches/:id/process）。改进提示词实测 9 图全部完整提取、名次 1-6 连续；全量 24 个测试文件 378 项通过，node tmp/run-build.mjs 构建通过。改动尚未提交。注意：改 server/lib/*.js 后必须重启 3000 API 进程生效；Ollama 需保持运行否则识别失败；已提交的 2026-08-03 数据中受旧漏行影响的成员（干就完了/十二/纤云/初心/浪漫/美人书）建议人工核对；本轮已把 API 以 HOST=0.0.0.0 重启在 3000（同时服务 dist 页面与 API，后台 http://127.0.0.1:3000/admin），4173 的 vite preview 因 esbuild 目录权限无法在本会话启动，需用户终端执行 npm run preview 恢复

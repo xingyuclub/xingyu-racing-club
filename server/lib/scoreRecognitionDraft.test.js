@@ -277,4 +277,63 @@ describe('buildRecognitionDraft', () => {
       expect.objectContaining({ id: 's1', name: 'ˣʸ༩·黑岩', score: 1 }),
     ]);
   });
+
+  it('counts a dropped middle row via the highest visible rank in team races', () => {
+    const draft = buildDraft({
+      matches: [{ participants: [
+        { nickname: '十二', rank: 1 },
+        { nickname: '路人甲', rank: 2 },
+        { nickname: '黑岩', rank: 3 },
+      ] }],
+      reviews: { 'i0-m0-p1': { ignored: true } },
+    });
+
+    // 最高名次为 3，即使第 2 名被标记为非车队成员也计入参赛人数
+    expect(draft.evidence.find((item) => item.id === 'i0-m0-p0')).toMatchObject({
+      memberId: 'roster-1',
+      score: 3,
+    });
+    expect(draft.evidence.find((item) => item.id === 'i0-m0-p2')).toMatchObject({
+      memberId: 'roster-2',
+      score: 1,
+    });
+    expect(draft.summary.find((item) => item.name === '十二').score).toBe(3);
+    expect(draft.summary.find((item) => item.name === '黑岩').score).toBe(1);
+  });
+
+  it('scores by the highest rank when the model drops an unreadable row', () => {
+    const draft = buildDraft({
+      matches: [{ participants: [
+        { nickname: '十二', rank: 1 },
+        { nickname: '黑岩', rank: 3 },
+        { nickname: '路人', rank: 5 },
+        { nickname: '初心', rank: 6 },
+      ] }],
+      reviews: { 'i0-m0-p2': { ignored: true } },
+    });
+
+    const twelve = draft.evidence.find((item) => item.id === 'i0-m0-p0');
+    const rock = draft.evidence.find((item) => item.id === 'i0-m0-p1');
+    expect(twelve.score).toBe(6);
+    expect(rock.score).toBe(4);
+    expect(draft.canCommit).toBe(false);
+    expect(draft.raceWarnings).toContainEqual({
+      imageIndex: 0,
+      matchIndex: 0,
+      missingRanks: [2, 4],
+      maxRank: 6,
+    });
+  });
+
+  it('does not warn about races with contiguous ranks', () => {
+    const draft = buildDraft({
+      matches: [{ participants: [
+        { nickname: '十二', rank: 1 },
+        { nickname: '黑岩', rank: 2 },
+      ] }],
+    });
+
+    expect(draft.raceWarnings).toEqual([]);
+  });
+
 });

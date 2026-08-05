@@ -23,6 +23,7 @@
 .score-recognition-multi{display:inline-flex!important;flex-direction:row!important;align-items:center;gap:6px;height:38px;margin:0;padding:0 12px;border:1px solid #aab4c0;border-radius:4px;background:#fff;color:#334155;font-weight:600;cursor:pointer;font-size:13px}
 .score-recognition-multi input{accent-color:#1d4ed8}
 .score-recognition-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.score-recognition-reprocess{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:10px 20px;border-radius:4px;background:#4338ca;color:#fff;font-weight:700;border:none;cursor:pointer}
 .score-recognition-rematch{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:10px 20px;border-radius:4px;background:#334155;color:#fff;font-weight:700;border:none;cursor:pointer}
 .score-recognition-rematch:disabled{opacity:.5;cursor:not-allowed}
 .recognition-duplicate-note{margin:0;padding:10px 12px;border-left:1px solid #2563eb;background:#eff6ff;color:#1d4ed8;font-size:13px}

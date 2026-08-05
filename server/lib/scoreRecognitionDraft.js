@@ -97,7 +97,10 @@ function scoreRaces(races, raceType) {
       const scores = scoreRankedRace({ teamRanks: members.map((item) => item.rank) });
       members.forEach((item, index) => { item.score = scores[index]; });
     } else {
-      const participantCount = race.evidence.length;
+      const ranks = race.evidence
+        .filter((item) => Number.isInteger(item.rank) && item.rank > 0)
+        .map((item) => item.rank);
+      const participantCount = ranks.length ? Math.max(...ranks) : 0;
       members.forEach((item) => {
         item.score = scoreTeamRace({ participantCount, rank: item.rank });
       });
@@ -176,6 +179,28 @@ export function buildRecognitionDraft({ batch, observations, reviews = {}, confi
   scoreRaces(races, batch.raceType);
   assignSlots(races, config, batch);
 
+  const raceWarnings = [];
+  for (const race of races) {
+    if (race.duplicate) continue;
+    const ranks = race.evidence
+      .filter((item) => Number.isInteger(item.rank) && item.rank > 0)
+      .map((item) => item.rank);
+    if (ranks.length === 0) continue;
+    const maxRank = Math.max(...ranks);
+    const missing = [];
+    for (let rank = 1; rank <= maxRank; rank += 1) {
+      if (!ranks.includes(rank)) missing.push(rank);
+    }
+    if (missing.length > 0) {
+      raceWarnings.push({
+        imageIndex: race.evidence[0]?.imageIndex ?? 0,
+        matchIndex: race.evidence[0]?.matchIndex ?? 0,
+        missingRanks: missing,
+        maxRank,
+      });
+    }
+  }
+
   return {
     batchId: batch.id,
     batchDate: batch.date,
@@ -184,6 +209,7 @@ export function buildRecognitionDraft({ batch, observations, reviews = {}, confi
     evidence: races.flatMap((race) => race.evidence).map(({ reviewedMemberId, ...item }) => item),
     summary: summarize(races),
     duplicateCount: races.filter((race) => race.duplicate).length,
+    raceWarnings,
     issues,
     canCommit: issues.length === 0,
   };

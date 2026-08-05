@@ -77,7 +77,11 @@ describe('score recognition AI adapter', () => {
     expect(request.messages[0].content).toContain('结算详情截图只有一场比赛');
     expect(request.messages[0].content).toContain('按“胜利”和“失败”分成两个队伍区域');
     expect(request.messages[0].content).toContain('最近比赛列表截图才按比赛卡片拆成多场');
-    expect(request.messages[0].content).not.toMatch(/日期|时间|MVP|胜负|地图/);
+    expect(request.messages[0].content).toContain('必须列出截图中每一个排名行，一行都不能漏');
+    expect(request.messages[0].content).toContain('连续递增，绝不能跳过名次');
+    expect(request.messages[0].content).toContain('绝不能把其他列的数字当作名次');
+    expect(request.messages[0].content).toContain('原样抄写整行，不要删减');
+    expect(request.messages[0].content).not.toMatch(/日期|MVP|胜负|地图/);
     expect(request.messages[0].content).not.toContain('十二、黑岩');
     expect(request.temperature).toBe(0);
     const schema = request.response_format.json_schema.schema;

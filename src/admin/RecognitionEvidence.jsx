@@ -139,6 +139,21 @@ export function RecognitionEvidence({ batchId, config, draft, busy, onReview }) 
         {draft.summary.length === 0 && <p className="recognition-empty">暂无可录入积分</p>}
       </section>
 
+      {draft.raceWarnings?.length > 0 && (
+        <section className="recognition-issues" aria-label="疑似漏行提示">
+          {draft.raceWarnings.map((warning, index) => (
+            <div key={`warning-${index}`} className="recognition-warning">
+              <strong>截图 {warning.imageIndex + 1} 名次不连续，疑似漏行</strong>
+              <ImageLink batchId={batchId} item={{ imageIndex: warning.imageIndex }} />
+              <span>
+                缺少第 {warning.missingRanks.join('、')} 名（最高名次 {warning.maxRank}）。
+                漏掉的成员不会被录入，其余成员按最高名次计分；请核对截图后处理。
+              </span>
+            </div>
+          ))}
+        </section>
+      )}
+
       {(draft.issues.length > 0 || warnings.length > 0) && (
         <section className="recognition-issues" aria-label="待处理识别项">
           {draft.issues.map((issue) => (

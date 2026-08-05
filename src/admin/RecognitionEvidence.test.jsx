@@ -97,4 +97,27 @@ describe('RecognitionEvidence', () => {
     expect(container.querySelector('.recognition-warning')).toBeInTheDocument();
     expect(container.querySelector('.recognition-warning')).not.toHaveClass('recognition-issue');
   });
+
+  it('shows a non-blocking warning when ranks are not contiguous', () => {
+    render(
+      <RecognitionEvidence
+        batchId="b1"
+        config={config}
+        draft={{
+          ...draft,
+          issues: [],
+          raceWarnings: [{ imageIndex: 0, matchIndex: 0, missingRanks: [4], maxRank: 6 }],
+        }}
+        busy={false}
+        onReview={vi.fn()}
+      />,
+    );
+
+    const warningRegion = screen.getByRole('region', { name: '疑似漏行提示' });
+    expect(within(warningRegion).getByText(/名次不连续，疑似漏行/)).toBeInTheDocument();
+    expect(within(warningRegion).getByText(/缺少第 4 名/)).toBeInTheDocument();
+    expect(within(warningRegion).getByRole('link', { name: '查看截图 1' }))
+      .toHaveAttribute('href', '/api/admin/score-recognition/batches/b1/images/0');
+  });
+
 });

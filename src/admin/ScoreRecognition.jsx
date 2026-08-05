@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Camera, CheckCircle2, Loader2, RefreshCw, Upload, XCircle } from 'lucide-react';
+import { Camera, CheckCircle2, Loader2, RefreshCw, ScanSearch, Upload, XCircle } from 'lucide-react';
 import {
   commitRecognitionBatch,
   getRecognitionBatch,
@@ -91,6 +91,18 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
     }
   };
 
+  const reprocess = async () => {
+    if (!batchId) return;
+    setStatus('processing');
+    setError('');
+    try {
+      setDraft(await processRecognitionBatch(batchId));
+      setStatus('ready');
+    } catch (next) {
+      setError(next.message);
+      setStatus('ready');
+    }
+  };
   const rematch = async () => {
     if (!batchId) return;
     setStatus('rematching');
@@ -210,6 +222,14 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
               onClick={rematch}
             >
               <RefreshCw aria-hidden="true" size={16} /> 重新匹配
+            </button>
+            <button
+              type="button"
+              className="score-recognition-reprocess"
+              disabled={status !== 'ready'}
+              onClick={reprocess}
+            >
+              <ScanSearch aria-hidden="true" size={16} /> 重新识别
             </button>
             <button
               type="button"
