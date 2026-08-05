@@ -29,3 +29,5 @@
 .recognition-duplicate-note{margin:0;padding:10px 12px;border-left:1px solid #2563eb;background:#eff6ff;color:#1d4ed8;font-size:13px}
 .admin-remember{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#475569;cursor:pointer}
 .admin-remember input{accent-color:#1d4ed8}
+.news-categories-field{margin-bottom:18px}.category-row{display:flex;gap:8px;align-items:center}.category-row input{flex:1;min-width:0}.category-row button{flex:0 0 auto}
+.recognition-race-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.recognition-race-label{display:block;margin-bottom:6px;color:#7f1d1d;font-size:12px;font-weight:700}.recognition-race-member{display:block;padding:2px 0;color:#7f1d1d;font-size:13px}

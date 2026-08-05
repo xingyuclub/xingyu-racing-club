@@ -69,6 +69,10 @@ export function createScoreRecognitionService({ ai, store, configStore }) {
       ...(change.memberId === undefined ? {} : { memberId: change.memberId }),
       ...(change.ignored === undefined ? {} : { ignored: change.ignored }),
     };
+    if (change.duplicate !== undefined || change.notDuplicate !== undefined) {
+      reviews[change.evidenceId].duplicate = change.duplicate === true;
+      reviews[change.evidenceId].notDuplicate = change.notDuplicate === true;
+    }
     const draft = buildRecognitionDraft({ batch, observations: batch.observations, reviews, config });
     await store.updateBatch(batchId, { reviews, draft });
     return draft;

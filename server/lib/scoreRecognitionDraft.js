@@ -19,8 +19,8 @@ function computeRosterVersion(config) {
 function buildRaces(observations, reviews) {
   return observations.flatMap((observation, observationIndex) => {
     const imageIndex = observation.imageIndex ?? observationIndex;
-    return (observation.matches || []).map((match, matchIndex) => ({
-      evidence: (match.participants || []).map((participant, participantIndex) => {
+    return (observation.matches || []).map((match, matchIndex) => {
+      const evidence = (match.participants || []).map((participant, participantIndex) => {
         const id = `i${imageIndex}-m${matchIndex}-p${participantIndex}`;
         const review = reviews[id] || {};
         return {
@@ -33,8 +33,14 @@ function buildRaces(observations, reviews) {
           ignored: review.ignored === true,
           reviewedMemberId: Object.hasOwn(review, 'memberId') ? review.memberId : undefined,
         };
-      }),
-    }));
+      });
+      const raceReview = reviews[evidence[0]?.id] || {};
+      return {
+        evidence,
+        reviewedDuplicate: raceReview.duplicate === true,
+        reviewedNotDuplicate: raceReview.notDuplicate === true,
+      };
+    });
   });
 }
 
@@ -63,6 +69,15 @@ function validateRaces(races) {
   const issues = [];
   for (const race of races) {
     if (race.duplicate) continue;
+    if (race.suspectedDuplicate) {
+      issues.push({
+        evidenceId: race.evidence[0]?.id,
+        code: 'suspected-duplicate',
+        imageIndex: race.evidence[0]?.imageIndex ?? 0,
+        matchIndex: race.evidence[0]?.matchIndex ?? 0,
+        duplicateOf: race.duplicateOf,
+      });
+    }
     const rankCounts = new Map();
     for (const item of race.evidence) {
       if (Number.isInteger(item.rank) && item.rank > 0) {
@@ -108,18 +123,41 @@ function scoreRaces(races, raceType) {
   }
 }
 
-function markDuplicates(races, batch) {
-  const seen = new Set();
+function markSuspectedDuplicates(races, batch) {
+  const seen = new Map();
   for (const race of races) {
     const signature = buildDuplicateSignature({
       date: batch.date,
       type: batch.raceType,
       participants: race.evidence,
     });
-    race.duplicate = seen.has(signature);
-    if (!race.duplicate) seen.add(signature);
+    const earlier = seen.get(signature);
+    race.suspectedDuplicate = Boolean(earlier);
+    race.duplicateOf = earlier
+      ? {
+          imageIndex: earlier.evidence[0]?.imageIndex ?? 0,
+          matchIndex: earlier.evidence[0]?.matchIndex ?? 0,
+        }
+      : undefined;
+    if (!earlier) seen.set(signature, race);
+    race.evidence.forEach((item) => {
+      item.suspectedDuplicate = race.suspectedDuplicate;
+      item.duplicateOf = race.duplicateOf;
+    });
+  }
+}
+
+function resolveDuplicates(races) {
+  for (const race of races) {
+    if (race.reviewedDuplicate || race.reviewedNotDuplicate) {
+      race.suspectedDuplicate = false;
+      race.duplicateOf = undefined;
+    }
+    race.duplicate = race.reviewedDuplicate;
     race.evidence.forEach((item) => {
       item.duplicate = race.duplicate;
+      item.suspectedDuplicate = race.suspectedDuplicate;
+      item.duplicateOf = race.duplicateOf;
     });
   }
 }
@@ -174,7 +212,8 @@ function summarize(races) {
 export function buildRecognitionDraft({ batch, observations, reviews = {}, config }) {
   const races = buildRaces(observations || [], reviews);
   matchMembers(races, config);
-  markDuplicates(races, batch);
+  markSuspectedDuplicates(races, batch);
+  resolveDuplicates(races);
   const issues = validateRaces(races);
   scoreRaces(races, batch.raceType);
   assignSlots(races, config, batch);
@@ -209,6 +248,7 @@ export function buildRecognitionDraft({ batch, observations, reviews = {}, confi
     evidence: races.flatMap((race) => race.evidence).map(({ reviewedMemberId, ...item }) => item),
     summary: summarize(races),
     duplicateCount: races.filter((race) => race.duplicate).length,
+    suspectedDuplicateCount: races.filter((race) => race.suspectedDuplicate).length,
     raceWarnings,
     issues,
     canCommit: issues.length === 0,

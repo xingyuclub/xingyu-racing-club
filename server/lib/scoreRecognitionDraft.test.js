@@ -165,7 +165,7 @@ describe('buildRecognitionDraft', () => {
     expect(draft.canCommit).toBe(true);
   });
 
-  it('marks duplicate races without consuming slots', () => {
+  it('keeps a suspected duplicate race scored until the reviewer resolves it', () => {
     const draft = buildDraft({
       matches: [
         { participants: [{ nickname: '十二', rank: 1 }] },
@@ -175,13 +175,60 @@ describe('buildRecognitionDraft', () => {
     });
     const twelve = draft.evidence.filter((item) => item.memberId === 'roster-1');
 
+    expect(draft.suspectedDuplicateCount).toBe(1);
+    expect(draft.duplicateCount).toBe(0);
+    expect(draft.canCommit).toBe(false);
+    expect(draft.issues).toContainEqual(expect.objectContaining({
+      code: 'suspected-duplicate',
+      evidenceId: 'i0-m1-p0',
+      duplicateOf: { imageIndex: 0, matchIndex: 0 },
+    }));
     expect(twelve.map((item) => [item.duplicate, item.slot]))
-      .toEqual([[false, 0], [true, undefined], [false, 1]]);
+      .toEqual([[false, 0], [false, 1], [false, 2]]);
+    expect(draft.summary.find((item) => item.name === '十二')).toMatchObject({
+      score: 3,
+      evidenceIds: ['i0-m0-p0', 'i0-m1-p0', 'i0-m2-p0'],
+    });
+  });
+
+  it('drops the later race when the reviewer confirms it is a duplicate', () => {
+    const draft = buildDraft({
+      matches: [
+        { participants: [{ nickname: '十二', rank: 1 }] },
+        { participants: [{ nickname: '十二', rank: 1 }] },
+      ],
+      reviews: { 'i0-m1-p0': { duplicate: true } },
+    });
+
+    expect(draft.duplicateCount).toBe(1);
+    expect(draft.suspectedDuplicateCount).toBe(0);
+    expect(draft.issues).toEqual([]);
+    expect(draft.canCommit).toBe(true);
+    expect(draft.evidence.filter((item) => item.memberId === 'roster-1')
+      .map((item) => [item.duplicate, item.slot]))
+      .toEqual([[false, 0], [true, undefined]]);
+    expect(draft.summary.find((item) => item.name === '十二')).toMatchObject({
+      score: 1,
+      evidenceIds: ['i0-m0-p0'],
+    });
+  });
+
+  it('keeps both races when the reviewer says they are different matches', () => {
+    const draft = buildDraft({
+      matches: [
+        { participants: [{ nickname: '十二', rank: 1 }] },
+        { participants: [{ nickname: '十二', rank: 1 }] },
+      ],
+      reviews: { 'i0-m1-p0': { notDuplicate: true } },
+    });
+
+    expect(draft.suspectedDuplicateCount).toBe(0);
+    expect(draft.issues).toEqual([]);
+    expect(draft.canCommit).toBe(true);
     expect(draft.summary.find((item) => item.name === '十二')).toMatchObject({
       score: 2,
-      evidenceIds: ['i0-m0-p0', 'i0-m2-p0'],
+      evidenceIds: ['i0-m0-p0', 'i0-m1-p0'],
     });
-    expect(draft.summary.map((item) => item.name)).toEqual(['黑岩', '十二']);
   });
 
   it('warns and skips a member already at the daily three-race limit', () => {
@@ -214,7 +261,7 @@ describe('buildRecognitionDraft', () => {
     });
   });
 
-  it('skips duplicate races across images without blocking commit', () => {
+  it('flags identical races across images for confirmation and blocks commit', () => {
     const draft = buildRecognitionDraft({
       batch: { id: 'b1', date: '2026-08-03', raceType: 'team' },
       observations: [
@@ -231,14 +278,18 @@ describe('buildRecognitionDraft', () => {
       config,
     });
 
-    expect(draft.duplicateCount).toBe(1);
-    expect(draft.issues).toEqual([]);
-    expect(draft.canCommit).toBe(true);
-    expect(draft.summary.map((member) => member.name).sort()).toEqual(['十二', '黑岩']);
-    expect(draft.evidence.find((item) => item.id === 'i1-m0-p0')).toMatchObject({ duplicate: true });
+    expect(draft.suspectedDuplicateCount).toBe(1);
+    expect(draft.issues).toContainEqual(expect.objectContaining({
+      code: 'suspected-duplicate',
+      evidenceId: 'i1-m0-p0',
+      duplicateOf: { imageIndex: 0, matchIndex: 0 },
+    }));
+    expect(draft.canCommit).toBe(false);
+    expect(draft.evidence.find((item) => item.id === 'i1-m0-p0'))
+      .toMatchObject({ duplicate: false, suspectedDuplicate: true });
   });
 
-  it('does not surface extra issues from a duplicate race', () => {
+  it('keeps the inner issues of a suspected race until the duplicate is resolved', () => {
     const draft = buildRecognitionDraft({
       batch: { id: 'b1', date: '2026-08-03', raceType: 'team' },
       observations: [
@@ -255,10 +306,13 @@ describe('buildRecognitionDraft', () => {
       config,
     });
 
-    expect(draft.duplicateCount).toBe(1);
-    expect(draft.issues).toEqual([{ evidenceId: 'i0-m0-p1', code: 'unmatched' }]);
-    expect(draft.evidence.find((item) => item.id === 'i1-m0-p1')).toMatchObject({ duplicate: true });
-    expect(draft.evidence.filter((item) => item.id.startsWith('i1-') && item.duplicate)).toHaveLength(2);
+    const codes = draft.issues.map((issue) => issue.code).sort();
+    expect(codes).toEqual(['suspected-duplicate', 'unmatched', 'unmatched']);
+    expect(draft.issues.filter((issue) => issue.code === 'unmatched')
+      .map((issue) => issue.evidenceId).sort())
+      .toEqual(['i0-m0-p1', 'i1-m0-p1']);
+    expect(draft.evidence.find((item) => item.id === 'i1-m0-p1'))
+      .toMatchObject({ duplicate: false, suspectedDuplicate: true });
   });
 
   it('matches OCR symbol noise by a unique Han nickname and scores one point', () => {

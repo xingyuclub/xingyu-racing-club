@@ -120,4 +120,58 @@ describe('RecognitionEvidence', () => {
       .toHaveAttribute('href', '/api/admin/score-recognition/batches/b1/images/0');
   });
 
+  it('asks the reviewer to resolve a suspected duplicate and sends the verdict', async () => {
+    const onReview = vi.fn();
+    const dupDraft = {
+      canCommit: false,
+      summary: [{ id: 'score-1', name: '十二', score: 8, evidenceIds: ['i0-m0-p0', 'i1-m0-p0'] }],
+      evidence: [
+        { id: 'i0-m0-p0', imageIndex: 0, matchIndex: 0, nickname: '十二', rank: 1, score: 4, slot: 0, memberId: 'roster-1', memberName: '十二' },
+        { id: 'i0-m0-p1', imageIndex: 0, matchIndex: 0, nickname: '黑岩', rank: 2, score: 1, slot: 0, memberId: 'roster-2', memberName: '黑岩' },
+        { id: 'i1-m0-p0', imageIndex: 1, matchIndex: 0, nickname: '十二', rank: 1, score: 4, slot: 1, memberId: 'roster-1', memberName: '十二' },
+        { id: 'i1-m0-p1', imageIndex: 1, matchIndex: 0, nickname: '黑岩', rank: 2, score: 1, slot: 1, memberId: 'roster-2', memberName: '黑岩' },
+      ],
+      issues: [{
+        evidenceId: 'i1-m0-p0', code: 'suspected-duplicate',
+        imageIndex: 1, matchIndex: 0, duplicateOf: { imageIndex: 0, matchIndex: 0 },
+      }],
+      suspectedDuplicateCount: 1,
+      duplicateCount: 0,
+    };
+    render(
+      <RecognitionEvidence
+        batchId="b1"
+        config={config}
+        draft={dupDraft}
+        busy={false}
+        onReview={onReview}
+      />,
+    );
+
+    expect(screen.getByText(/发现 1 场与同批其他截图人员、名次完全一致的比赛/))
+      .toBeInTheDocument();
+    expect(screen.getByText('人员和名次完全一致，疑似重复场次')).toBeInTheDocument();
+    expect(screen.getAllByText('第 1 名 十二')).toHaveLength(2);
+
+    await userEvent.click(screen.getByRole('button', { name: '确认是重复场次（跳过本场）' }));
+    expect(onReview).toHaveBeenCalledWith({ evidenceId: 'i1-m0-p0', duplicate: true });
+
+    await userEvent.click(screen.getByRole('button', { name: '这是不同场次（两场都保留）' }));
+    expect(onReview).toHaveBeenCalledWith({ evidenceId: 'i1-m0-p0', notDuplicate: true });
+  });
+
+  it('shows the confirmed-duplicate skip note separately', () => {
+    render(
+      <RecognitionEvidence
+        batchId="b1"
+        config={config}
+        draft={{ ...draft, duplicateCount: 2, suspectedDuplicateCount: 0 }}
+        busy={false}
+        onReview={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('已确认跳过 2 场重复比赛。')).toBeInTheDocument();
+  });
+
 });

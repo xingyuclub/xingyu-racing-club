@@ -119,6 +119,46 @@ describe('score recognition service', () => {
     });
   });
 
+  it('blocks commit on suspected duplicates and resolves them by review', async () => {
+    const { service, store } = setupService({
+      aiResponses: [
+        [{ participants: [
+          { nickname: '稳稳', rank: 1 },
+          { nickname: '闪电', rank: 2 },
+        ] }],
+        [{ participants: [
+          { nickname: '稳稳', rank: 1 },
+          { nickname: '闪电', rank: 2 },
+        ] }],
+      ],
+      config: baseConfig(),
+    });
+    await createBatch(store, {
+      files: [
+        { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
+        { name: 'b.jpg', bytes: Buffer.from([2]), mimeType: 'image/jpeg' },
+      ],
+    });
+
+    const first = await service.previewBatch('b1');
+    expect(first.suspectedDuplicateCount).toBe(1);
+    expect(first.canCommit).toBe(false);
+    await expect(service.commitBatch('b1', first.rosterVersion)).rejects.toThrow(/无法提交/);
+
+    const distinct = await service.reviewBatch('b1', {
+      evidenceId: 'i1-m0-p0', notDuplicate: true,
+    });
+    expect(distinct.suspectedDuplicateCount).toBe(0);
+    expect(distinct.canCommit).toBe(true);
+    expect((await store.readBatch('b1')).reviews['i1-m0-p0'].notDuplicate).toBe(true);
+
+    const duplicate = await service.reviewBatch('b1', {
+      evidenceId: 'i1-m0-p0', duplicate: true,
+    });
+    expect(duplicate.duplicateCount).toBe(1);
+    expect(duplicate.canCommit).toBe(true);
+  });
+
   it('allows an unmatched participant to be explicitly ignored', async () => {
     const { service, store } = setupService({
       aiResponses: [[{ participants: [

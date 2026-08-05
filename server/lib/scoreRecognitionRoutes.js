@@ -105,7 +105,7 @@ export function createScoreRecognitionRouter({
 
   router.put('/batches/:id/review', async (request, response, next) => {
     try {
-      const { evidenceId, rank, memberId, ignored } = request.body || {};
+      const { evidenceId, rank, memberId, ignored, duplicate, notDuplicate } = request.body || {};
       if (typeof evidenceId !== 'string' || !evidenceId) {
         return response.status(400).json({ error: '缺少证据 ID' });
       }
@@ -118,11 +118,17 @@ export function createScoreRecognitionRouter({
       if (ignored !== undefined && typeof ignored !== 'boolean') {
         return response.status(400).json({ error: '忽略状态无效' });
       }
+      if ((duplicate !== undefined && typeof duplicate !== 'boolean')
+        || (notDuplicate !== undefined && typeof notDuplicate !== 'boolean')) {
+        return response.status(400).json({ error: '重复判定无效' });
+      }
       response.json(await getService().reviewBatch(request.params.id, {
         evidenceId,
         rank,
         memberId,
         ignored,
+        duplicate,
+        notDuplicate,
       }));
     } catch (error) { next(error); }
   });
