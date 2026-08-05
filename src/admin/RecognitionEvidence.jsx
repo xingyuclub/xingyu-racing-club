@@ -184,14 +184,19 @@ export function RecognitionEvidence({ batchId, config, draft, busy, onReview }) 
 
   return (
     <div className="recognition-review">
+      {draft.autoDistinctCount > 0 && (
+        <p className="recognition-duplicate-note" role="status">
+          有 {draft.autoDistinctCount} 场人员与名次相同但数值不同的比赛，已按不同场次自动保留。
+        </p>
+      )}
       {draft.suspectedDuplicateCount > 0 && (
         <p className="recognition-duplicate-note" role="status">
-          发现 {draft.suspectedDuplicateCount} 场与同批其他截图人员、名次完全一致的比赛，请确认是同一场还是不同场次后再提交。
+          发现 {draft.suspectedDuplicateCount} 场与同批其他截图人员、名次完全一致且缺少数值列的比赛，请确认是同一场还是不同场次后再提交。
         </p>
       )}
       {draft.duplicateCount > 0 && (
         <p className="recognition-duplicate-note" role="status">
-          已确认跳过 {draft.duplicateCount} 场重复比赛。
+          已跳过 {draft.duplicateCount} 场重复比赛（内容完全一致）。
         </p>
       )}
       <section className="recognition-summary" aria-label="人物积分汇总">

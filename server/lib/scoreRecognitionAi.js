@@ -20,6 +20,12 @@ function validateMatch(match, index) {
       throw new Error(`${pPath}.rank ${participant.rank} is duplicated within ${path}`);
     }
     seenRanks.add(participant.rank);
+    for (const key of ['score', 'attack', 'defense', 'assist']) {
+      if (participant[key] !== undefined
+        && (!Number.isInteger(participant[key]) || participant[key] < 0)) {
+        throw new Error(`${pPath}.${key} must be a non-negative integer`);
+      }
+    }
   });
 }
 
@@ -37,7 +43,8 @@ function buildPrompt({ multiMatch }) {
     '名次是从 1 开始的整数，从上到下必须连续递增，绝不能跳过名次。',
     '必须列出截图中每一个排名行，一行都不能漏：即使某行昵称被遮挡或看不清，也要输出该行，并把昵称写成你确实看到的部分。',
     '昵称里的车队前缀（如 xy、xy/、xy2、xyr、xyf、xy♂ 等）和其他符号请原样抄写整行，不要删减。',
-    '除玩家昵称和游戏名次之外的其他信息（时间、分数、攻击、防御、援助等）一律忽略，绝不能把其他列的数字当作名次。',
+    '每行还要按结算表抄写该玩家的数值列：score 是 MVP分列、attack 是攻击列、defense 是防御列、assist 是援助列，都必须是整数；看不清或该列不存在时省略该字段，绝不能把其他列的数字当作名次。',
+    '时间列和除上述数值列以外的其他列一律忽略。',
     '不计算积分，不要根据成员名单猜测昵称。',
     '只输出 JSON，不要解释文字。',
   ];
@@ -71,6 +78,10 @@ const RESPONSE_FORMAT = {
                   properties: {
                     nickname: { type: 'string', minLength: 1 },
                     rank: { type: 'integer', minimum: 1 },
+                    score: { type: 'integer', minimum: 0 },
+                    attack: { type: 'integer', minimum: 0 },
+                    defense: { type: 'integer', minimum: 0 },
+                    assist: { type: 'integer', minimum: 0 },
                   },
                 },
               },

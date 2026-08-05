@@ -81,7 +81,8 @@ describe('score recognition AI adapter', () => {
     expect(request.messages[0].content).toContain('连续递增，绝不能跳过名次');
     expect(request.messages[0].content).toContain('绝不能把其他列的数字当作名次');
     expect(request.messages[0].content).toContain('原样抄写整行，不要删减');
-    expect(request.messages[0].content).not.toMatch(/日期|MVP|胜负|地图/);
+    expect(request.messages[0].content).toContain('score 是 MVP分列');
+    expect(request.messages[0].content).not.toMatch(/日期|胜负|地图/);
     expect(request.messages[0].content).not.toContain('十二、黑岩');
     expect(request.temperature).toBe(0);
     const schema = request.response_format.json_schema.schema;
@@ -93,6 +94,10 @@ describe('score recognition AI adapter', () => {
     expect(matchSchema.required).toEqual(['participants']);
     expect(matchSchema.additionalProperties).toBe(false);
     expect(Object.keys(matchSchema.properties)).toEqual(['participants']);
+    expect(Object.keys(matchSchema.properties.participants.items.properties)).toEqual([
+      'nickname', 'rank', 'score', 'attack', 'defense', 'assist',
+    ]);
+    expect(matchSchema.properties.participants.items.required).toEqual(['nickname', 'rank']);
   });
 
   it('asks for every match in the image when multiMatch is enabled', async () => {
@@ -150,6 +155,30 @@ describe('score recognition AI adapter', () => {
     const ai = createAi(client);
     await expect(ai.extractMatches({ imageBytes: Buffer.from([]), mimeType: 'image/jpeg' }))
       .rejects.toThrow(/rank/);
+  });
+
+  it('rejects a non-integer numeric column value', async () => {
+    const client = createFakeClient({
+      matches: [{
+        participants: [{ nickname: 'A', rank: 1, score: 1.5 }],
+      }],
+    });
+    const ai = createAi(client);
+    await expect(ai.extractMatches({ imageBytes: Buffer.from([]), mimeType: 'image/jpeg' }))
+      .rejects.toThrow(/score/);
+  });
+
+  it('accepts optional numeric columns when present', async () => {
+    const client = createFakeClient({
+      matches: [{
+        participants: [{ nickname: 'A', rank: 1, score: 15, attack: 12, defense: 0, assist: 3 }],
+      }],
+    });
+    const ai = createAi(client);
+    await expect(ai.extractMatches({ imageBytes: Buffer.from([]), mimeType: 'image/jpeg' }))
+      .resolves.toEqual([{
+        participants: [{ nickname: 'A', rank: 1, score: 15, attack: 12, defense: 0, assist: 3 }],
+      }]);
   });
 
   it('rejects negative ranks', async () => {

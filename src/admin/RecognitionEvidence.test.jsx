@@ -148,7 +148,7 @@ describe('RecognitionEvidence', () => {
       />,
     );
 
-    expect(screen.getByText(/发现 1 场与同批其他截图人员、名次完全一致的比赛/))
+    expect(screen.getByText(/发现 1 场与同批其他截图人员、名次完全一致且缺少数值列的比赛/))
       .toBeInTheDocument();
     expect(screen.getByText('人员和名次完全一致，疑似重复场次')).toBeInTheDocument();
     expect(screen.getAllByText('第 1 名 十二')).toHaveLength(2);
@@ -171,7 +171,22 @@ describe('RecognitionEvidence', () => {
       />,
     );
 
-    expect(screen.getByText('已确认跳过 2 场重复比赛。')).toBeInTheDocument();
+    expect(screen.getByText('已跳过 2 场重复比赛（内容完全一致）。')).toBeInTheDocument();
+  });
+
+  it('notes same-roster races with different numbers that were kept automatically', () => {
+    render(
+      <RecognitionEvidence
+        batchId="b1"
+        config={config}
+        draft={{ ...draft, autoDistinctCount: 2 }}
+        busy={false}
+        onReview={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('有 2 场人员与名次相同但数值不同的比赛，已按不同场次自动保留。'))
+      .toBeInTheDocument();
   });
 
 });

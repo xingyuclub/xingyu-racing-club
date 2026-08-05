@@ -4,6 +4,7 @@ import {
   buildMemberMatcher,
   buildScoreMemberMatcher,
   createScoreMemberId,
+  hasRaceDiscriminator,
   scoreRankedRace,
   scoreTeamRace,
 } from '../../src/data/scoreRules.js';
@@ -30,6 +31,10 @@ function buildRaces(observations, reviews) {
           participantIndex,
           nickname: participant.nickname,
           rank: Object.hasOwn(review, 'rank') ? review.rank : participant.rank,
+          score: participant.score,
+          attack: participant.attack,
+          defense: participant.defense,
+          assist: participant.assist,
           ignored: review.ignored === true,
           reviewedMemberId: Object.hasOwn(review, 'memberId') ? review.memberId : undefined,
         };
@@ -126,34 +131,60 @@ function scoreRaces(races, raceType) {
 function markSuspectedDuplicates(races, batch) {
   const seen = new Map();
   for (const race of races) {
-    const signature = buildDuplicateSignature({
+    const contentSignature = buildDuplicateSignature({
+      date: batch.date,
+      type: batch.raceType,
+      participants: race.evidence.map((item) => ({ nickname: item.nickname, rank: item.rank })),
+    });
+    const fullSignature = buildDuplicateSignature({
       date: batch.date,
       type: batch.raceType,
       participants: race.evidence,
     });
-    const earlier = seen.get(signature);
-    race.suspectedDuplicate = Boolean(earlier);
-    race.duplicateOf = earlier
-      ? {
+    const earlier = seen.get(contentSignature);
+    if (earlier) {
+      const bothDiscriminated = hasRaceDiscriminator(race.evidence)
+        && hasRaceDiscriminator(earlier.evidence);
+      if (bothDiscriminated && fullSignature === earlier.fullSignature) {
+        // 人员、名次、数值列全部一致：确认为同一场，自动跳过
+        race.autoDuplicate = true;
+      } else if (bothDiscriminated) {
+        // 人员名次相同但数值不同：确认为不同场次，自动保留
+        race.autoDistinct = true;
+      } else {
+        // 缺数值列无法自动判断：交给人工确认
+        race.suspectedDuplicate = true;
+        race.duplicateOf = {
           imageIndex: earlier.evidence[0]?.imageIndex ?? 0,
           matchIndex: earlier.evidence[0]?.matchIndex ?? 0,
-        }
-      : undefined;
-    if (!earlier) seen.set(signature, race);
+        };
+      }
+    } else {
+      seen.set(contentSignature, { evidence: race.evidence, fullSignature });
+    }
+  }
+  for (const race of races) {
     race.evidence.forEach((item) => {
-      item.suspectedDuplicate = race.suspectedDuplicate;
+      item.suspectedDuplicate = race.suspectedDuplicate === true;
       item.duplicateOf = race.duplicateOf;
+      item.autoDuplicate = race.autoDuplicate === true;
+      item.autoDistinct = race.autoDistinct === true;
     });
   }
 }
 
 function resolveDuplicates(races) {
   for (const race of races) {
-    if (race.reviewedDuplicate || race.reviewedNotDuplicate) {
+    const duplicate = race.reviewedDuplicate
+      ? true
+      : race.reviewedNotDuplicate
+        ? false
+        : race.autoDuplicate === true;
+    if (duplicate || race.reviewedNotDuplicate) {
       race.suspectedDuplicate = false;
       race.duplicateOf = undefined;
     }
-    race.duplicate = race.reviewedDuplicate;
+    race.duplicate = duplicate;
     race.evidence.forEach((item) => {
       item.duplicate = race.duplicate;
       item.suspectedDuplicate = race.suspectedDuplicate;
@@ -249,6 +280,7 @@ export function buildRecognitionDraft({ batch, observations, reviews = {}, confi
     summary: summarize(races),
     duplicateCount: races.filter((race) => race.duplicate).length,
     suspectedDuplicateCount: races.filter((race) => race.suspectedDuplicate).length,
+    autoDistinctCount: races.filter((race) => race.autoDistinct).length,
     raceWarnings,
     issues,
     canCommit: issues.length === 0,

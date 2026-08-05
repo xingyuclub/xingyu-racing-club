@@ -3,6 +3,7 @@ import {
   assignMemberSlots,
   buildScoreMemberMatcher,
   buildDuplicateSignature,
+  hasRaceDiscriminator,
   buildMemberMatcher,
   createScoreMemberId,
   extractHanCharacters,
@@ -276,6 +277,42 @@ describe('buildDuplicateSignature', () => {
       participants: [{ nickname: 'A', rank: 5 }],
     });
     expect(left).not.toBe(right);
+  });
+
+  it('includes per-player numeric columns so identical ranks with different stats differ', () => {
+    const plain = buildDuplicateSignature({
+      date: '2026-07-27',
+      type: 'team',
+      participants: [{ nickname: 'A', rank: 1 }, { nickname: 'B', rank: 2 }],
+    });
+    const scored = buildDuplicateSignature({
+      date: '2026-07-27',
+      type: 'team',
+      participants: [
+        { nickname: 'A', rank: 1, score: 15, attack: 12 },
+        { nickname: 'B', rank: 2, score: 11, attack: 9 },
+      ],
+    });
+    const sameScored = buildDuplicateSignature({
+      date: '2026-07-27',
+      type: 'team',
+      participants: [
+        { nickname: 'B', rank: 2, attack: 9, score: 11 },
+        { nickname: 'A', rank: 1, score: 15, attack: 12 },
+      ],
+    });
+    expect(plain).not.toBe(scored);
+    expect(sameScored).toBe(scored);
+  });
+});
+
+describe('hasRaceDiscriminator', () => {
+  it('is true when any participant carries a numeric column', () => {
+    expect(hasRaceDiscriminator([{ nickname: 'A', rank: 1, attack: 9 }])).toBe(true);
+  });
+
+  it('is false when no participant carries a numeric column', () => {
+    expect(hasRaceDiscriminator([{ nickname: 'A', rank: 1 }])).toBe(false);
   });
 });
 

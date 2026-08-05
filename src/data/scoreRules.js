@@ -79,9 +79,26 @@ export function scoreRankedRace({ teamRanks }) {
   return scores;
 }
 
+const DISCRIMINATOR_KEYS = ['score', 'attack', 'defense', 'assist'];
+
+function participantSignature(participant) {
+  const parts = [normalizeNickname(participant.nickname), participant.rank];
+  for (const key of DISCRIMINATOR_KEYS) {
+    if (Number.isFinite(participant[key])) parts.push(`${key}=${participant[key]}`);
+  }
+  return parts.join(':');
+}
+
+// 是否至少有一个玩家带数值列（得分/攻击/防御/援助），有数值才能做自动判重。
+export function hasRaceDiscriminator(participants) {
+  return (participants || []).some((participant) => (
+    DISCRIMINATOR_KEYS.some((key) => Number.isFinite(participant[key]))
+  ));
+}
+
 export function buildDuplicateSignature({ date, type, participants }) {
   const entries = participants
-    .map((participant) => `${normalizeNickname(participant.nickname)}:${participant.rank}`)
+    .map(participantSignature)
     .sort()
     .join('|');
   return `${date}::${type}::${entries}`;

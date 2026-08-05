@@ -231,6 +231,58 @@ describe('buildRecognitionDraft', () => {
     });
   });
 
+  it('keeps same-roster races with different numbers as distinct automatically', () => {
+    const draft = buildDraft({
+      matches: [
+        { participants: [{ nickname: '十二', rank: 1, score: 15, attack: 12 }] },
+        { participants: [{ nickname: '十二', rank: 1, score: 9, attack: 4 }] },
+      ],
+    });
+
+    expect(draft.autoDistinctCount).toBe(1);
+    expect(draft.suspectedDuplicateCount).toBe(0);
+    expect(draft.duplicateCount).toBe(0);
+    expect(draft.issues).toEqual([]);
+    expect(draft.canCommit).toBe(true);
+    expect(draft.summary.find((item) => item.name === '十二')).toMatchObject({
+      score: 2,
+      evidenceIds: ['i0-m0-p0', 'i0-m1-p0'],
+    });
+  });
+
+  it('auto-drops an identical race when content and numbers match', () => {
+    const draft = buildDraft({
+      matches: [
+        { participants: [{ nickname: '十二', rank: 1, score: 15, attack: 12 }] },
+        { participants: [{ nickname: '十二', rank: 1, score: 15, attack: 12 }] },
+      ],
+    });
+
+    expect(draft.duplicateCount).toBe(1);
+    expect(draft.suspectedDuplicateCount).toBe(0);
+    expect(draft.autoDistinctCount).toBe(0);
+    expect(draft.issues).toEqual([]);
+    expect(draft.canCommit).toBe(true);
+    expect(draft.summary.find((item) => item.name === '十二')).toMatchObject({
+      score: 1,
+      evidenceIds: ['i0-m0-p0'],
+    });
+  });
+
+  it('falls back to manual confirmation when numbers are missing on one side', () => {
+    const draft = buildDraft({
+      matches: [
+        { participants: [{ nickname: '十二', rank: 1, score: 15 }] },
+        { participants: [{ nickname: '十二', rank: 1 }] },
+      ],
+    });
+
+    expect(draft.suspectedDuplicateCount).toBe(1);
+    expect(draft.autoDistinctCount).toBe(0);
+    expect(draft.duplicateCount).toBe(0);
+    expect(draft.canCommit).toBe(false);
+  });
+
   it('warns and skips a member already at the daily three-race limit', () => {
     const draft = buildDraft({
       matches: [{ participants: [{ nickname: '十二', rank: 1 }] }],
