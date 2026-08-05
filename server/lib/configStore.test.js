@@ -12,7 +12,7 @@ describe('config store', () => {
   const backupFile = 'site-config.json.bak';
   const candidateFile = 'site-config.json.next';
   const stagedBackupFile = 'site-config.json.bak.next';
-  const rawTopLevelKeys = ['team', 'stats', 'roster', 'scoreMembers', 'albums', 'dailyScores', 'weekendScores', 'memberAliases', 'news', 'music'];
+  const rawTopLevelKeys = ['team', 'stats', 'roster', 'scoreMembers', 'albums', 'dailyScores', 'weekendScores', 'memberAliases', 'news', 'newsCategories', 'music'];
 
   let tempDir;
   let dataDir;
@@ -179,6 +179,23 @@ describe('config store', () => {
     expect(migrated.roster[0]).not.toHaveProperty('points');
     expect(migrated.dailyScores[0]).not.toHaveProperty('weekday');
     expect(migrated.dailyScores[0].rows[0]).toEqual(current.dailyScores[0].rows[0]);
+    await expect(readFile(join(dataDir, backupFile), 'utf8')).resolves.toBe(legacyJson);
+  });
+
+  it('migrates legacy news with pinned defaults and derived categories on read', async () => {
+    const store = await createConfigStore({ dataDir });
+    const config = await store.read();
+    const legacy = structuredClone(config);
+    delete legacy.newsCategories;
+    legacy.news = legacy.news.map(({ pinned, ...item }) => item);
+    const legacyJson = `${JSON.stringify(legacy, null, 2)}\n`;
+    await writeFile(join(dataDir, activeFile), legacyJson);
+
+    const migratedStore = await createConfigStore({ dataDir });
+    const migrated = await migratedStore.read();
+
+    expect(migrated.news.map((item) => item.pinned)).toEqual(legacy.news.map(() => false));
+    expect(migrated.newsCategories).toEqual(['公告', '动态', '战报']);
     await expect(readFile(join(dataDir, backupFile), 'utf8')).resolves.toBe(legacyJson);
   });
 
@@ -660,6 +677,25 @@ describe('config store', () => {
       'an invalid news field',
       (config) => (config.news[0].body = ''),
       'news[0].body must be a non-empty string',
+    ],    [
+      'a non-boolean news pinned flag',
+      (config) => (config.news[0].pinned = 'yes'),
+      'news[0].pinned must be a boolean',
+    ],
+    [
+      'a non-array news category list',
+      (config) => (config.newsCategories = null),
+      'newsCategories must be an array',
+    ],
+    [
+      'an empty news category',
+      (config) => (config.newsCategories = ['公告', ' ']),
+      'newsCategories[1] must be a non-empty string',
+    ],
+    [
+      'a duplicate news category',
+      (config) => (config.newsCategories = ['公告', '公告']),
+      'newsCategories[1] must be unique',
     ],
     [
       'an invalid score date',

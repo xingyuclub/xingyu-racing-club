@@ -31,8 +31,24 @@ const createRawMember = (member, sortedScores) => {
 };
 
 export function migrateRawConfig(input) {
-  const { team, stats, roster, scoreMembers, albums, dailyScores, weekendScores, memberAliases, news, music } = clone(input);
+  const { team, stats, roster, scoreMembers, albums, dailyScores, weekendScores, memberAliases, news, newsCategories, music } = clone(input);
   const sortedScores = [...dailyScores].sort((left, right) => left.date.localeCompare(right.date));
+  const normalizedNews = (Array.isArray(news) ? news : []).map((item) => ({
+    pinned: false,
+    ...item,
+  }));
+  const derivedCategories = [
+    ...new Set(
+      normalizedNews
+        .map((item) => item?.category)
+        .filter((category) => typeof category === 'string' && category.trim().length > 0),
+    ),
+  ];
+  const normalizedNewsCategories = Array.isArray(newsCategories)
+    ? newsCategories
+    : derivedCategories.length > 0
+      ? derivedCategories
+      : ['公告', '活动'];
   const normalizedRoster = roster.map((member) => ({
     ...createRawMember(member, sortedScores),
     signature: typeof member.signature === 'string' ? member.signature : '',
@@ -76,11 +92,11 @@ export function migrateRawConfig(input) {
     })),
     weekendScores: Array.isArray(weekendScores) ? weekendScores : [],
     memberAliases: Array.isArray(memberAliases) ? memberAliases : [],
-    news,
+    news: normalizedNews,
+    newsCategories: normalizedNewsCategories,
     music,
   };
 }
-
 export function createSeedConfig() {
   return migrateRawConfig({
     ...teamData,
@@ -137,4 +153,36 @@ export function hydrateSiteData(rawConfig) {
     latestScoreDate: latestDate,
     dailyScores,
   };
+}
+
+export function parseNewsDate(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const parts = value
+    .trim()
+    .replace(/[./年月]/g, '-')
+    .replace(/日/g, '')
+    .split('-')
+    .filter((part) => part.length > 0)
+    .map(Number);
+  if (parts.length !== 3 || parts.some((part) => !Number.isFinite(part))) return null;
+  const date = new Date(parts[0], parts[1] - 1, parts[2]);
+  return Number.isNaN(date.getTime()) ? null : date.getTime();
+}
+
+export function sortNewsByDateDesc(news) {
+  return [...news].sort((left, right) => {
+    const leftTime = parseNewsDate(left.date);
+    const rightTime = parseNewsDate(right.date);
+    if (leftTime !== null && rightTime !== null) return rightTime - leftTime;
+    if (leftTime !== null) return -1;
+    if (rightTime !== null) return 1;
+    return 0;
+  });
+}
+
+export function getHomeNews(news, { pinnedLimit = 5, fallbackLimit = 3 } = {}) {
+  const list = Array.isArray(news) ? news : [];
+  const pinned = list.filter((item) => item.pinned).slice(0, pinnedLimit);
+  if (pinned.length > 0) return pinned;
+  return sortNewsByDateDesc(list).slice(0, fallbackLimit);
 }

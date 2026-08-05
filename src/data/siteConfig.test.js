@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createSeedConfig, hydrateSiteData, migrateRawConfig } from './siteConfig.js';
+import { createSeedConfig, getHomeNews, hydrateSiteData, migrateRawConfig, parseNewsDate } from './siteConfig.js';
 import { teamData } from './teamData.js';
 
 describe('site configuration', () => {
@@ -127,6 +127,7 @@ describe('site configuration', () => {
       'memberAliases',
       'music',
       'news',
+      'newsCategories',
       'roster',
       'scoreMembers',
       'stats',
@@ -399,5 +400,66 @@ describe('site configuration', () => {
       { id: 'score-a', rank: 3, name: 'ˣʸ༩·青山', points: 50 },
     ]);
     expect(data.latestScoreDate).toBe('2026-08-02');
+  });
+});
+
+describe('news pinning and categories', () => {
+  it('defaults legacy news to unpinned and preserves explicit pinning', () => {
+    const legacy = structuredClone(teamData);
+    legacy.news = legacy.news.map(({ pinned, ...item }) => item);
+    expect(migrateRawConfig(legacy).news.map((item) => item.pinned)).toEqual([false, false, false]);
+
+    legacy.news[1].pinned = true;
+    expect(migrateRawConfig(legacy).news[1].pinned).toBe(true);
+  });
+
+  it('derives news categories from existing news when missing', () => {
+    const legacy = structuredClone(teamData);
+    delete legacy.newsCategories;
+
+    expect(migrateRawConfig(legacy).newsCategories).toEqual(['公告', '动态', '战报']);
+  });
+
+  it('defaults to 公告 and 活动 when no news supplies categories', () => {
+    const legacy = structuredClone(teamData);
+    delete legacy.newsCategories;
+    legacy.news = [];
+
+    expect(migrateRawConfig(legacy).newsCategories).toEqual(['公告', '活动']);
+  });
+
+  it('keeps an explicitly configured category list', () => {
+    const input = structuredClone(teamData);
+    input.newsCategories = ['公告', '活动'];
+
+    expect(migrateRawConfig(input).newsCategories).toEqual(['公告', '活动']);
+  });
+
+  it('shows up to five pinned news in config order', () => {
+    const news = Array.from({ length: 6 }, (_, index) => ({
+      ...teamData.news[0],
+      id: `n${index + 1}`,
+      title: `置顶 ${index + 1}`,
+      pinned: true,
+    }));
+
+    expect(getHomeNews(news).map((item) => item.id)).toEqual(['n1', 'n2', 'n3', 'n4', 'n5']);
+  });
+
+  it('falls back to the latest three news when nothing is pinned', () => {
+    const news = [
+      { ...teamData.news[0], id: 'a', date: '2026.7.1', pinned: false },
+      { ...teamData.news[1], id: 'b', date: '2026-08-01', pinned: false },
+      { ...teamData.news[2], id: 'c', date: '2026.7.15', pinned: false },
+      { ...teamData.news[0], id: 'd', date: '2026-07-20', pinned: false },
+    ];
+
+    expect(getHomeNews(news).map((item) => item.id)).toEqual(['b', 'd', 'c']);
+  });
+
+  it('parses dot, dash, and slash style news dates', () => {
+    expect(parseNewsDate('2026.8.1')).toBe(parseNewsDate('2026-08-01'));
+    expect(parseNewsDate('2026/8/1')).toBe(parseNewsDate('2026-08-01'));
+    expect(parseNewsDate('x')).toBeNull();
   });
 });

@@ -11,6 +11,7 @@ import { PhotoModal } from './components/PhotoModal.jsx';
 import { FeaturedMembers } from './components/FeaturedMembers.jsx';
 import { Roster } from './components/Roster.jsx';
 import { NewsFeed } from './components/NewsFeed.jsx';
+import { NewsDetailPage } from './components/NewsDetailPage.jsx';
 
 const globalStyles = readFileSync('src/styles/global.css', 'utf8');
 
@@ -896,10 +897,6 @@ describe('App', () => {
     expect(screen.getByRole('dialog')).toHaveAttribute('data-entrance');
     await user.keyboard('{Escape}');
 
-    await user.click(screen.getAllByRole('button', { name: /查看资讯/ })[0]);
-    expect(screen.getByRole('dialog')).toHaveAttribute('data-entrance');
-    await user.keyboard('{Escape}');
-
     await user.click(screen.getByRole('button', { name: '查找' }));
     expect(screen.getByRole('dialog')).toHaveAttribute('data-entrance');
   });
@@ -1086,51 +1083,125 @@ describe('App', () => {
     expect(container.querySelectorAll('sup.ordinal-suffix')[1]).toHaveTextContent('rd');
   });
 
-  it('opens a news detail with text and image', async () => {
-    const user = userEvent.setup();
+  it('shows only pinned news on the home page, capped at five', async () => {
+    const config = {
+      ...teamData,
+      music: { src: '/audio/launch-now.mp3', cover: '/images/music-avatar.png' },
+      news: Array.from({ length: 6 }, (_, index) => ({
+        ...teamData.news[0],
+        id: `pinned-${index + 1}`,
+        title: `置顶资讯 ${index + 1}`,
+        pinned: true,
+      })),
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => config }));
+
     render(<App />);
 
-    expect(screen.getAllByTestId('news-image')).toHaveLength(teamData.news.length);
-
-    await user.click(screen.getByRole('button', { name: '查看资讯 赛季积分榜更新' }));
-    const dialog = screen.getByRole('dialog');
-
-    expect(within(dialog).getByRole('heading', { name: '赛季积分榜更新' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('img', { name: '赛季积分榜更新资讯图' })).toBeInTheDocument();
-    expect(dialog).toHaveTextContent(teamData.news[0].summary);
-
-    await user.click(screen.getByRole('button', { name: '关闭资讯弹窗' }));
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(await screen.findByText('置顶资讯 1')).toBeInTheDocument();
+    expect(screen.getAllByTestId('news-image')).toHaveLength(5);
+    expect(screen.queryByText('置顶资讯 6')).not.toBeInTheDocument();
   });
 
-  it('renders rich news content with links and multiple inline images', async () => {
+  it('falls back to the latest three news when nothing is pinned', async () => {
+    const config = {
+      ...teamData,
+      music: { src: '/audio/launch-now.mp3', cover: '/images/music-avatar.png' },
+      news: [
+        { ...teamData.news[0], id: 'a', title: '旧闻 A', date: '2026.7.1', pinned: false },
+        { ...teamData.news[1], id: 'b', title: '新闻 B', date: '2026-08-01', pinned: false },
+        { ...teamData.news[2], id: 'c', title: '新闻 C', date: '2026.7.15', pinned: false },
+        { ...teamData.news[0], id: 'd', title: '新闻 D', date: '2026-07-20', pinned: false },
+      ],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => config }));
+
+    render(<App />);
+
+    expect(await screen.findByText('新闻 B')).toBeInTheDocument();
+    expect(screen.getAllByTestId('news-image')).toHaveLength(3);
+    const newsRegion = screen.getByRole('region', { name: '车队动态' });
+    expect(within(newsRegion).getAllByRole('heading', { level: 3 }).map((node) => node.textContent)).toEqual(['新闻 B', '新闻 D', '新闻 C']);
+  });
+
+  it('opens the news list page and filters by category tabs', async () => {
     const user = userEvent.setup();
+    const config = {
+      ...teamData,
+      music: { src: '/audio/launch-now.mp3', cover: '/images/music-avatar.png' },
+      news: [
+        { ...teamData.news[0], id: 'n1', title: '公告新闻', category: '公告', pinned: false },
+        { ...teamData.news[1], id: 'n2', title: '活动新闻', category: '活动', pinned: false },
+        { ...teamData.news[2], id: 'n3', title: '其他新闻', category: '动态', pinned: false },
+      ],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => config }));
+
+    render(<App />);
+
+    await user.click(await screen.findByRole('link', { name: '查看更多新闻' }));
+    expect(window.location.hash).toBe('#news');
+    expect(await screen.findByRole('tab', { name: '全部' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '公告' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '活动' })).toBeInTheDocument();
+    expect(screen.getAllByTestId('news-image')).toHaveLength(3);
+
+    await user.click(screen.getByRole('tab', { name: '活动' }));
+    expect(screen.getAllByTestId('news-image')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: '查看资讯 活动新闻' })).toBeInTheDocument();
+    expect(screen.queryByText('公告新闻')).not.toBeInTheDocument();
+  });
+
+  it('opens a news detail page and copies its share link', async () => {
+    const user = userEvent.setup();
+    const config = { ...teamData, music: { src: '/audio/launch-now.mp3', cover: '/images/music-avatar.png' }, news: [{ ...teamData.news[0], pinned: true }] };
+    const writeText = vi.fn().mockResolvedValue();
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => config }));
+
+    try {
+      render(<App />);
+
+      await user.click(await screen.findByRole('link', { name: '查看资讯 赛季积分榜更新' }));
+      expect(window.location.hash).toBe(`#news/${teamData.news[0].id}`);
+      expect(await screen.findByRole('heading', { name: '赛季积分榜更新' })).toBeInTheDocument();
+      expect(screen.getByRole('img', { name: '赛季积分榜更新资讯图' })).toBeInTheDocument();
+      expect(screen.getByText(teamData.news[0].summary)).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: '分享' }));
+      expect(writeText).toHaveBeenCalledWith(expect.stringContaining('#news/'));
+      expect(await screen.findByRole('status')).toHaveTextContent('链接已复制，去微信粘贴分享吧');
+    } finally {
+      delete navigator.clipboard;
+    }
+  });
+
+  it('renders rich news content with links and multiple inline images', () => {
     const item = {
       ...teamData.news[0],
       bodyHtml: '<h2>比赛规则</h2><p style="color:#ff0000;font-family:SimHei;font-size:20px"><strong>重点</strong></p><ul><li>第一局</li></ul><a href="https://example.com" target="_blank" rel="noopener noreferrer">规则链接</a><img src="/uploads/a.jpg" alt="正文图一"><img src="/uploads/b.jpg" alt="正文图二">',
     };
-    render(<NewsFeed items={[item]} />);
+    render(<NewsDetailPage news={[item]} newsId={item.id} />);
 
-    await user.click(screen.getByRole('button', { name: `查看资讯 ${item.title}` }));
-    const dialog = screen.getByRole('dialog');
-
-    expect(within(dialog).getByRole('heading', { name: '比赛规则' })).toBeInTheDocument();
-    expect(within(dialog).getByText('重点').closest('p')).toHaveAttribute('style', expect.stringContaining('font-family:SimHei'));
-    expect(within(dialog).getByRole('list')).toHaveTextContent('第一局');
-    expect(within(dialog).getByRole('link', { name: '规则链接' })).toHaveAttribute('rel', 'noopener noreferrer');
-    expect(within(dialog).getByRole('img', { name: '正文图一' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('img', { name: '正文图二' })).toBeInTheDocument();
-    expect(dialog.querySelector('.news-article-content')).toBeInTheDocument();
-    expect(within(dialog).getByText(item.date)).toHaveAttribute('datetime', item.date);
+    expect(screen.getByRole('heading', { name: '比赛规则' })).toBeInTheDocument();
+    expect(screen.getByText('重点').closest('p')).toHaveAttribute('style', expect.stringContaining('font-family:SimHei'));
+    expect(screen.getByRole('list')).toHaveTextContent('第一局');
+    expect(screen.getByRole('link', { name: '规则链接' })).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(screen.getByRole('img', { name: '正文图一' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: '正文图二' })).toBeInTheDocument();
+    expect(screen.getByText(item.date)).toHaveAttribute('datetime', item.date);
   });
 
-  it('falls back to the legacy plain news body', async () => {
-    const user = userEvent.setup();
-    render(<NewsFeed items={[teamData.news[0]]} />);
+  it('falls back to the legacy plain news body on the detail page', () => {
+    render(<NewsDetailPage news={[teamData.news[0]]} newsId={teamData.news[0].id} />);
 
-    await user.click(screen.getByRole('button', { name: `查看资讯 ${teamData.news[0].title}` }));
+    const legacy = screen.getByText((content, element) => element?.classList?.contains('news-article-legacy'));
+    expect(legacy).toHaveTextContent(teamData.news[0].body);
+  });
 
-    expect(screen.getByRole('dialog')).toHaveTextContent(teamData.news[0].body);
-    expect(screen.getByRole('dialog').querySelector('.news-article-legacy')).toBeInTheDocument();
+  it('shows an empty state for a missing news id', () => {
+    render(<NewsDetailPage news={teamData.news} newsId="missing" />);
+    expect(screen.getByRole('heading', { name: '资讯不存在' })).toBeInTheDocument();
+    expect(screen.getByText('该资讯不存在或已删除')).toBeInTheDocument();
   });
 });

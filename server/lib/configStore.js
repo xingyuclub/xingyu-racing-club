@@ -13,7 +13,7 @@ const isValidDateKey = (value) => {
   const date = new Date(year, month - 1, day);
   return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
 };
-const rawTopLevelKeys = ['team', 'stats', 'roster', 'scoreMembers', 'albums', 'dailyScores', 'weekendScores', 'memberAliases', 'news', 'music'];
+const rawTopLevelKeys = ['team', 'stats', 'roster', 'scoreMembers', 'albums', 'dailyScores', 'weekendScores', 'memberAliases', 'news', 'newsCategories', 'music'];
 const rawTopLevelKeySet = new Set(rawTopLevelKeys);
 
 function rejectUnexpectedTopLevelKeys(config) {
@@ -266,6 +266,26 @@ function validateConfig(config) {
       );
       if (item.bodyHtml !== undefined && typeof item.bodyHtml !== 'string') {
         details.push(`${path}.bodyHtml must be a string`);
+      }
+      if (item.pinned !== undefined && typeof item.pinned !== 'boolean') {
+        details.push(`${path}.pinned must be a boolean`);
+      }
+    }
+  }
+
+  if (!Array.isArray(config.newsCategories)) {
+    details.push('newsCategories must be an array');
+  } else {
+    const seenNewsCategories = new Set();
+    for (let index = 0; index < config.newsCategories.length; index += 1) {
+      const category = config.newsCategories[index];
+      const path = `newsCategories[${index}]`;
+      if (!isNonEmptyString(category)) {
+        details.push(`${path} must be a non-empty string`);
+      } else if (seenNewsCategories.has(category.trim())) {
+        details.push(`${path} must be unique`);
+      } else {
+        seenNewsCategories.add(category.trim());
       }
     }
   }

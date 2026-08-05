@@ -116,6 +116,7 @@ export const teamData = {
   roster,
   albums,
   gallery,
+  newsCategories: ['公告', '活动'],
   dailyScores,
   leaderboard: roster
     .map((member) => ({
@@ -129,6 +130,7 @@ export const teamData = {
   news: [
     {
       id: 'news-01',
+      pinned: true,
       title: '赛季积分榜更新',
       category: '公告',
       date: '2026-07-25',

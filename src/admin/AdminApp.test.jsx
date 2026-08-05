@@ -259,3 +259,32 @@ it('clears remembered credentials when the checkbox is unchecked', async () => {
   expect(localStorage.getItem('xingyu-admin-remember')).toBeNull();
 });
 
+it('toggles a news pinned flag and edits the category list', async () => {
+  const user = userEvent.setup();
+  const config = createSeedConfig();
+  config.news[0].pinned = false;
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
+
+  render(<ConfigEditor initialConfig={config} onAuthError={() => false} />);
+
+  await user.click(screen.getByRole('button', { name: '展开 新闻管理' }));
+
+  const newsSection = screen.getByRole('heading', { name: '新闻管理' }).closest('section');
+  expect(within(newsSection).getAllByPlaceholderText('分类名称')).toHaveLength(2);
+  await user.click(within(newsSection).getByRole('button', { name: '新增分类' }));
+  const categoryInputs = within(newsSection).getAllByPlaceholderText('分类名称');
+  expect(categoryInputs).toHaveLength(3);
+  await user.type(categoryInputs.at(-1), '赛事');
+
+  await user.click(screen.getByRole('button', { name: '展开 赛季积分榜更新' }));
+  const pin = within(newsSection).getByLabelText('置顶');
+  expect(pin).not.toBeChecked();
+  await user.click(pin);
+  expect(pin).toBeChecked();
+
+  await user.click(screen.getByRole('button', { name: '保存全部配置' }));
+
+  const savedConfig = JSON.parse(fetch.mock.calls.at(-1)[1].body);
+  expect(savedConfig.news[0].pinned).toBe(true);
+  expect(savedConfig.newsCategories).toEqual(['公告', '活动', '赛事']);
+});
