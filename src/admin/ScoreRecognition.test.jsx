@@ -18,7 +18,10 @@ const validDraft = {
   batchDate: '2026-08-01',
 };
 
-const config = { roster: [{ id: '1', name: '稳稳' }] };
+const config = {
+  roster: [{ id: '1', name: '稳稳' }],
+  scoreMembers: [{ id: '1', name: '稳稳' }],
+};
 
 it('uploads screenshots and processes them into a preview', async () => {
   const onCommitted = vi.fn();
@@ -174,17 +177,21 @@ it('re-matches the current batch from stored observations', async () => {
   expect(fetchMock.mock.calls[1][0]).toContain('/rematch');
 });
 
-it('re-runs AI recognition on the stored screenshots', async () => {
+it('re-runs AI recognition only for the warning screenshot', async () => {
+  const warningDraft = {
+    ...validDraft,
+    raceWarnings: [{ imageIndex: 0, matchIndex: 0, missingRanks: [3], maxRank: 6 }],
+  };
   const fetchMock = vi.fn()
-    .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'batch-ready', date: '2026-08-03', raceType: 'team', status: 'ready', draft: validDraft }) })
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'batch-ready', date: '2026-08-03', raceType: 'team', status: 'ready', draft: warningDraft }) })
     .mockResolvedValueOnce({ ok: true, json: async () => ({ ...validDraft, summary: [{ ...validDraft.summary[0], score: 10 }] }) });
   vi.stubGlobal('fetch', fetchMock);
 
   render(<ScoreRecognition config={config} initialBatchId="batch-ready" />);
 
-  const reprocessButton = await screen.findByRole('button', { name: /重新识别/ });
+  const reprocessButton = await screen.findByRole('button', { name: '重新识别截图 1' });
   await userEvent.click(reprocessButton);
 
   await waitFor(() => expect(screen.getByText('+10 分')).toBeInTheDocument());
-  expect(fetchMock.mock.calls[1][0]).toContain('/process');
+  expect(fetchMock.mock.calls[1][0]).toContain('/images/0/reprocess');
 });

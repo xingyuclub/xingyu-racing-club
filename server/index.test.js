@@ -526,6 +526,46 @@ describe('score recognition API', () => {
     expect(rematched.body.issues).toEqual([{ evidenceId: 'i0-m0-p1', code: 'unmatched' }]);
   });
 
+  it('reprocesses one screenshot and supports manual participant add/remove', async () => {
+    const matches = [{ participants: [
+      { nickname: '成员 01', rank: 1 },
+      { nickname: '成员 02', rank: 3 },
+    ] }];
+    const { app } = await createRecognitionFixture({ aiClient: createFakeAiClient(matches) });
+    const { agent } = await loginAsAdmin(app);
+    const upload = await agent
+      .post('/api/admin/score-recognition/batches')
+      .field('date', '2026-08-01')
+      .field('raceType', 'team')
+      .attach('files', jpgBytes, { filename: 'shot.jpg', contentType: 'image/jpeg' })
+      .expect(201);
+    const url = '/api/admin/score-recognition/batches/' + upload.body.id;
+    const processed = await agent.post(url + '/process').expect(200);
+    expect(processed.body.raceWarnings).toEqual([expect.objectContaining({ missingRanks: [2] })]);
+
+    const reprocessed = await agent.post(url + '/images/0/reprocess').expect(200);
+    expect(reprocessed.body.raceWarnings).toEqual([expect.objectContaining({ missingRanks: [2] })]);
+
+    const config = await agent.get('/api/admin/config').expect(200);
+    const manual = await agent.post(url + '/manual-participants')
+      .send({
+        imageIndex: 0,
+        matchIndex: 0,
+        nickname: '成员 03',
+        rank: 2,
+        scoreMemberId: config.body.scoreMembers[2].id,
+      })
+      .expect(200);
+    expect(manual.body.raceWarnings).toEqual([]);
+    const manualEvidence = manual.body.evidence.find((item) => item.manual);
+    expect(manualEvidence).toMatchObject({ nickname: '成员 03', rank: 2 });
+
+    const removed = await agent
+      .delete(url + '/manual-participants/' + manualEvidence.manualEntryId)
+      .expect(200);
+    expect(removed.body.raceWarnings).toEqual([expect.objectContaining({ missingRanks: [2] })]);
+  });
+
   it('stores and passes a multi-match flag into the AI prompt', async () => {
     const prompts = [];
     const { app } = await createRecognitionFixture({

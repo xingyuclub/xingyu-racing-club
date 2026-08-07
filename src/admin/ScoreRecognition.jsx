@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react';
 import { Camera, CheckCircle2, Loader2, RefreshCw, ScanSearch, Upload, XCircle } from 'lucide-react';
 import {
   commitRecognitionBatch,
+  addManualRecognitionParticipant,
   getRecognitionBatch,
   processRecognitionBatch,
+  removeManualRecognitionParticipant,
+  reprocessRecognitionImage,
   rematchRecognitionBatch,
   reviewRecognitionEvidence,
   uploadRecognitionBatch,
@@ -20,7 +23,7 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
   const [draft, setDraft] = useState(null);
   const [batchId, setBatchId] = useState(null);
   const [error, setError] = useState('');
-  const controlsDisabled = ['loading', 'uploading', 'processing', 'rematching', 'reviewing', 'committing'].includes(status);
+  const controlsDisabled = ['loading', 'uploading', 'processing', 'reprocessing-image', 'rematching', 'reviewing', 'adding-manual', 'removing-manual', 'committing'].includes(status);
 
   useEffect(() => {
     if (!initialBatchId) return undefined;
@@ -97,6 +100,42 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
     setError('');
     try {
       setDraft(await processRecognitionBatch(batchId));
+      setStatus('ready');
+    } catch (next) {
+      setError(next.message);
+      setStatus('ready');
+    }
+  };
+  const reprocessImage = async (imageIndex) => {
+    if (!batchId) return;
+    setStatus('reprocessing-image');
+    setError('');
+    try {
+      setDraft(await reprocessRecognitionImage(batchId, imageIndex));
+      setStatus('ready');
+    } catch (next) {
+      setError(next.message);
+      setStatus('ready');
+    }
+  };
+  const addManual = async (entry) => {
+    if (!batchId) return;
+    setStatus('adding-manual');
+    setError('');
+    try {
+      setDraft(await addManualRecognitionParticipant(batchId, entry));
+      setStatus('ready');
+    } catch (next) {
+      setError(next.message);
+      setStatus('ready');
+    }
+  };
+  const removeManual = async (entryId) => {
+    if (!batchId) return;
+    setStatus('removing-manual');
+    setError('');
+    try {
+      setDraft(await removeManualRecognitionParticipant(batchId, entryId));
       setStatus('ready');
     } catch (next) {
       setError(next.message);
@@ -197,10 +236,10 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
         </div>
       )}
 
-      {(status === 'loading' || status === 'uploading' || status === 'processing' || status === 'rematching' || status === 'committing') && (
+      {(status === 'loading' || status === 'uploading' || status === 'processing' || status === 'reprocessing-image' || status === 'rematching' || status === 'adding-manual' || status === 'removing-manual' || status === 'committing') && (
         <div className="score-recognition-loading">
           <Loader2 aria-hidden="true" size={16} className="spin" />
-          {status === 'loading' ? '读取批次中…' : status === 'processing' ? '识别中…' : status === 'rematching' ? '重新匹配中…' : status === 'committing' ? '提交中…' : '上传中…'}
+          {status === 'loading' ? '读取批次中…' : status === 'processing' ? '识别中…' : status === 'reprocessing-image' ? '重新识别当前截图中…' : status === 'rematching' ? '重新匹配中…' : status === 'adding-manual' ? '保存人工补录中…' : status === 'removing-manual' ? '删除人工补录中…' : status === 'committing' ? '提交中…' : '上传中…'}
         </div>
       )}
 
@@ -210,8 +249,11 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
             batchId={batchId}
             config={config}
             draft={draft}
-            busy={status === 'reviewing'}
+            busy={status !== 'ready'}
             onReview={review}
+            onReprocessImage={reprocessImage}
+            onAddManual={addManual}
+            onRemoveManual={removeManual}
           />
           {error && <div className="admin-error" role="alert"><XCircle aria-hidden="true" size={16} /> {error}</div>}
           <div className="score-recognition-actions">
@@ -229,7 +271,7 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
               disabled={status !== 'ready'}
               onClick={reprocess}
             >
-              <ScanSearch aria-hidden="true" size={16} /> 重新识别
+              <ScanSearch aria-hidden="true" size={16} /> 重新识别全部截图
             </button>
             <button
               type="button"

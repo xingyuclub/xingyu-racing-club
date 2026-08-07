@@ -212,6 +212,20 @@ describe('score recognition service', () => {
     expect(batch.reviews).toEqual({});
   });
 
+  it('passes the configured team name and short label to nickname recognition', async () => {
+    const { service, store, ai } = setupService({
+      aiResponses: [[{ participants: [{ nickname: '稳稳', rank: 1 }] }]],
+      config: baseConfig({ team: { name: '星\u2060屿车队' } }),
+    });
+    await createBatch(store);
+
+    await service.previewBatch('b1');
+
+    expect(ai.extractMatches).toHaveBeenCalledWith(expect.objectContaining({
+      teamLabels: ['星屿车队', '星屿'],
+    }));
+  });
+
   it('recalculates after ignored, member, and rank reviews', async () => {
     const { service, store } = setupService({
       aiResponses: [[{ participants: [
@@ -255,6 +269,67 @@ describe('score recognition service', () => {
     await service.previewBatch('b1');
     const batch = await store.readBatch('b1');
     expect(batch.reviews).toEqual({ 'i0-m0-p1': { ignored: true } });
+  });
+
+  it('reprocesses only the selected image and clears only that image reviews', async () => {
+    const { service, store, ai } = setupService({
+      aiResponses: [
+        [{ participants: [{ nickname: '稳稳', rank: 1 }] }],
+        [{ participants: [{ nickname: '闪电', rank: 1 }] }],
+        [{ participants: [{ nickname: '闪电', rank: 2 }] }],
+      ],
+    });
+    await createBatch(store, { files: [
+      { name: 'one.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
+      { name: 'two.jpg', bytes: Buffer.from([2]), mimeType: 'image/jpeg' },
+    ] });
+    await service.previewBatch('b1');
+    await store.updateBatch('b1', {
+      reviews: {
+        'i0-m0-p0': { rank: 2 },
+        'i1-m0-p0': { rank: 3 },
+      },
+    });
+
+    const draft = await service.reprocessImage('b1', 1);
+    const batch = await store.readBatch('b1');
+
+    expect(ai.extractMatches).toHaveBeenCalledTimes(3);
+    expect(batch.observations[0].matches[0].participants[0].rank).toBe(1);
+    expect(batch.observations[1].matches[0].participants[0].rank).toBe(2);
+    expect(batch.reviews).toEqual({ 'i0-m0-p0': { rank: 2 } });
+    expect(draft.evidence.find((item) => item.imageIndex === 1).rank).toBe(2);
+  });
+
+  it('adds and removes a manual participant from one race', async () => {
+    const { service, store } = setupService({
+      aiResponses: [[{ participants: [
+        { nickname: '稳稳', rank: 1 },
+        { nickname: '路人', rank: 3 },
+      ] }]],
+    });
+    await createBatch(store);
+    await service.previewBatch('b1');
+    await service.reviewBatch('b1', { evidenceId: 'i0-m0-p1', ignored: true });
+
+    const added = await service.addManualParticipant('b1', {
+      imageIndex: 0,
+      matchIndex: 0,
+      nickname: '闪电',
+      rank: 2,
+      scoreMemberId: 's2',
+    });
+    const manual = added.evidence.find((item) => item.manual);
+
+    expect(added.raceWarnings).toEqual([]);
+    expect(manual).toMatchObject({
+      nickname: '闪电', rank: 2, scoreMemberId: 's2', manual: true,
+    });
+    expect(added.summary.find((item) => item.id === 's2')).toMatchObject({ score: 2 });
+
+    const removed = await service.removeManualParticipant('b1', manual.manualEntryId);
+    expect(removed.raceWarnings).toEqual([expect.objectContaining({ missingRanks: [2] })]);
+    expect(removed.evidence.some((item) => item.manual)).toBe(false);
   });
 
   it('reviews an unmatched result against a score identity directly', async () => {

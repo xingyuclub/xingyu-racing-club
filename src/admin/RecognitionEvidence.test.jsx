@@ -158,7 +158,9 @@ describe('RecognitionEvidence', () => {
     expect(onReview).toHaveBeenCalledWith({ imageIndex: 2, duplicate: true });
   });
 
-  it('shows a non-blocking warning when ranks are not contiguous', () => {
+  it('reprocesses only the warning image and allows a manual participant', async () => {
+    const onReprocessImage = vi.fn();
+    const onAddManual = vi.fn();
     render(
       <RecognitionEvidence
         batchId="b1"
@@ -170,14 +172,63 @@ describe('RecognitionEvidence', () => {
         }}
         busy={false}
         onReview={vi.fn()}
+        onReprocessImage={onReprocessImage}
+        onAddManual={onAddManual}
       />,
     );
 
     const warningRegion = screen.getByRole('region', { name: '疑似漏行提示' });
     expect(within(warningRegion).getByText(/名次不连续，疑似漏行/)).toBeInTheDocument();
     expect(within(warningRegion).getByText(/缺少第 4 名/)).toBeInTheDocument();
+    expect(within(warningRegion).getByText(/可以只重识别这张截图.*人工补录/)).toBeInTheDocument();
     expect(within(warningRegion).getByRole('link', { name: '查看截图 1' }))
       .toHaveAttribute('href', '/api/admin/score-recognition/batches/b1/images/0');
+    await userEvent.click(within(warningRegion).getByRole('button', { name: '重新识别截图 1' }));
+    expect(onReprocessImage).toHaveBeenCalledWith(0);
+
+    await userEvent.type(within(warningRegion).getByLabelText('截图 1 补录昵称'), '赴约·太困');
+    await userEvent.clear(within(warningRegion).getByLabelText('截图 1 补录名次'));
+    await userEvent.type(within(warningRegion).getByLabelText('截图 1 补录名次'), '4');
+    await userEvent.selectOptions(
+      within(warningRegion).getByLabelText('截图 1 补录积分人物'),
+      'score-3',
+    );
+    await userEvent.click(within(warningRegion).getByRole('button', { name: '添加人工记录' }));
+    expect(onAddManual).toHaveBeenCalledWith({
+      imageIndex: 0,
+      matchIndex: 0,
+      nickname: '赴约·太困',
+      rank: 4,
+      scoreMemberId: 'score-3',
+    });
+  });
+
+  it('shows manual entries with a delete action', async () => {
+    const onRemoveManual = vi.fn();
+    render(
+      <RecognitionEvidence
+        batchId="b1"
+        config={config}
+        draft={{
+          ...draft,
+          issues: [],
+          raceWarnings: [],
+          evidence: [{
+            id: 'manual-manual-1', manual: true, manualEntryId: 'manual-1',
+            imageIndex: 0, matchIndex: 0, nickname: '路人', rank: 2, ignored: true,
+          }],
+          summary: [],
+        }}
+        busy={false}
+        onReview={vi.fn()}
+        onRemoveManual={onRemoveManual}
+      />,
+    );
+
+    const manualRegion = screen.getByRole('region', { name: '人工补录记录' });
+    expect(within(manualRegion).getByText(/第 2 名 路人/)).toBeInTheDocument();
+    await userEvent.click(within(manualRegion).getByRole('button', { name: '删除人工记录 路人' }));
+    expect(onRemoveManual).toHaveBeenCalledWith('manual-1');
   });
 
   it('asks the reviewer to resolve a suspected duplicate and sends the verdict', async () => {

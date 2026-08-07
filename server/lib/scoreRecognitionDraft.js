@@ -20,7 +20,7 @@ function computeRosterVersion(config) {
   return scoreMembers.concat(roster, aliases).join('|');
 }
 
-function buildRaces(observations, reviews) {
+function buildRaces(observations, reviews, manualEntries = []) {
   return observations.flatMap((observation, observationIndex) => {
     const imageIndex = observation.imageIndex ?? observationIndex;
     return (observation.matches || []).map((match, matchIndex) => {
@@ -46,6 +46,28 @@ function buildRaces(observations, reviews) {
             : undefined,
         };
       });
+      manualEntries
+        .filter((entry) => entry.imageIndex === imageIndex && entry.matchIndex === matchIndex)
+        .forEach((entry) => {
+          const id = `manual-${entry.id}`;
+          const review = reviews[id] || {};
+          evidence.push({
+            id,
+            imageIndex,
+            matchIndex,
+            participantIndex: undefined,
+            mapName: match.mapName,
+            nickname: entry.nickname,
+            rank: Object.hasOwn(review, 'rank') ? review.rank : entry.rank,
+            score: undefined,
+            ignored: entry.scoreMemberId ? review.ignored === true : true,
+            reviewedScoreMemberId: Object.hasOwn(review, 'scoreMemberId')
+              ? review.scoreMemberId
+              : entry.scoreMemberId || undefined,
+            manual: true,
+            manualEntryId: entry.id,
+          });
+        });
       const raceReview = reviews[evidence[0]?.id] || {};
       return {
         evidence,
@@ -288,8 +310,8 @@ function summarize(races) {
   ));
 }
 
-export function buildRecognitionDraft({ batch, observations, reviews = {}, config }) {
-  const races = buildRaces(observations || [], reviews);
+export function buildRecognitionDraft({ batch, observations, manualEntries = [], reviews = {}, config }) {
+  const races = buildRaces(observations || [], reviews, manualEntries);
   matchMembers(races, config);
   markSuspectedDuplicates(races, batch);
   resolveDuplicates(races);

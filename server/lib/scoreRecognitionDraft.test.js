@@ -150,6 +150,29 @@ describe('buildRecognitionDraft', () => {
     expect(ignored.canCommit).toBe(true);
   });
 
+  it('keeps a team-label-only OCR result available for manual member confirmation', () => {
+    const matches = [{ participants: [{ nickname: 'xy/2·星屿', rank: 1 }] }];
+    const unmatched = buildDraft({ matches });
+
+    expect(unmatched.evidence[0]).toMatchObject({ nickname: 'xy/2·星屿', rank: 1 });
+    expect(unmatched.issues).toContainEqual({
+      evidenceId: 'i0-m0-p0',
+      code: 'unmatched',
+    });
+    expect(unmatched.canCommit).toBe(false);
+
+    const confirmed = buildDraft({
+      matches,
+      reviews: { 'i0-m0-p0': { memberId: 'roster-1' } },
+    });
+    expect(confirmed).toMatchObject({ issues: [], canCommit: true });
+    expect(confirmed.evidence[0]).toMatchObject({
+      nickname: 'xy/2·星屿',
+      memberId: 'roster-1',
+      scoreMemberId: 'score-twelve',
+    });
+  });
+
   it('reports every participant sharing a duplicate rank', () => {
     const draft = buildDraft({
       matches: [{ participants: [
@@ -551,6 +574,34 @@ describe('buildRecognitionDraft', () => {
     });
 
     expect(draft.raceWarnings).toEqual([]);
+  });
+
+  it('merges manual participants into the selected race', () => {
+    const draft = buildRecognitionDraft({
+      batch: { id: 'b1', date: '2026-08-03', raceType: 'team' },
+      observations: [{ imageIndex: 0, matches: [{ participants: [
+        { nickname: '十二', rank: 1 },
+        { nickname: '黑岩', rank: 3 },
+      ] }] }],
+      manualEntries: [{
+        id: 'manual-1', imageIndex: 0, matchIndex: 0,
+        nickname: '路人', rank: 2,
+      }],
+      config,
+    });
+
+    expect(draft.raceWarnings).toEqual([]);
+    expect(draft.issues).toEqual([]);
+    expect(draft.evidence).toContainEqual(expect.objectContaining({
+      id: 'manual-manual-1',
+      manual: true,
+      manualEntryId: 'manual-1',
+      nickname: '路人',
+      rank: 2,
+      ignored: true,
+    }));
+    expect(draft.summary.find((item) => item.name === '十二').score).toBe(3);
+    expect(draft.summary.find((item) => item.name === '黑岩').score).toBe(1);
   });
 
 });

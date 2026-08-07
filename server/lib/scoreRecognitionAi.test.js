@@ -93,6 +93,7 @@ describe('score recognition AI adapter', () => {
       mimeType: 'image/jpeg',
       rosterHints: ['十二', '黑岩'],
       batchDate: '2026-08-03',
+      teamLabels: ['星屿车队', '星屿'],
     });
 
     const request = client.chat.completions.create.mock.calls[0][0];
@@ -103,6 +104,9 @@ describe('score recognition AI adapter', () => {
     expect(request.messages[0].content).toContain('连续递增，绝不能跳过名次');
     expect(request.messages[0].content).toContain('绝不能把其他列的数字当作名次');
     expect(request.messages[0].content).toContain('原样抄写整行，不要删减');
+    expect(request.messages[0].content).toContain('上方较大的文字是玩家昵称');
+    expect(request.messages[0].content).toContain('本车队归属标签包括“星屿车队”“星屿”');
+    expect(request.messages[0].content).toContain('绝不能输出为任何 participant 的 nickname');
     expect(request.messages[0].content).toContain('score 是 MVP分列');
     expect(request.messages[0].content).toContain('每场比赛必须抄写结算表标题区显示的地图名称到 mapName');
     expect(request.messages[0].content).not.toMatch(/胜负/);
@@ -122,6 +126,42 @@ describe('score recognition AI adapter', () => {
       'nickname', 'rank', 'score', 'attack', 'defense', 'assist',
     ]);
     expect(matchSchema.properties.participants.items.required).toEqual(['nickname', 'rank']);
+  });
+
+  it.each(['星屿', 'xy/2·星屿'])(
+    'keeps a team-label-only nickname for manual review: %s',
+    async (nickname) => {
+      const payload = {
+        matches: [{ mapName: '香波岛', participants: [{ nickname, rank: 1 }] }],
+      };
+      const client = createFakeClient(payload);
+      const ai = createAi(client);
+
+      await expect(ai.extractMatches({
+        imageBytes: Buffer.from([]),
+        mimeType: 'image/jpeg',
+        teamLabels: ['星屿车队', '星屿'],
+      })).resolves.toEqual(payload.matches);
+    },
+  );
+
+  it('removes a repeated team label appended after the real nickname', async () => {
+    const client = createFakeClient({
+      matches: [{
+        mapName: '香波岛',
+        participants: [{ nickname: 'xy♂·橘絮 xy♂·星屿', rank: 1 }],
+      }],
+    });
+    const ai = createAi(client);
+
+    await expect(ai.extractMatches({
+      imageBytes: Buffer.from([]),
+      mimeType: 'image/jpeg',
+      teamLabels: ['星屿车队', '星屿'],
+    })).resolves.toEqual([{
+      mapName: '香波岛',
+      participants: [{ nickname: 'xy♂·橘絮', rank: 1 }],
+    }]);
   });
 
   it('asks for every match in the image when multiMatch is enabled', async () => {

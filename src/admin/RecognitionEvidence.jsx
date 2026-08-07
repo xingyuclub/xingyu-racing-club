@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Ban, Check, Image, UserCheck } from 'lucide-react';
+import { Ban, Check, Image, Plus, ScanSearch, Trash2, UserCheck } from 'lucide-react';
 
 const ISSUE_LABELS = {
   unmatched: '未匹配成员',
@@ -217,7 +217,132 @@ function DuplicateEditor({ batchId, draft, issue, busy, onReview }) {
   );
 }
 
-export function RecognitionEvidence({ batchId, config, draft, busy, onReview }) {
+function RaceWarningEditor({ batchId, warning, scoreMembers, busy, onReprocessImage, onAddManual }) {
+  const [nickname, setNickname] = useState('');
+  const [rank, setRank] = useState(String(warning.missingRanks?.[0] ?? ''));
+  const [scoreMemberId, setScoreMemberId] = useState('');
+  const imageNumber = warning.imageIndex + 1;
+
+  useEffect(() => {
+    setNickname('');
+    setRank(String(warning.missingRanks?.[0] ?? ''));
+    setScoreMemberId('');
+  }, [warning.imageIndex, warning.matchIndex, warning.missingRanks?.join(',')]);
+
+  const submitManual = () => {
+    const nextRank = Number(rank);
+    if (!nickname.trim() || !Number.isInteger(nextRank) || nextRank < 1 || !onAddManual) return;
+    onAddManual({
+      imageIndex: warning.imageIndex,
+      matchIndex: warning.matchIndex,
+      nickname: nickname.trim(),
+      rank: nextRank,
+      ...(scoreMemberId ? { scoreMemberId } : {}),
+    });
+  };
+
+  return (
+    <div className="recognition-warning recognition-race-warning">
+      <div className="recognition-warning-head">
+        <strong>截图 {imageNumber} 名次不连续，疑似漏行</strong>
+        <ImageLink batchId={batchId} item={{ imageIndex: warning.imageIndex }} />
+      </div>
+      <span>
+        缺少第 {warning.missingRanks.join('、')} 名（最高名次 {warning.maxRank}）。
+        漏掉的成员不会被录入，其余成员按最高名次计分。可以只重识别这张截图，或直接人工补录。
+      </span>
+      <button
+        type="button"
+        className="recognition-warning-action"
+        disabled={busy || !onReprocessImage}
+        onClick={() => onReprocessImage?.(warning.imageIndex)}
+      >
+        <ScanSearch aria-hidden="true" size={15} />
+        重新识别截图 {imageNumber}
+      </button>
+      <div className="recognition-manual-form">
+        <label>
+          <span>补录昵称</span>
+          <input
+            aria-label={`截图 ${imageNumber} 补录昵称`}
+            value={nickname}
+            disabled={busy}
+            placeholder="例如：队员昵称"
+            onChange={(event) => setNickname(event.target.value)}
+          />
+        </label>
+        <label>
+          <span>补录名次</span>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            aria-label={`截图 ${imageNumber} 补录名次`}
+            value={rank}
+            disabled={busy}
+            onChange={(event) => setRank(event.target.value)}
+          />
+        </label>
+        <label>
+          <span>补录积分人物</span>
+          <select
+            aria-label={`截图 ${imageNumber} 补录积分人物`}
+            value={scoreMemberId}
+            disabled={busy}
+            onChange={(event) => setScoreMemberId(event.target.value)}
+          >
+            <option value="">非积分成员（只补名次）</option>
+            {scoreMembers.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+          </select>
+        </label>
+        <button
+          type="button"
+          className="recognition-manual-submit"
+          disabled={busy || !nickname.trim() || !Number.isInteger(Number(rank)) || Number(rank) < 1 || !onAddManual}
+          onClick={submitManual}
+        >
+          <Plus aria-hidden="true" size={15} />
+          添加人工记录
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ManualEntries({ batchId, evidence, busy, onRemoveManual }) {
+  const entries = evidence.filter((item) => item.manual);
+  if (entries.length === 0) return null;
+  return (
+    <section className="recognition-manual-entries" aria-label="人工补录记录">
+      <h3>人工补录记录</h3>
+      {entries.map((item) => (
+        <div key={item.id} className="recognition-manual-entry">
+          <span>截图 {item.imageIndex + 1} · 第 {item.rank} 名 {item.nickname}</span>
+          <span>{item.ignored ? '非积分成员' : (item.memberName || item.scoreMemberId)}</span>
+          <a
+            href={`/api/admin/score-recognition/batches/${encodeURIComponent(batchId)}/images/${item.imageIndex}`}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`查看人工补录截图 ${item.imageIndex + 1}`}
+          >
+            查看截图
+          </a>
+          <button
+            type="button"
+            disabled={busy || !onRemoveManual}
+            aria-label={`删除人工记录 ${item.nickname}`}
+            onClick={() => onRemoveManual?.(item.manualEntryId)}
+          >
+            <Trash2 aria-hidden="true" size={15} />
+            删除
+          </button>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+export function RecognitionEvidence({ batchId, config, draft, busy, onReview, onReprocessImage, onAddManual, onRemoveManual }) {
   const evidenceById = new Map(draft.evidence.map((item) => [item.id, item]));
   const warnings = draft.evidence.filter((item) => item.warning === 'member-limit');
 
@@ -271,17 +396,25 @@ export function RecognitionEvidence({ batchId, config, draft, busy, onReview }) 
         {draft.summary.length === 0 && <p className="recognition-empty">暂无可录入积分</p>}
       </section>
 
+      <ManualEntries
+        batchId={batchId}
+        evidence={draft.evidence}
+        busy={busy}
+        onRemoveManual={onRemoveManual}
+      />
+
       {draft.raceWarnings?.length > 0 && (
         <section className="recognition-issues" aria-label="疑似漏行提示">
           {draft.raceWarnings.map((warning, index) => (
-            <div key={`warning-${index}`} className="recognition-warning">
-              <strong>截图 {warning.imageIndex + 1} 名次不连续，疑似漏行</strong>
-              <ImageLink batchId={batchId} item={{ imageIndex: warning.imageIndex }} />
-              <span>
-                缺少第 {warning.missingRanks.join('、')} 名（最高名次 {warning.maxRank}）。
-                漏掉的成员不会被录入，其余成员按最高名次计分；请核对截图后处理。
-              </span>
-            </div>
+            <RaceWarningEditor
+              key={`warning-${index}`}
+              batchId={batchId}
+              warning={warning}
+              scoreMembers={config.scoreMembers || []}
+              busy={busy}
+              onReprocessImage={onReprocessImage}
+              onAddManual={onAddManual}
+            />
           ))}
         </section>
       )}

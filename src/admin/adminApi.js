@@ -40,6 +40,26 @@ export function uploadRecognitionBatch(date, raceType, files, multiMatch = false
 export function processRecognitionBatch(id) {
   return call('/api/admin/score-recognition/batches/' + encodeURIComponent(id) + '/process', { method: 'POST' });
 }
+export function reprocessRecognitionImage(id, imageIndex) {
+  return call(
+    '/api/admin/score-recognition/batches/' + encodeURIComponent(id)
+      + '/images/' + encodeURIComponent(imageIndex) + '/reprocess',
+    { method: 'POST' },
+  );
+}
+export function addManualRecognitionParticipant(id, entry) {
+  return call(
+    '/api/admin/score-recognition/batches/' + encodeURIComponent(id) + '/manual-participants',
+    json('POST', entry),
+  );
+}
+export function removeManualRecognitionParticipant(id, entryId) {
+  return call(
+    '/api/admin/score-recognition/batches/' + encodeURIComponent(id)
+      + '/manual-participants/' + encodeURIComponent(entryId),
+    { method: 'DELETE' },
+  );
+}
 export function commitRecognitionBatch(id, rosterVersion) {
   return call('/api/admin/score-recognition/batches/' + encodeURIComponent(id) + '/commit', json('POST', { rosterVersion }));
 }

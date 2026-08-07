@@ -123,6 +123,19 @@ export function createScoreRecognitionRouter({
     }
   });
 
+  router.post('/batches/:id/images/:index/reprocess', async (request, response, next) => {
+    try {
+      const imageIndex = Number(request.params.index);
+      if (!Number.isInteger(imageIndex) || imageIndex < 0) {
+        return response.status(400).json({ error: '截图序号无效' });
+      }
+      response.json(await getService().reprocessImage(request.params.id, imageIndex));
+    } catch (error) {
+      if (error.statusCode) return response.status(error.statusCode).json({ error: error.message });
+      next(error);
+    }
+  });
+
   router.put('/batches/:id/review', async (request, response, next) => {
     try {
       const {
@@ -158,6 +171,49 @@ export function createScoreRecognitionRouter({
         notDuplicate,
       }));
     } catch (error) { next(error); }
+  });
+
+  router.post('/batches/:id/manual-participants', async (request, response, next) => {
+    try {
+      const { imageIndex, matchIndex, nickname, rank, scoreMemberId } = request.body || {};
+      if (!Number.isInteger(imageIndex) || imageIndex < 0
+        || !Number.isInteger(matchIndex) || matchIndex < 0) {
+        return response.status(400).json({ error: '截图或比赛场次无效' });
+      }
+      if (typeof nickname !== 'string' || !nickname.trim()) {
+        return response.status(400).json({ error: '请填写人工补录昵称' });
+      }
+      if (!Number.isInteger(rank) || rank < 1) {
+        return response.status(400).json({ error: '名次必须是正整数' });
+      }
+      if (scoreMemberId !== undefined
+        && scoreMemberId !== null
+        && (typeof scoreMemberId !== 'string' || !scoreMemberId)) {
+        return response.status(400).json({ error: '积分人物 ID 无效' });
+      }
+      response.json(await getService().addManualParticipant(request.params.id, {
+        imageIndex,
+        matchIndex,
+        nickname: nickname.trim(),
+        rank,
+        scoreMemberId: scoreMemberId || undefined,
+      }));
+    } catch (error) {
+      if (error.statusCode) return response.status(error.statusCode).json({ error: error.message });
+      next(error);
+    }
+  });
+
+  router.delete('/batches/:id/manual-participants/:entryId', async (request, response, next) => {
+    try {
+      response.json(await getService().removeManualParticipant(
+        request.params.id,
+        request.params.entryId,
+      ));
+    } catch (error) {
+      if (error.statusCode) return response.status(error.statusCode).json({ error: error.message });
+      next(error);
+    }
   });
 
   router.post('/batches/:id/commit', async (request, response, next) => {
