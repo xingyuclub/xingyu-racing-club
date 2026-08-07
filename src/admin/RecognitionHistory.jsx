@@ -8,6 +8,7 @@ const STATUS_LABEL = {
   ready: '待确认',
   failed: '失败',
   committed: '已提交',
+  discarded: '已忽略',
 };
 
 const STATUS_CLASS = {
@@ -16,6 +17,7 @@ const STATUS_CLASS = {
   ready: 'recog-status--ready',
   failed: 'recog-status--failed',
   committed: 'recog-status--done',
+  discarded: 'recog-status--done',
 };
 
 const formatTime = (value) => (value ? new Date(value).toLocaleString('zh-CN') : '—');
@@ -91,6 +93,7 @@ export function RecognitionHistory({ onOpen }) {
               <span>{batch.images?.length || 0} 张截图</span>
               <span>创建 {formatTime(batch.createdAt)}</span>
               {batch.committedAt && <span>提交 {formatTime(batch.committedAt)}</span>}
+              {batch.discardReason && <span>原因 {batch.discardReason}</span>}
             </div>
             <div className="recognition-history-actions">
               {batch.status === 'ready' && batch.raceType && (

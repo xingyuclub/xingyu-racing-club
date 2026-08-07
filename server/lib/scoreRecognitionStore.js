@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-const BATCH_STATUSES = new Set(['uploaded', 'processing', 'ready', 'failed', 'committed']);
+const BATCH_STATUSES = new Set(['uploaded', 'processing', 'ready', 'failed', 'committed', 'discarded']);
 const VALID_MIME_TYPES = new Set(['image/jpeg', 'image/png']);
 
 export function createScoreRecognitionStore({ dataDir, storageDir, fileSystem: providedFileSystem = {} }) {

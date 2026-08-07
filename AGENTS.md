@@ -2,7 +2,7 @@
 
 当前项目根目录：`C:\Users\Admin\Documents\H5`
 
-最后更新：2026-08-05
+最后更新：2026-08-07
 
 ## 项目一句话
 这是一个基于 Vite + React 的星屿车队移动端 H5，核心是首页展示、成员阵容、积分榜、资讯、相册和音乐浮窗。
@@ -222,3 +222,7 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 2026-08-06 已按用户选定方案 B 修复相册封面裁切人物头部：相册页文件夹封面卡片为 4:3 横版 + object-fit: cover，而 4 个封面均为 3:4 竖图，cover 只显示图片中间带、头部被切。src/styles/global.css 已给 .album-folder img 与 .album-photo img（相册内照片缩略图同规律）增加 object-position: top，可见区域锚定图片上部、头部完整保留（底部被裁为预期取舍）。新增 CSSOM 回归断言（globalStyles 正则匹配两处 object-position: top）；npm test -- --run 通过 25 个测试文件、452 项测试，npm run build 通过；无头 Chrome 桌面 1280 与移动 390 实测：4 个文件夹封面均生效 object-position 50% 0%、相册内竖图缩略图同规则、页面级横向溢出为 0；本次仅前台 CSS，API 无需重启
 
 - 2026-08-07 已收口并准备提交上一轮未提交改动：截图识别新增原图 SHA-256/32×32 灰度指纹、疑似重复图片人工审核和地图维度自动放行；成员阵容新增永久 `scoreMemberId` 绑定、积分人物删除/引用保护与顺序重编号脚本；重新识别保留人工审核记录，结算图识别上限放宽到 4096；后台局域网新增 ID 兜底、空 alt 相册照片可保存、积分人物绑定选择器；公开前台新增滚动回顶、DomeGallery 触摸拖拽兼容、成员视频弹窗置顶和相册封面顶部锚定。新增 COS/CDN 媒体与上线前配置重置设计及实施计划，但尚未开始实施，仍需用户明确授权并提供云端准备信息。补充了运行日志与临时识别目录的 Git 忽略规则，并修正两处重复图片判定边界；最终验证 `npm test -- --run` 通过 25 个测试文件、455 项测试，`npm run build` 通过。
+
+- 2026-08-07 已完成“部署收口包”：截图识别明确保持依赖运行项目的 Windows 电脑与本机 Ollama `xingyu-score-recognition`，不迁移云端；生产启动统一为 `npm run build` 后由 `node server/index.js` 绑定 `0.0.0.0:3000` 同时提供前台、静态资源和 API，Cloudflare quick tunnel 只转发到 `127.0.0.1:3000`，Vite `4173` 仅供开发；`start-public.ps1` 增加生产绑定与就绪检查，`stop-tunnel.ps1` 统一停止 3000/4173/cloudflared。依赖审计已修复高危 `brace-expansion`，生产审计仅剩 ExcelJS 间接依赖 `uuid` 的 2 个中危项，不使用会降级 ExcelJS 的 `npm audit fix --force`。
+
+- 2026-08-07 部署前完整私有备份位于 `output/deployment-backups/20260807-110721`，包含 `.env`、本地管理员配置、站点/积分配置、识别索引与原图、上传媒体及依赖锁文件；`manifest.json` 共 296 个文件，已逐文件重算字节数与 SHA-256，296/296 通过。识别队列已收口为 10 个 `committed` + 10 个 `discarded`，0 个 `ready/uploaded/failed`；重复、非结算表和无效图片均保留审计证据而不写入积分。最终 `npm test -- --run` 通过 25 个文件、456 项测试，`npm run build` 通过；本机 `/`、`/api/config`、`/admin` 返回 200，公网 `/`、`/api/config` 返回 200，公网 `/api/login`、`/api/admin/config` 返回 404。

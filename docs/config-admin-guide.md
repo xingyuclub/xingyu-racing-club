@@ -88,6 +88,8 @@ OPENAI_VISION_MODEL=xingyu-score-recognition
 
 Ollama 必须保持运行，修改 `.env` 后需要重启 `npm run dev:api`。普通文本模型不支持截图识别，模型能力中必须包含 `vision`。
 
+当前部署方案明确要求截图识别依赖运行本项目的这台电脑和本机 Ollama。公网访客只使用公开 H5；管理员在本机或受信任局域网打开后台，截图识别时本机 Node 与 Ollama 都必须在线。不会把识别模型迁移到云服务器。
+
 1. 在“星屿积分榜”中切换到“截图识别”，选择批次日期。
 2. 选择“队内赛”或“排位赛”；同一批截图只能使用一种比赛类型，不要混传。
 3. 上传 JPG 或 PNG 截图（建议一批不超过 20 张），等待人物积分汇总出现。
@@ -124,9 +126,9 @@ Ollama 必须保持运行，修改 `.env` 后需要重启 `npm run dev:api`。�
 前台 H5 默认只在本机/局域网可见。需要把资讯链接（如 `#news/1`）分享到微信群时，用 Cloudflare 快速隧道生成临时公网链接，无需公网 IP、免账号：
 
 1. 在项目根目录双击 `start-public.bat`（或执行 `powershell -ExecutionPolicy Bypass -File scripts/start-public.ps1`）。
-2. 脚本依次启动配置 API（127.0.0.1:3000）、前台 H5（0.0.0.0:4173）和 cloudflared 隧道；已运行的服务自动跳过，最后打印公网链接，例如 `https://xxx.trycloudflare.com`。
+2. 脚本在生产 Node 未运行时先执行 `npm run build`，再启动 Node 生产服务（0.0.0.0:3000）和 cloudflared 隧道；已运行的 Node 或隧道自动跳过，最后打印公网链接，例如 `https://xxx.trycloudflare.com`。Vite `4173` 只用于开发，不作为公网入口。
 3. 把 `公网链接 + #news/<id>` 发给微信联系人，如 `https://xxx.trycloudflare.com/#news/1`；详情页内点“分享”也会复制完整链接。
-4. 局域网内的设备仍可用 `http://<本机IP>:4173/` 访问，不受公网隧道影响。
+4. 局域网内的设备仍可用 `http://<本机IP>:3000/` 访问，不受公网隧道影响。
 
 注意：
 
@@ -134,3 +136,20 @@ Ollama 必须保持运行，修改 `.env` 后需要重启 `npm run dev:api`。�
 - 公网链接打开的是公开前台；后台 `/api/login`、`/api/admin` 对公网域名一律返回 404，配置后台仍仅限本机/局域网访问。
 - 未安装 cloudflared 时脚本会降级为“仅局域网可访问”提示，本地服务照常启动。
 - 进程日志位于 `%TEMP%\xingyu-public-logs`。
+- 停止生产 Node、旧 Vite 进程和 Cloudflare 隧道时，执行 `powershell -ExecutionPolicy Bypass -File scripts/stop-tunnel.ps1`。
+
+## 部署前完整备份
+
+正式启动公网前执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/create-deployment-backup.ps1
+```
+
+备份位于 `output/deployment-backups/<时间戳>/`，不会进入 Git。内容包括 `.env`、管理员本地配置、运行时站点配置、积分数据、识别索引、识别原图、上传媒体、`package.json` 和锁文件；同时生成：
+
+- `backup-meta.json`：Git 分支、提交和创建时间。
+- `runtime-summary.json`：成员、积分人物、工作日、周末日和内容数量。
+- `manifest.json`：每个备份文件的字节数和 SHA-256。
+
+恢复时先停止 Node 和隧道，再把备份中的同路径文件复制回项目根目录。恢复前不要删除当前数据，应先另存当前版本；恢复后重新运行全量测试、`npm run build` 和生产启动脚本。

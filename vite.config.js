@@ -5,6 +5,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     allowedHosts: true,
+    watch: {
+      ignored: ['**/output/**'],
+    },
     proxy: {
       '/api': 'http://127.0.0.1:3000',
       '/uploads': 'http://127.0.0.1:3000',

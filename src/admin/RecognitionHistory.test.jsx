@@ -14,13 +14,14 @@ it('loads and lists recognition batches with status labels', async () => {
       { id: 'batch-2', status: 'failed', date: '2026-08-02', images: [{}], createdAt: '2026-08-02T10:00:00Z' },
       { id: 'batch-ready', status: 'ready', raceType: 'team', date: '2026-08-03', images: [{}], createdAt: '2026-08-03T10:00:00Z' },
       { id: 'batch-legacy', status: 'ready', date: '2026-08-04', images: [{}], createdAt: '2026-08-04T10:00:00Z' },
+      { id: 'batch-discarded', status: 'discarded', date: '2026-08-05', images: [{}], createdAt: '2026-08-05T10:00:00Z', discardReason: '与已提交批次重复' },
     ]),
   }));
 
   render(<RecognitionHistory onOpen={onOpen} />);
 
   const items = await screen.findAllByTestId('recognition-history-item');
-  expect(items).toHaveLength(4);
+  expect(items).toHaveLength(5);
   expect(within(items[0]).getByText('已提交')).toBeInTheDocument();
   expect(within(items[1]).getByText('失败')).toBeInTheDocument();
   // Retry button only on the failed batch
@@ -30,6 +31,8 @@ it('loads and lists recognition batches with status labels', async () => {
   expect(onOpen).toHaveBeenCalledWith('batch-ready');
   expect(within(items[3]).getByText('旧版批次需重新上传')).toBeInTheDocument();
   expect(within(items[3]).queryByRole('button', { name: /继续审核/ })).not.toBeInTheDocument();
+  expect(within(items[4]).getByText('已忽略')).toBeInTheDocument();
+  expect(within(items[4]).getByText('原因 与已提交批次重复')).toBeInTheDocument();
 });
 
 it('retries a failed batch and reloads the list', async () => {

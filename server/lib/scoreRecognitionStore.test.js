@@ -89,6 +89,15 @@ describe('score recognition store', () => {
     const stored = await store.readBatch('batch-3');
     expect(stored.status).toBe('ready');
     expect(stored.draft).toEqual(draft);
+
+    await store.updateBatch('batch-3', {
+      status: 'discarded',
+      discardReason: 'duplicate of committed batch',
+    });
+    expect(await store.readBatch('batch-3')).toMatchObject({
+      status: 'discarded',
+      discardReason: 'duplicate of committed batch',
+    });
   });
 
   it('retries a failed batch while keeping the original images', async () => {
