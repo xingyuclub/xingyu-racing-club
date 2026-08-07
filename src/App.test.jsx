@@ -268,6 +268,29 @@ describe('App', () => {
     expect(container.querySelector('.hero-play-button')).not.toBeInTheDocument();
   });
 
+  it('restores the hero poster and play button after returning from a secondary page', () => {
+    const seed = createSeedConfig();
+    const config = hydrateSiteData({
+      ...seed,
+      team: {
+        ...seed.team,
+        heroMedia: { src: '/uploads/hero.mp4', type: 'video' },
+        heroFallbackImage: '/uploads/fallback.png',
+      },
+    });
+
+    const { container, rerender } = render(<Hero team={config.team} />);
+    fireEvent.playing(container.querySelector('video.hero-media'));
+    expect(container.querySelector('.hero-play-button')).not.toBeInTheDocument();
+
+    rerender(<Hero team={config.team} showMedia={false} />);
+    expect(container.querySelector('.hero-section')).not.toBeInTheDocument();
+
+    rerender(<Hero team={config.team} />);
+    expect(container.querySelector('video.hero-media')).toHaveClass('hero-media--pending');
+    expect(container.querySelector('.hero-play-button')).toBeInTheDocument();
+  });
+
   it('switches a failed hero video to its fallback image', () => {
     const seed = createSeedConfig();
     const config = hydrateSiteData({

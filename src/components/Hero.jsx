@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import GradientText from './GradientText.jsx';
 
 const HERO_GRADIENT_COLORS = ['#40ffaa', '#4079ff', '#a85cff', '#ff5e9f', '#40ffaa'];
@@ -21,6 +21,12 @@ export function Hero({ team, showMedia = true }) {
   const isImage = primaryMedia.type === 'image' && Boolean(primaryMedia.src);
   const mediaSrc = isVideo || isImage ? primaryMedia.src : fallbackImage;
   const hasMedia = Boolean(mediaSrc) && !imageFailed;
+
+  useEffect(() => {
+    setVideoFailed(false);
+    setVideoPlaying(false);
+    setImageFailed(false);
+  }, [showMedia, primaryMedia.src, primaryMedia.type, fallbackImage]);
 
   const handlePlayClick = () => {
     videoRef.current?.play()?.catch(() => setVideoFailed(true));
@@ -67,6 +73,7 @@ export function Hero({ team, showMedia = true }) {
               preload="none"
               aria-hidden="true"
               onPlaying={() => setVideoPlaying(true)}
+              onPause={() => setVideoPlaying(false)}
               onError={() => setVideoFailed(true)}
             />
             {!videoPlaying && (
