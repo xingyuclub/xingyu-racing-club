@@ -34,6 +34,7 @@ export default function App() {
   const [selectedMember, setSelectedMember] = useState(null);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [showScoreDetails, setShowScoreDetails] = useState(false);
+  const [heroVideoPlaying, setHeroVideoPlaying] = useState(false);
   const [route, setRoute] = useState(parseRoute);
   useRevealOnScroll(route.name === 'home');
 
@@ -68,13 +69,14 @@ export default function App() {
     return (
       <>
         <main className="site-shell album-shell">
-          <Hero team={siteData.team} showMedia={false} />
+          <Hero team={siteData.team} showMedia={false} onVideoPlaybackChange={setHeroVideoPlaying} />
           <AlbumPage albums={siteData.albums} onBack={goHome} onOpenPhoto={setSelectedPhoto} />
           <PhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} />
         </main>
         <MusicPlayer
           src={siteData.music.src}
           cover={siteData.music.cover}
+          pauseForMedia={heroVideoPlaying}
         />
       </>
     );
@@ -84,7 +86,7 @@ export default function App() {
     return (
       <>
         <main className="site-shell album-shell">
-          <Hero team={siteData.team} showMedia={false} />
+          <Hero team={siteData.team} showMedia={false} onVideoPlaybackChange={setHeroVideoPlaying} />
           {route.name === 'news' ? (
             <NewsPage
               news={siteData.news}
@@ -98,6 +100,7 @@ export default function App() {
         <MusicPlayer
           src={siteData.music.src}
           cover={siteData.music.cover}
+          pauseForMedia={heroVideoPlaying}
         />
       </>
     );
@@ -106,7 +109,7 @@ export default function App() {
   return (
     <>
       <main className="site-shell">
-        <Hero team={siteData.team} />
+        <Hero team={siteData.team} onVideoPlaybackChange={setHeroVideoPlaying} />
         <StatsBar stats={siteData.stats} />
         <FeaturedMembers
           members={siteData.featuredMembers}
@@ -133,6 +136,7 @@ export default function App() {
       <MusicPlayer
         src={siteData.music.src}
         cover={siteData.music.cover}
+        pauseForMedia={heroVideoPlaying}
       />
     </>
   );

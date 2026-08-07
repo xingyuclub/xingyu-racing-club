@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { Play } from 'lucide-react';
 import GradientText from './GradientText.jsx';
 
 const HERO_GRADIENT_COLORS = ['#40ffaa', '#4079ff', '#a85cff', '#ff5e9f', '#40ffaa'];
-const DEFAULT_HERO_FALLBACK_IMAGE = '/images/hero-home.png';
+const DEFAULT_HERO_FALLBACK_IMAGE = '/images/album/placeholder-01.jpg';
 
-export function Hero({ team, showMedia = true }) {
+export function Hero({ team, showMedia = true, onVideoPlaybackChange }) {
   const heroLines = Array.isArray(team.heroLines) && team.heroLines.length
     ? team.heroLines
     : [team.name];
@@ -14,6 +15,7 @@ export function Hero({ team, showMedia = true }) {
   const videoRef = useRef(null);
   const [videoFailed, setVideoFailed] = useState(false);
   const [videoPlaying, setVideoPlaying] = useState(false);
+  const [videoStarted, setVideoStarted] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
 
   const fallbackImage = team.heroFallbackImage || DEFAULT_HERO_FALLBACK_IMAGE;
@@ -25,11 +27,49 @@ export function Hero({ team, showMedia = true }) {
   useEffect(() => {
     setVideoFailed(false);
     setVideoPlaying(false);
+    setVideoStarted(false);
     setImageFailed(false);
-  }, [showMedia, primaryMedia.src, primaryMedia.type, fallbackImage]);
+    onVideoPlaybackChange?.(false);
+  }, [showMedia, primaryMedia.src, primaryMedia.type, fallbackImage, onVideoPlaybackChange]);
 
-  const handlePlayClick = () => {
-    videoRef.current?.play()?.catch(() => setVideoFailed(true));
+  const handlePlaybackClick = () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (videoPlaying) {
+      video.pause();
+      return;
+    }
+
+    video.muted = false;
+    onVideoPlaybackChange?.(true);
+    video.play()?.catch(() => {
+      setVideoFailed(true);
+      onVideoPlaybackChange?.(false);
+    });
+  };
+
+  const handlePlaying = () => {
+    setVideoStarted(true);
+    setVideoPlaying(true);
+    onVideoPlaybackChange?.(true);
+  };
+
+  const handlePause = () => {
+    setVideoPlaying(false);
+    onVideoPlaybackChange?.(false);
+  };
+
+  const handleVideoError = () => {
+    setVideoFailed(true);
+    setVideoStarted(false);
+    onVideoPlaybackChange?.(false);
+  };
+
+  const handleVideoKeyDown = (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    handlePlaybackClick();
   };
 
   return (
@@ -65,27 +105,29 @@ export function Hero({ team, showMedia = true }) {
             />
             <video
               ref={videoRef}
-              className={`hero-media hero-media--video${videoPlaying ? '' : ' hero-media--pending'}`}
+              className={`hero-media hero-media--video${videoStarted ? '' : ' hero-media--pending'}`}
               src={mediaSrc}
-              muted
               loop
               playsInline
               preload="none"
-              aria-hidden="true"
-              onPlaying={() => setVideoPlaying(true)}
-              onPause={() => setVideoPlaying(false)}
-              onError={() => setVideoFailed(true)}
+              aria-hidden={videoPlaying ? undefined : true}
+              aria-label={videoPlaying ? '暂停车队视频' : undefined}
+              role={videoPlaying ? 'button' : undefined}
+              tabIndex={videoPlaying ? 0 : undefined}
+              onClick={videoPlaying ? handlePlaybackClick : undefined}
+              onKeyDown={videoPlaying ? handleVideoKeyDown : undefined}
+              onPlaying={handlePlaying}
+              onPause={handlePause}
+              onError={handleVideoError}
             />
             {!videoPlaying && (
               <button
                 type="button"
                 className="hero-play-button"
                 aria-label="播放车队视频"
-                onClick={handlePlayClick}
+                onClick={handlePlaybackClick}
               >
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M8 5v14l11-7z" fill="currentColor" />
-                </svg>
+                <Play aria-hidden="true" />
               </button>
             )}
           </div>

@@ -6,6 +6,7 @@ import App from './App.jsx';
 import { teamData } from './data/teamData.js';
 import { createSeedConfig, hydrateSiteData } from './data/siteConfig.js';
 import { Hero } from './components/Hero.jsx';
+import { MusicPlayer } from './components/MusicPlayer.jsx';
 import { VideoModal } from './components/VideoModal.jsx';
 import { PhotoModal } from './components/PhotoModal.jsx';
 import { FeaturedMembers } from './components/FeaturedMembers.jsx';
@@ -63,7 +64,10 @@ describe('teamData', () => {
 
     expect(teamData.stats[0].value).toBe('1st');
     expect(teamData.stats[1].value).toBe('3rd');
-    expect(teamData.team.heroMedia).toEqual({ src: '/images/hero-home.png', type: 'image' });
+    expect(teamData.team.heroMedia).toEqual({
+      src: '/images/album/placeholder-01.jpg',
+      type: 'image',
+    });
     expect(teamData.team.label).toBe('RACING CLUB');
     expect(single.value).toEqual({ male: 12, female: 8 });
     expect(teamData.gallery.filter((photo) => photo.featured)).toHaveLength(5);
@@ -220,7 +224,7 @@ describe('App', () => {
     ).toBeGreaterThan(0);
   });
 
-  it('renders a click-to-play muted looping hero video', () => {
+  it('renders a click-to-play audible looping hero video', () => {
     const config = hydrateSiteData({
       ...createSeedConfig(),
       team: {
@@ -236,7 +240,7 @@ describe('App', () => {
     expect(video).toHaveAttribute('src', '/uploads/hero.mp4');
     expect(video).not.toHaveAttribute('autoplay');
     expect(video).toHaveAttribute('preload', 'none');
-    expect(video.muted).toBe(true);
+    expect(video.muted).toBe(false);
     expect(video).toHaveAttribute('loop');
     expect(video).toHaveAttribute('playsinline');
     expect(video).not.toHaveAttribute('controls');
@@ -258,7 +262,7 @@ describe('App', () => {
     const poster = container.querySelector('img.hero-media--poster');
     const video = container.querySelector('video.hero-media');
 
-    expect(poster).toHaveAttribute('src', '/images/hero-home.png');
+    expect(poster).toHaveAttribute('src', '/images/album/placeholder-01.jpg');
     expect(video).toHaveClass('hero-media--pending');
     expect(container.querySelector('.hero-play-button')).toBeInTheDocument();
 
@@ -266,6 +270,37 @@ describe('App', () => {
 
     expect(video).not.toHaveClass('hero-media--pending');
     expect(container.querySelector('.hero-play-button')).not.toBeInTheDocument();
+    expect(video).toHaveAttribute('role', 'button');
+    expect(video).toHaveAttribute('aria-label', '暂停车队视频');
+  });
+
+  it('plays and pauses the hero video with the same control', () => {
+    const seed = createSeedConfig();
+    const config = hydrateSiteData({
+      ...seed,
+      team: {
+        ...seed.team,
+        heroMedia: { src: '/uploads/hero.mp4', type: 'video' },
+      },
+    });
+    const onVideoPlaybackChange = vi.fn();
+    const { container } = render(
+      <Hero team={config.team} onVideoPlaybackChange={onVideoPlaybackChange} />,
+    );
+    const video = container.querySelector('video.hero-media');
+
+    fireEvent.click(screen.getByRole('button', { name: '播放车队视频' }));
+    expect(mediaPlay).toHaveBeenCalledTimes(1);
+
+    fireEvent.playing(video);
+    expect(onVideoPlaybackChange).toHaveBeenLastCalledWith(true);
+
+    fireEvent.click(video);
+    expect(mediaPause).toHaveBeenCalledTimes(1);
+
+    fireEvent.pause(video);
+    expect(onVideoPlaybackChange).toHaveBeenLastCalledWith(false);
+    expect(screen.getByRole('button', { name: '播放车队视频' })).toBeInTheDocument();
   });
 
   it('restores the hero poster and play button after returning from a secondary page', () => {
@@ -1101,6 +1136,55 @@ describe('App', () => {
     ).toHaveClass('is-playing');
   });
 
+  it('pauses background music while the homepage video is playing', async () => {
+    mediaPlay.mockResolvedValue();
+    const seed = createSeedConfig();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => hydrateSiteData({
+        ...seed,
+        team: {
+          ...seed.team,
+          heroMedia: { src: '/uploads/hero.mp4', type: 'video' },
+        },
+      }),
+    }));
+    const { container } = render(<App />);
+    await waitFor(() => {
+      expect(container.querySelector('video.hero-media')).toBeInTheDocument();
+    });
+    const video = container.querySelector('video.hero-media');
+
+    await waitFor(() => expect(mediaPlay).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: '播放车队视频' }));
+
+    await waitFor(() => expect(mediaPause).toHaveBeenCalledTimes(1));
+    expect(
+      screen.getByRole('button', { name: '音乐已暂停，点击继续，长按关闭' }),
+    ).toHaveClass('is-paused');
+
+    fireEvent.playing(video);
+    fireEvent.pause(video);
+    expect(mediaPlay).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps background music paused while another media source is active', () => {
+    const { container, rerender } = render(
+      <MusicPlayer src="/audio/music.mp3" cover="/images/cover.png" />,
+    );
+    const audio = container.querySelector('audio');
+    fireEvent.play(audio);
+
+    rerender(
+      <MusicPlayer src="/audio/music.mp3" cover="/images/cover.png" pauseForMedia />,
+    );
+
+    expect(mediaPause).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole('button', { name: '音乐已暂停，点击继续，长按关闭' }),
+    ).toHaveClass('is-paused');
+  });
+
   it('pauses and resumes music when the avatar is clicked', async () => {
     mediaPlay.mockResolvedValue();
     const user = userEvent.setup();
@@ -1125,6 +1209,27 @@ describe('App', () => {
     await waitFor(() => expect(mediaPlay).toHaveBeenCalledTimes(1));
     fireEvent.pointerDown(document.body);
     await waitFor(() => expect(mediaPlay).toHaveBeenCalledTimes(2));
+  });
+
+  it('does not retry blocked background music from a hero video interaction', async () => {
+    mediaPlay.mockRejectedValueOnce(new Error('autoplay blocked'));
+    const { container } = render(
+      <>
+        <MusicPlayer src="/audio/music.mp3" cover="/images/cover.png" />
+        <button className="hero-play-button" type="button">播放视频</button>
+      </>,
+    );
+
+    await waitFor(() => expect(mediaPlay).toHaveBeenCalledTimes(1));
+    const audioPlay = vi.fn().mockResolvedValue();
+    container.querySelector('audio').play = audioPlay;
+
+    fireEvent.pointerDown(container.querySelector('.hero-play-button'));
+    await act(async () => {});
+    expect(audioPlay).not.toHaveBeenCalled();
+
+    fireEvent.pointerDown(document.body);
+    await waitFor(() => expect(audioPlay).toHaveBeenCalledTimes(1));
   });
 
   it('stops and closes the music player after a long press', () => {

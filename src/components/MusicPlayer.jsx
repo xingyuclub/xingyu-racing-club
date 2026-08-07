@@ -8,8 +8,9 @@ const VIEWPORT_GUTTER_PX = 12;
 
 const getInitialTop = () => Math.round(window.innerHeight * 0.58);
 
-export function MusicPlayer({ src, cover }) {
+export function MusicPlayer({ src, cover, pauseForMedia = false }) {
   const audioRef = useRef(null);
+  const pauseForMediaRef = useRef(pauseForMedia);
   const playerRef = useRef(null);
   const longPressTimerRef = useRef(null);
   const clickResetTimerRef = useRef(null);
@@ -21,6 +22,7 @@ export function MusicPlayer({ src, cover }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
   const [topPosition, setTopPosition] = useState(topPositionRef.current);
+  pauseForMediaRef.current = pauseForMedia;
 
   useEffect(() => {
     if (isDismissed) return undefined;
@@ -28,10 +30,23 @@ export function MusicPlayer({ src, cover }) {
     const audio = audioRef.current;
     let active = true;
 
-    const attemptPlay = async () => {
+    const attemptPlay = async (event) => {
+      if (
+        pauseForMediaRef.current
+        || event?.target?.closest?.('.hero-media-stack, .hero-play-button')
+      ) {
+        if (active) document.addEventListener('pointerdown', attemptPlay, { once: true });
+        return;
+      }
+
       try {
         await audio.play();
-        if (active) setIsPlaying(true);
+        if (active && pauseForMediaRef.current) {
+          audio.pause();
+          setIsPlaying(false);
+        } else if (active) {
+          setIsPlaying(true);
+        }
       } catch {
         if (active) {
           setIsPlaying(false);
@@ -50,6 +65,12 @@ export function MusicPlayer({ src, cover }) {
     };
   }, [isDismissed]);
 
+  useEffect(() => {
+    if (!pauseForMedia) return;
+    audioRef.current?.pause();
+    setIsPlaying(false);
+  }, [pauseForMedia]);
+
   const togglePlayback = async () => {
     if (suppressClickRef.current) {
       suppressClickRef.current = false;
@@ -62,6 +83,12 @@ export function MusicPlayer({ src, cover }) {
     }
 
     const audio = audioRef.current;
+    if (pauseForMedia) {
+      audio.pause();
+      setIsPlaying(false);
+      return;
+    }
+
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
@@ -176,7 +203,14 @@ export function MusicPlayer({ src, cover }) {
         autoPlay
         loop
         preload="auto"
-        onPlay={() => setIsPlaying(true)}
+        onPlay={() => {
+          if (pauseForMediaRef.current) {
+            audioRef.current?.pause();
+            setIsPlaying(false);
+          } else {
+            setIsPlaying(true);
+          }
+        }}
         onPause={() => setIsPlaying(false)}
       />
       <img src={cover} alt="" draggable="false" />

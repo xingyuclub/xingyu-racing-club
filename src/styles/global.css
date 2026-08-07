@@ -2172,6 +2172,15 @@ button:focus-visible {
   margin-left: 4px;
 }
 
+.hero-media--video[role='button'] {
+  cursor: pointer;
+}
+
+.hero-media--video[role='button']:focus-visible {
+  outline: 3px solid #4079ff;
+  outline-offset: -3px;
+}
+
 .hero-media-stack .hero-media--poster {
   position: relative;
 }

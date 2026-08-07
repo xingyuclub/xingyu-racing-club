@@ -49,7 +49,7 @@ web
 
 ## Evidence on Hand
 
-- 首页车队合照与赛道图片：`public/images/hero-home.png`、`public/images/hero-home.webp`、`public/images/hero-track.jpg`。
+- 首页与赛道图片：`public/images/hero-home.webp`、`public/images/hero-track.jpg`；默认 Hero 使用非真人相册占位图。
 - 相册占位图片：`public/images/album/`。
 - 运行时上传素材：`server/storage/uploads/`。
 - 真实配置数据来源：`server/data/site-config.json`，该文件不进入 Git。
