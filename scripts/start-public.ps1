@@ -27,14 +27,46 @@ function Test-ProductionReady {
   }
 }
 
-# 1) 构建并启动生产 Node (0.0.0.0:3000)
+# 1) 本机 Ollama 截图识别服务 (127.0.0.1:11434)
+$ollama = (Get-Command ollama -ErrorAction SilentlyContinue).Source
+if (-not $ollama) {
+  $ollama = Join-Path $env:LOCALAPPDATA 'Programs\Ollama\ollama.exe'
+}
+if (-not (Test-Path -LiteralPath $ollama)) {
+  throw '未找到 Ollama，截图识别必须依赖这台电脑的本机 Ollama。'
+}
+
+if (Test-PortListening 11434) {
+  Write-Host '[1/3] 本机 Ollama 已在运行 (11434)'
+} else {
+  Write-Host '[1/3] 启动本机 Ollama ...'
+  Start-Process -FilePath $ollama -ArgumentList 'serve' -WindowStyle Hidden `
+    -RedirectStandardOutput (Join-Path $logDir 'ollama.out.log') `
+    -RedirectStandardError (Join-Path $logDir 'ollama.err.log') | Out-Null
+}
+
+$ollamaReady = $false
+for ($i = 0; $i -lt 30; $i++) {
+  if (Test-PortListening 11434) { $ollamaReady = $true; break }
+  Start-Sleep -Seconds 1
+}
+if (-not $ollamaReady) { throw '本机 Ollama 未在 30 秒内就绪，请查看 ollama.err.log。' }
+
+$modelLine = Get-Content -LiteralPath (Join-Path $rootDir '.env') -ErrorAction SilentlyContinue |
+  Where-Object { $_ -match '^\s*OPENAI_VISION_MODEL\s*=' } |
+  Select-Object -Last 1
+$visionModel = if ($modelLine) { ($modelLine -split '=', 2)[1].Trim().Trim('"').Trim("'") } else { 'xingyu-score-recognition' }
+& $ollama show $visionModel *> $null
+if ($LASTEXITCODE -ne 0) { throw "Ollama 缺少截图识别模型: $visionModel" }
+
+# 2) 构建并启动生产 Node (0.0.0.0:3000)
 if (Test-PortListening 3000) {
   if (-not (Test-ProductionReady)) {
     throw '端口 3000 已被占用，但不是绑定到 0.0.0.0 的已就绪生产 Node；请先运行 scripts/stop-tunnel.ps1 或手动释放端口。'
   }
-  Write-Host '[1/2] 生产 Node 已在运行 (3000)'
+  Write-Host '[2/3] 生产 Node 已在运行 (3000)'
 } else {
-  Write-Host '[1/2] 构建生产前台 ...'
+  Write-Host '[2/3] 构建生产前台 ...'
   Push-Location $rootDir
   try {
     & npm run build
@@ -43,7 +75,7 @@ if (Test-PortListening 3000) {
     Pop-Location
   }
 
-  Write-Host '[1/2] 启动生产 Node ...'
+  Write-Host '[2/3] 启动生产 Node ...'
   $node = (Get-Command node -ErrorAction Stop).Source
   $hadHost = Test-Path Env:HOST
   $previousHost = $env:HOST
@@ -65,7 +97,7 @@ for ($i = 0; $i -lt 30; $i++) {
 }
 if (-not $nodeReady) { Write-Warning '生产 Node 未就绪，请查看日志后重试'; exit 1 }
 
-# 2) Cloudflare 快速隧道（未安装 cloudflared 时降级为仅局域网）
+# 3) Cloudflare 快速隧道（未安装 cloudflared 时降级为仅局域网）
 $cfExe = (Get-Command cloudflared -ErrorAction SilentlyContinue).Source
 if (-not $cfExe) { $cfExe = 'C:\Program Files (x86)\cloudflared\cloudflared.exe' }
 $cfAvailable = Test-Path $cfExe
@@ -81,9 +113,9 @@ if (-not $cfAvailable) {
   }
 }
 if ($cfAvailable -and $productionTunnel) {
-  Write-Host '[2/2] Cloudflare 隧道已在运行'
+  Write-Host '[3/3] Cloudflare 隧道已在运行'
 } elseif ($cfAvailable) {
-  Write-Host '[2/2] 启动 Cloudflare 快速隧道 ...'
+  Write-Host '[3/3] 启动 Cloudflare 快速隧道 ...'
   Remove-Item -LiteralPath $cfOut, $cfErr -Force -ErrorAction SilentlyContinue
   Start-Process -FilePath $cfExe -ArgumentList 'tunnel','--url','http://127.0.0.1:3000','--no-autoupdate' `
     -WindowStyle Hidden -RedirectStandardOutput $cfOut -RedirectStandardError $cfErr | Out-Null

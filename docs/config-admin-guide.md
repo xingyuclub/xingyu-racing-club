@@ -126,7 +126,7 @@ Ollama 必须保持运行，修改 `.env` 后需要重启 `npm run dev:api`。�
 前台 H5 默认只在本机/局域网可见。需要把资讯链接（如 `#news/1`）分享到微信群时，用 Cloudflare 快速隧道生成临时公网链接，无需公网 IP、免账号：
 
 1. 在项目根目录双击 `start-public.bat`（或执行 `powershell -ExecutionPolicy Bypass -File scripts/start-public.ps1`）。
-2. 脚本在生产 Node 未运行时先执行 `npm run build`，再启动 Node 生产服务（0.0.0.0:3000）和 cloudflared 隧道；已运行的 Node 或隧道自动跳过，最后打印公网链接，例如 `https://xxx.trycloudflare.com`。Vite `4173` 只用于开发，不作为公网入口。
+2. 脚本先确保本机 Ollama `11434` 和 `.env` 中的识别模型可用；生产 Node 未运行时再执行 `npm run build`，然后启动 Node 生产服务（0.0.0.0:3000）和 cloudflared 隧道。已运行的服务自动跳过，最后打印公网链接，例如 `https://xxx.trycloudflare.com`。Vite `4173` 只用于开发，不作为公网入口。
 3. 把 `公网链接 + #news/<id>` 发给微信联系人，如 `https://xxx.trycloudflare.com/#news/1`；详情页内点“分享”也会复制完整链接。
 4. 局域网内的设备仍可用 `http://<本机IP>:3000/` 访问，不受公网隧道影响。
 
