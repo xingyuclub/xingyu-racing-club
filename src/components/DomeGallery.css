@@ -99,7 +99,7 @@ main.sphere-main:active {
   backface-visibility: hidden;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
+  touch-action: none;
   pointer-events: auto;
   -webkit-transform: translateZ(0);
   transform: translateZ(0);

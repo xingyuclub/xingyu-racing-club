@@ -167,6 +167,19 @@ describe('projectScores', () => {
     expect(dailyDetail[0].weekday).toBe('周六');
   });
 
+  it('reports only the members with rows in the final week', () => {
+    const { weekMembers } = projectScores({
+      roster,
+      dailyScores: [
+        { date: '2026-08-03', rows: [{ id: '1', teamRace: [2, 0, 0], openRace: [0, 0, 0] }] },
+        { date: '2026-08-10', rows: [{ id: '2', teamRace: [1, 0, 0], openRace: [0, 0, 0] }] },
+      ],
+      weekendScores: [],
+    });
+
+    expect([...weekMembers]).toEqual(['2']);
+  });
+
   it('handles empty inputs gracefully', () => {
     const { totals, dailyDetail } = projectScores({});
 

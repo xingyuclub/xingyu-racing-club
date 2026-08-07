@@ -249,13 +249,35 @@ describe('ScoreEditor', () => {
     const latest = onChange.mock.calls.at(-1)[0];
     expect(latest.scoreMembers).toHaveLength(3);
     expect(latest.scoreMembers[2].name).toBe('新积分队员');
-    expect(latest.scoreMembers[2].id).toMatch(/^score:/);
+    expect(latest.scoreMembers[2].id).toBe('1');
     expect(latest.roster).toHaveLength(2);
     expect(screen.getByRole('textbox', { name: '积分队员 3 名称' })).toHaveValue('新积分队员');
 
     await user.click(screen.getByRole('button', { name: '删除积分队员 3' }));
     expect(onChange.mock.calls.at(-1)[0].scoreMembers).toHaveLength(2);
     expect(onChange.mock.calls.at(-1)[0].roster).toHaveLength(2);
+  });
+
+  it('removes a score member together with every stored reference', async () => {
+    const user = userEvent.setup();
+    const config = createConfig();
+    const removedId = config.scoreMembers[0].id;
+    config.roster[0].scoreMemberId = removedId;
+    config.weekendScores = [{
+      date: '2026-08-02',
+      rows: [{ id: removedId, points: 18 }],
+    }];
+    const onChange = vi.fn();
+
+    render(<ScoreEditorHarness initialConfig={config} onChange={onChange} />);
+    await user.click(screen.getByRole('tab', { name: '积分队员' }));
+    await user.click(screen.getByRole('button', { name: '删除积分队员 1' }));
+
+    const next = onChange.mock.calls.at(-1)[0];
+    expect(next.scoreMembers.some((member) => member.id === removedId)).toBe(false);
+    expect(next.dailyScores.flatMap((round) => round.rows).some((row) => row.id === removedId)).toBe(false);
+    expect(next.weekendScores.flatMap((round) => round.rows).some((row) => row.id === removedId)).toBe(false);
+    expect(next.roster[0].scoreMemberId).toBe('');
   });
 
   it('downloads a blank template and the current score data', async () => {

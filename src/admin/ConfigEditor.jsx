@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react';
 import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
-import { listUploads, saveConfig } from './adminApi.js';
+import { getConfig, listUploads, saveConfig } from './adminApi.js';
 import { UploadField } from './UploadField.jsx';
 import { UploadLibrary } from './UploadLibrary.jsx';
 import { RichTextEditor } from './RichTextEditor.jsx';
 import { ScoreEditor } from './ScoreEditor.jsx';
 
 const clone = (value) => structuredClone(value);
-const labels = { name:'名称', heroLines:'首屏文案', label:'英文标识', motto:'车队口号', heroMedia:'首页主媒体', heroFallbackImage:'视频失败备用图', src:'素材路径', cover:'封面', id:'ID', role:'角色', signature:'个性签名', avatar:'头像', videoUrl:'视频地址', title:'标题', category:'分类', date:'日期', imageSrc:'资讯图片', imageAlt:'图片说明', summary:'摘要', body:'正文', coverSrc:'相册封面', photos:'照片', alt:'替代文本', featured:'精选', mediaType:'媒体类型', pinned:'置顶', newsCategories:'分类列表', value:'数值' };
-const empty = { heroLines:'', roster:{ id:'',number:'',name:'',role:'队员',signature:'',basePoints:0,wins:0,avatar:'',videoUrl:'' }, news:{ id:'',title:'',category:'',date:'',imageSrc:'',imageAlt:'',summary:'',body:'',bodyHtml:'',pinned:false }, albums:{ id:'',name:'',date:'',coverSrc:'',photos:[] }, photos:{ id:'',src:'',title:'',date:'',alt:'',featured:false,mediaType:'image',videoUrl:'' } };
+const newId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+  ? crypto.randomUUID()
+  : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+const labels = { name:'名称', heroLines:'首屏文案', label:'英文标识', motto:'车队口号', heroMedia:'首页主媒体', heroFallbackImage:'视频失败备用图', src:'素材路径', cover:'封面', id:'ID', scoreMemberId:'积分人物', role:'角色', signature:'个性签名', avatar:'头像', videoUrl:'视频地址', title:'标题', category:'分类', date:'日期', imageSrc:'资讯图片', imageAlt:'图片说明', summary:'摘要', body:'正文', coverSrc:'相册封面', photos:'照片', alt:'替代文本', featured:'精选', mediaType:'媒体类型', pinned:'置顶', newsCategories:'分类列表', value:'数值' };
+const empty = { heroLines:'', roster:{ id:'',number:'',name:'',scoreMemberId:'',role:'队员',signature:'',basePoints:0,wins:0,avatar:'',videoUrl:'' }, news:{ id:'',title:'',category:'',date:'',imageSrc:'',imageAlt:'',summary:'',body:'',bodyHtml:'',pinned:false }, albums:{ id:'',name:'',date:'',coverSrc:'',photos:[] }, photos:{ id:'',src:'',title:'',date:'',alt:'',featured:false,mediaType:'image',videoUrl:'' } };
 function createDraft(config) {
   const draft = clone(config);
   draft.newsCategories = Array.isArray(draft.newsCategories) ? draft.newsCategories : [];
@@ -18,6 +21,21 @@ function createDraft(config) {
     signature: typeof member.signature === 'string' ? member.signature : '',
   }));
   return draft;
+}
+function restoreReferencedScoreMembers(config, latestConfig) {
+  const referencedIds = new Set([
+    ...(config.roster || []).map((member) => member.scoreMemberId),
+    ...(config.dailyScores || []).flatMap((round) => (round.rows || []).map((row) => row.id)),
+    ...(config.weekendScores || []).flatMap((round) => (round.rows || []).map((row) => row.id)),
+  ].filter(Boolean));
+  const currentIds = new Set((config.scoreMembers || []).map((member) => member.id));
+  const missing = (latestConfig.scoreMembers || [])
+    .filter((member) => referencedIds.has(member.id) && !currentIds.has(member.id));
+  if (!missing.length) return config;
+  return {
+    ...config,
+    scoreMembers: [...config.scoreMembers, ...clone(missing)],
+  };
 }
 function setAt(root, path, value) { const next=clone(root); let node=next; path.slice(0,-1).forEach((key)=>node=node[key]); node[path.at(-1)]=value; return next; }
 function nextMemberNumber(members) {
@@ -37,6 +55,14 @@ function Field({ value, path, fieldKey, draft, setDraft, roster, refresh }) {
   if (['heroFallbackImage','avatar','videoUrl','imageSrc','coverSrc','src','cover'].includes(fieldKey)) return <UploadField label={`${labels[fieldKey] || fieldKey}上传`} value={value} onChange={update} onUploaded={refresh} />;
   if (typeof value === 'boolean') return <label className="check"><input type="checkbox" checked={value} onChange={(e)=>update(e.target.checked)} />{labels[fieldKey]||fieldKey}</label>;
   if (fieldKey === 'id' && path.includes('rows')) return <label>{labels[fieldKey]}<select value={value} onChange={(e)=>update(e.target.value)}><option value="">请选择成员</option>{roster.map((member)=><option key={member.id} value={member.id}>{member.name}</option>)}</select></label>;
+  if (fieldKey === 'scoreMemberId') {
+    const rosterIndex = path[0] === 'roster' ? path[1] : -1;
+    const usedByOthers = new Set((draft.roster || [])
+      .filter((_, index) => index !== rosterIndex)
+      .map((member) => member.scoreMemberId)
+      .filter(Boolean));
+    return <label>{labels[fieldKey]}<select value={value || ''} onChange={(e)=>update(e.target.value)}><option value="">未绑定</option>{(draft.scoreMembers || []).map((member)=><option key={member.id} value={member.id} disabled={usedByOthers.has(member.id)}>{member.name}</option>)}</select></label>;
+  }
   const numeric=typeof value === 'number';
   const label = fieldKey === 'heroLines' && typeof path.at(-1) === 'number'
     ? `第 ${path.at(-1) + 1} 句`
@@ -80,7 +106,7 @@ function Tree({ value, path, fieldKey, draft, setDraft, roster, fixed=false, ref
     const change=(next)=>setDraft((current)=>setAt(current,path,next));
     const template=empty[fieldKey] ?? (typeof value[0] === 'number' ? 0 : {});
     const addItem = () => {
-      const item = { ...clone(template), id: template.id === '' ? (fieldKey === 'roster' ? nextMemberId(value) : crypto.randomUUID()) : template.id };
+      const item = { ...clone(template), id: template.id === '' ? (fieldKey === 'roster' ? nextMemberId(value) : newId()) : template.id };
       if (fieldKey === 'roster') item.number = nextMemberNumber(value);
       change([...value, item]);
     };
@@ -96,7 +122,7 @@ export function ConfigEditor({ initialConfig, onAuthError }) {
   const [draft,setDraft]=useState(()=>createDraft(initialConfig)); const [files,setFiles]=useState([]); const [status,setStatus]=useState(''); const [saving,setSaving]=useState(false);
   const loadFiles=()=>listUploads().then((next)=>setFiles(Array.isArray(next)?next:[])).catch((e)=>{if(!onAuthError(e))setStatus(e.message)});
   useEffect(() => { loadFiles(); }, []);
-  const save=async()=>{setSaving(true);setStatus('');try{const normalized=createDraft(draft);await saveConfig(normalized);setDraft(normalized);setStatus('已保存，前台刷新后可见最新内容');}catch(e){if(!onAuthError(e))setStatus([e.message,...(e.details||[])].join('\n'));}finally{setSaving(false)}};
+  const save=async()=>{setSaving(true);setStatus('');try{const normalized=createDraft(draft);const complete=restoreReferencedScoreMembers(normalized,await getConfig());await saveConfig(complete);setDraft(complete);setStatus('已保存，前台刷新后可见最新内容');}catch(e){if(!onAuthError(e))setStatus([e.message,...(e.details||[])].join('\n'));}finally{setSaving(false)}};
   const sections=[['基础信息',{team:draft.team,music:draft.music}],['统计数据',draft.stats],['成员管理',draft.roster],['新闻管理',draft.news],['相册管理',draft.albums]];
   const appendUpload=(file)=>setFiles((current)=>current.some((item)=>item.name===file.name)?current:[...current,file]);
   return <>{sections.map(([title,value],index)=><AdminSection title={title} key={title}>{title==='新闻管理' && <CategoriesEditor value={draft.newsCategories || []} onChange={(next)=>setDraft((current)=>({...clone(current),newsCategories:next}))} />}<Tree value={value} path={index===0?[]:[['stats','roster','news','albums'][index-1]]} fieldKey={index===0?'base':['stats','roster','news','albums'][index-1]} fixed={title==='统计数据'} {...{draft,setDraft,roster:draft.roster,refresh:appendUpload}} /></AdminSection>)}<AdminSection title="星屿积分榜"><ScoreEditor config={draft} onChange={setDraft} /></AdminSection><AdminSection title="素材管理"><UploadLibrary files={files} setFiles={setFiles} onError={(e)=>setStatus(e.message)} /></AdminSection><div className="save-bar">{status && <p className={status.startsWith('已保存')?'admin-success':'admin-error'}>{status}</p>}<button disabled={saving} onClick={save}>保存全部配置</button></div></>;

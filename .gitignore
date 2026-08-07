@@ -21,5 +21,8 @@ server/storage/uploads/
 server/storage/score-recognition/
 tools/
 logs/
+server/*.log
+server/data/*.log*
+server/tmp-view/
 server/data/score-recognition/
 server/data/*.bak*

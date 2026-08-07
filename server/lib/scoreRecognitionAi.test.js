@@ -4,6 +4,7 @@ import { createScoreRecognitionAi } from './scoreRecognitionAi.js';
 const validPayload = {
   matches: [
     {
+      mapName: '香波岛',
       participants: [{ nickname: '十二', rank: 2 }, { nickname: '黑岩', rank: 4 }],
     },
   ],
@@ -62,6 +63,27 @@ describe('score recognition AI adapter', () => {
     })).resolves.toEqual(validPayload.matches);
   });
 
+  it('passes the map name through and rejects a non-string map name', async () => {
+    const client = createFakeClient({
+      matches: [{ mapName: '香波岛', participants: [{ nickname: '十二', rank: 1 }] }],
+    });
+    const ai = createAi(client);
+
+    const result = await ai.extractMatches({
+      imageBytes: Buffer.from([]),
+      mimeType: 'image/jpeg',
+    });
+    expect(result[0].mapName).toBe('香波岛');
+
+    const bad = createFakeClient({
+      matches: [{ mapName: 123, participants: [{ nickname: '十二', rank: 1 }] }],
+    });
+    await expect(createAi(bad).extractMatches({
+      imageBytes: Buffer.from([]),
+      mimeType: 'image/jpeg',
+    })).rejects.toThrow(/mapName/);
+  });
+
   it('constrains local vision models to the supported screenshot structures', async () => {
     const client = createFakeClient(validPayload);
     const ai = createAi(client);
@@ -82,7 +104,8 @@ describe('score recognition AI adapter', () => {
     expect(request.messages[0].content).toContain('绝不能把其他列的数字当作名次');
     expect(request.messages[0].content).toContain('原样抄写整行，不要删减');
     expect(request.messages[0].content).toContain('score 是 MVP分列');
-    expect(request.messages[0].content).not.toMatch(/日期|胜负|地图/);
+    expect(request.messages[0].content).toContain('每场比赛必须抄写结算表标题区显示的地图名称到 mapName');
+    expect(request.messages[0].content).not.toMatch(/胜负/);
     expect(request.messages[0].content).not.toContain('十二、黑岩');
     expect(request.temperature).toBe(0);
     const schema = request.response_format.json_schema.schema;
@@ -91,9 +114,10 @@ describe('score recognition AI adapter', () => {
     expect(request.response_format.json_schema.strict).toBe(true);
     expect(schema.required).toEqual(['matches']);
     expect(schema.additionalProperties).toBe(false);
-    expect(matchSchema.required).toEqual(['participants']);
+    expect(matchSchema.required).toEqual(['mapName', 'participants']);
     expect(matchSchema.additionalProperties).toBe(false);
-    expect(Object.keys(matchSchema.properties)).toEqual(['participants']);
+    expect(Object.keys(matchSchema.properties)).toEqual(['mapName', 'participants']);
+    expect(matchSchema.properties.mapName).toEqual({ type: 'string', minLength: 1 });
     expect(Object.keys(matchSchema.properties.participants.items.properties)).toEqual([
       'nickname', 'rank', 'score', 'attack', 'defense', 'assist',
     ]);

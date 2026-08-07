@@ -205,32 +205,25 @@ export default function DomeGallery({
     [dragDampening, maxVerticalRotationDeg, stopInertia, applyTransform],
   );
 
-  const handlePointerDown = useCallback(
-    (event) => {
+  const beginDrag = useCallback(
+    (clientX, clientY) => {
       stopInertia();
-      if (typeof event.currentTarget.setPointerCapture === 'function') {
-        try {
-          event.currentTarget.setPointerCapture(event.pointerId);
-        } catch {
-          /* pointer already gone */
-        }
-      }
       draggingRef.current = true;
       movedRef.current = false;
       startRotRef.current = { ...rotationRef.current };
-      startPosRef.current = { x: event.clientX, y: event.clientY };
-      lastMovePosRef.current = { x: event.clientX, y: event.clientY };
+      startPosRef.current = { x: clientX, y: clientY };
+      lastMovePosRef.current = { x: clientX, y: clientY };
       lastMoveTimeRef.current = performance.now();
       velocityRef.current = { x: 0, y: 0 };
     },
     [stopInertia],
   );
 
-  const handlePointerMove = useCallback(
-    (event) => {
+  const moveDrag = useCallback(
+    (clientX, clientY) => {
       if (!draggingRef.current || !startPosRef.current) return;
-      const dxTotal = event.clientX - startPosRef.current.x;
-      const dyTotal = event.clientY - startPosRef.current.y;
+      const dxTotal = clientX - startPosRef.current.x;
+      const dyTotal = clientY - startPosRef.current.y;
       if (!movedRef.current) {
         const dist2 = dxTotal * dxTotal + dyTotal * dyTotal;
         if (dist2 > 100) movedRef.current = true;
@@ -239,14 +232,14 @@ export default function DomeGallery({
       const prevPos = lastMovePosRef.current;
       if (prevPos) {
         const dt = Math.max(1, now - lastMoveTimeRef.current);
-        const vx = (event.clientX - prevPos.x) / dt;
-        const vy = (event.clientY - prevPos.y) / dt;
+        const vx = (clientX - prevPos.x) / dt;
+        const vy = (clientY - prevPos.y) / dt;
         velocityRef.current = {
           x: velocityRef.current.x * 0.7 + vx * 0.3,
           y: velocityRef.current.y * 0.7 + vy * 0.3,
         };
       }
-      lastMovePosRef.current = { x: event.clientX, y: event.clientY };
+      lastMovePosRef.current = { x: clientX, y: clientY };
       lastMoveTimeRef.current = now;
 
       const nextX = clamp(
@@ -263,13 +256,13 @@ export default function DomeGallery({
     [dragSensitivity, maxVerticalRotationDeg, applyTransform],
   );
 
-  const handlePointerEnd = useCallback(
-    (event) => {
+  const endDrag = useCallback(
+    (clientX, clientY) => {
       if (!draggingRef.current) return;
       const start = startPosRef.current;
       const lastMove = lastMovePosRef.current;
-      const endX = Number.isFinite(event.clientX) ? event.clientX : (lastMove ? lastMove.x : (start ? start.x : 0));
-      const endY = Number.isFinite(event.clientY) ? event.clientY : (lastMove ? lastMove.y : (start ? start.y : 0));
+      const endX = Number.isFinite(clientX) ? clientX : (lastMove ? lastMove.x : (start ? start.x : 0));
+      const endY = Number.isFinite(clientY) ? clientY : (lastMove ? lastMove.y : (start ? start.y : 0));
       draggingRef.current = false;
       startPosRef.current = null;
       lastMovePosRef.current = null;
@@ -291,6 +284,30 @@ export default function DomeGallery({
     [dragSensitivity, startInertia],
   );
 
+  const handlePointerDown = useCallback(
+    (event) => {
+      if (typeof event.currentTarget.setPointerCapture === 'function') {
+        try {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        } catch {
+          /* pointer already gone */
+        }
+      }
+      beginDrag(event.clientX, event.clientY);
+    },
+    [beginDrag],
+  );
+
+  const handlePointerMove = useCallback(
+    (event) => moveDrag(event.clientX, event.clientY),
+    [moveDrag],
+  );
+
+  const handlePointerEnd = useCallback(
+    (event) => endDrag(event.clientX, event.clientY),
+    [endDrag],
+  );
+
   const handlePointerCancel = useCallback(() => {
     if (!draggingRef.current) return;
     draggingRef.current = false;
@@ -299,6 +316,41 @@ export default function DomeGallery({
     velocityRef.current = { x: 0, y: 0 };
     movedRef.current = false;
   }, []);
+
+  useEffect(() => {
+    const main = mainRef.current;
+    if (!main) return undefined;
+    const needsTouchFallback = typeof window.PointerEvent !== 'function';
+
+    const handleTouchStart = (event) => {
+      if (!needsTouchFallback) return;
+      const touch = event.touches[0];
+      if (touch) beginDrag(touch.clientX, touch.clientY);
+    };
+    const handleTouchMove = (event) => {
+      if (event.cancelable) event.preventDefault();
+      if (!needsTouchFallback) return;
+      const touch = event.touches[0];
+      if (touch) moveDrag(touch.clientX, touch.clientY);
+    };
+    const handleTouchEnd = (event) => {
+      if (!needsTouchFallback) return;
+      const touch = event.changedTouches[0];
+      endDrag(touch?.clientX, touch?.clientY);
+    };
+
+    main.addEventListener('touchstart', handleTouchStart, { passive: true });
+    main.addEventListener('touchmove', handleTouchMove, { passive: false });
+    main.addEventListener('touchend', handleTouchEnd, { passive: true });
+    main.addEventListener('touchcancel', handlePointerCancel, { passive: true });
+
+    return () => {
+      main.removeEventListener('touchstart', handleTouchStart);
+      main.removeEventListener('touchmove', handleTouchMove);
+      main.removeEventListener('touchend', handleTouchEnd);
+      main.removeEventListener('touchcancel', handlePointerCancel);
+    };
+  }, [beginDrag, moveDrag, endDrag, handlePointerCancel]);
 
   const openTile = useCallback((event) => {
     if (draggingRef.current || movedRef.current) return;

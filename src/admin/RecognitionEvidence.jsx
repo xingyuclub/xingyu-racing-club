@@ -27,6 +27,7 @@ function EvidenceRow({ batchId, item }) {
   return (
     <div className="recognition-evidence-row">
       <ImageLink batchId={batchId} item={item} />
+      <span>{item.mapName ? `地图 ${item.mapName}` : '地图未知'}</span>
       <span>名次 {item.rank}</span>
       <span>{item.score === undefined ? '未计分' : `+${item.score} 分`}</span>
       <span>{item.slot === undefined ? '未录入' : `第 ${item.slot + 1} 局`}</span>
@@ -34,7 +35,7 @@ function EvidenceRow({ batchId, item }) {
   );
 }
 
-function IssueEditor({ batchId, issue, evidence, roster, busy, onReview }) {
+function IssueEditor({ batchId, issue, evidence, scoreMembers, busy, onReview }) {
   const [rank, setRank] = useState(String(evidence?.rank ?? ''));
   useEffect(() => { setRank(String(evidence?.rank ?? '')); }, [evidence?.rank]);
   if (!evidence) return null;
@@ -53,6 +54,10 @@ function IssueEditor({ batchId, issue, evidence, roster, busy, onReview }) {
         <ImageLink batchId={batchId} item={evidence} />
       </div>
       <div className="recognition-issue-fields">
+        <label>
+          <span>地图</span>
+          <input value={evidence.mapName || '未知'} readOnly />
+        </label>
         <label>
           <span>识别昵称</span>
           <input value={evidence.nickname} readOnly />
@@ -79,32 +84,64 @@ function IssueEditor({ batchId, issue, evidence, roster, busy, onReview }) {
         <label>
           <span>对应成员</span>
           <select
-            value={evidence.memberId || ''}
+            value={evidence.scoreMemberId || ''}
             disabled={busy}
             aria-label={`未匹配昵称 ${evidence.nickname} 对应成员`}
             onChange={(event) => {
               if (event.target.value) {
-                onReview({ evidenceId: evidence.id, memberId: event.target.value, ignored: false });
+                onReview({ evidenceId: evidence.id, scoreMemberId: event.target.value, ignored: false });
               }
             }}
           >
             <option value="">请选择</option>
-            {roster.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+            {scoreMembers.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
           </select>
         </label>
       </div>
       <div className="recognition-issue-actions">
-        {evidence.memberId && (
+        {evidence.scoreMemberId && (
           <span><UserCheck aria-hidden="true" size={15} /> 已匹配 {evidence.memberName}</span>
         )}
         <button
           type="button"
           disabled={busy}
-          aria-label={`标记${evidence.nickname}为非车队成员`}
+          aria-label={`标记${evidence.nickname}为非积分成员`}
           onClick={() => onReview({ evidenceId: evidence.id, ignored: true })}
         >
           <Ban aria-hidden="true" size={15} />
-          标记为非车队成员
+          标记为非积分成员
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DuplicateImageEditor({ batchId, issue, busy, onReview }) {
+  return (
+    <div className="recognition-issue">
+      <div className="recognition-issue-head">
+        <strong>两张图片内容高度相似，疑似重复图片</strong>
+        <ImageLink batchId={batchId} item={{ imageIndex: issue.imageIndex }} />
+        <ImageLink batchId={batchId} item={{ imageIndex: issue.duplicateOfImageIndex }} />
+      </div>
+      <div className="recognition-issue-actions">
+        <button
+          type="button"
+          disabled={busy}
+          aria-label="确认是重复图片"
+          onClick={() => onReview({ imageIndex: issue.imageIndex, duplicate: true })}
+        >
+          <Ban aria-hidden="true" size={15} />
+          确认是重复图片
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          aria-label="确认是不同图片"
+          onClick={() => onReview({ imageIndex: issue.imageIndex, notDuplicate: true })}
+        >
+          <Check aria-hidden="true" size={15} />
+          这是不同图片
         </button>
       </div>
     </div>
@@ -136,7 +173,9 @@ function DuplicateEditor({ batchId, draft, issue, busy, onReview }) {
       </div>
       <div className="recognition-race-grid">
         <div>
-          <span className="recognition-race-label">本场（截图 {first.imageIndex + 1}）</span>
+          <span className="recognition-race-label">
+            本场（截图 {first.imageIndex + 1} · {first.mapName || '地图未知'}）
+          </span>
           {participants.map((item) => (
             <span key={item.id} className="recognition-race-member">
               第 {item.rank} 名 {item.nickname}
@@ -146,7 +185,7 @@ function DuplicateEditor({ batchId, draft, issue, busy, onReview }) {
         {compared.length > 0 && (
           <div>
             <span className="recognition-race-label">
-              对比场次（截图 {issue.duplicateOf.imageIndex + 1}）
+              对比场次（截图 {issue.duplicateOf.imageIndex + 1} · {compared[0]?.mapName || '地图未知'}）
             </span>
             {compared.map((item) => (
               <span key={item.id} className="recognition-race-member">
@@ -187,6 +226,21 @@ export function RecognitionEvidence({ batchId, config, draft, busy, onReview }) 
       {draft.autoDistinctCount > 0 && (
         <p className="recognition-duplicate-note" role="status">
           有 {draft.autoDistinctCount} 场人员与名次相同但数值不同的比赛，已按不同场次自动保留。
+        </p>
+      )}
+      {draft.autoDistinctImageCount > 0 && (
+        <p className="recognition-duplicate-note" role="status">
+          有 {draft.autoDistinctImageCount} 张疑似重复图片的地图不同，已按不同比赛自动放行。
+        </p>
+      )}
+      {draft.suspectedDuplicateImageCount > 0 && (
+        <p className="recognition-duplicate-note" role="status">
+          发现 {draft.suspectedDuplicateImageCount} 张疑似重复图片，请确认后再提交。
+        </p>
+      )}
+      {draft.duplicateImageCount > 0 && (
+        <p className="recognition-duplicate-note" role="status">
+          已跳过 {draft.duplicateImageCount} 张内容完全相同的重复图片。
         </p>
       )}
       {draft.suspectedDuplicateCount > 0 && (
@@ -235,7 +289,15 @@ export function RecognitionEvidence({ batchId, config, draft, busy, onReview }) 
       {(draft.issues.length > 0 || warnings.length > 0) && (
         <section className="recognition-issues" aria-label="待处理识别项">
           {draft.issues.map((issue) => (
-            issue.code === 'suspected-duplicate' ? (
+            issue.code === 'suspected-duplicate-image' ? (
+              <DuplicateImageEditor
+                key={`${issue.imageIndex}-${issue.code}`}
+                batchId={batchId}
+                issue={issue}
+                busy={busy}
+                onReview={onReview}
+              />
+            ) : issue.code === 'suspected-duplicate' ? (
               <DuplicateEditor
                 key={`${issue.evidenceId}-${issue.code}`}
                 batchId={batchId}
@@ -250,7 +312,7 @@ export function RecognitionEvidence({ batchId, config, draft, busy, onReview }) 
                 batchId={batchId}
                 issue={issue}
                 evidence={evidenceById.get(issue.evidenceId)}
-                roster={config.roster || []}
+                scoreMembers={config.scoreMembers || []}
                 busy={busy}
                 onReview={onReview}
               />

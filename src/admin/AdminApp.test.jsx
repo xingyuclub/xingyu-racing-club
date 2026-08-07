@@ -35,6 +35,7 @@ it('logs in, edits public content, uploads a cover, and saves the draft', async 
     .mockResolvedValueOnce({ ok: true, json: async () => [] })
     .mockResolvedValueOnce({ ok: true, status: 201, json: async () => ({ name: 'abc--hero.mp4', path: '/uploads/abc--hero.mp4', type: 'video', size: 5 }) })
     .mockResolvedValueOnce({ ok: true, status: 201, json: async () => ({ name: 'def--fallback.png', path: '/uploads/def--fallback.png', type: 'image', size: 5 }) })
+    .mockResolvedValueOnce({ ok: true, status: 200, json: async () => config })
     .mockResolvedValueOnce({ ok: true, status: 204 }));
 
   render(<AdminApp />);
@@ -64,8 +65,10 @@ it('logs in, edits public content, uploads a cover, and saves the draft', async 
   await user.upload(screen.getByLabelText('视频失败备用图上传'), new File(['image'], 'fallback.png', { type: 'image/png' }));
   await user.click(screen.getByRole('button', { name: '保存全部配置' }));
 
-  expect(fetch).toHaveBeenLastCalledWith('/api/admin/config', expect.objectContaining({ method: 'PUT' }));
-    const savedConfig = JSON.parse(fetch.mock.calls.at(-1)[1].body);
+  const saveCall = fetch.mock.calls.find(([path, options]) =>
+    path === '/api/admin/config' && options?.method === 'PUT');
+    expect(saveCall).toBeDefined();
+    const savedConfig = JSON.parse(saveCall[1].body);
     expect(savedConfig.roster[0].role).toBe('队长');
     expect(savedConfig.roster[0].signature).toBe('一路向星光');
     expect(savedConfig.team.heroMedia).toEqual({ src: '/uploads/abc--hero.mp4', type: 'video' });
@@ -113,7 +116,15 @@ it('adds an editable signature field to legacy members without rebuilding them',
   const config = createSeedConfig();
   const legacyMember = config.roster[0];
   delete legacyMember.signature;
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 204 }));
+  vi.stubGlobal('fetch', vi.fn(async (path, options = {}) => {
+    if (path === '/api/admin/uploads') {
+      return { ok: true, status: 200, json: async () => [] };
+    }
+    if (path === '/api/admin/config' && options.method !== 'PUT') {
+      return { ok: true, status: 200, json: async () => config };
+    }
+    return { ok: true, status: 204 };
+  }));
 
   render(<ConfigEditor initialConfig={config} onAuthError={() => false} />);
   await user.click(screen.getByRole('button', { name: '展开 成员管理' }));
@@ -125,13 +136,107 @@ it('adds an editable signature field to legacy members without rebuilding them',
   await user.type(signature, '一起冲向终点');
   await user.click(screen.getByRole('button', { name: '保存全部配置' }));
 
-  const savedConfig = JSON.parse(fetch.mock.calls.at(-1)[1].body);
+  const saveCall = fetch.mock.calls.find(([path, options]) =>
+    path === '/api/admin/config' && options?.method === 'PUT');
+  const savedConfig = JSON.parse(saveCall[1].body);
   expect(savedConfig.roster[0]).toEqual(expect.objectContaining({
     id: legacyMember.id,
     avatar: legacyMember.avatar,
     videoUrl: legacyMember.videoUrl,
     signature: '一起冲向终点',
   }));
+});
+it('edits the permanent score identity binding on a roster member', async () => {
+  const user = userEvent.setup();
+  const config = createSeedConfig();
+  vi.stubGlobal('fetch', vi.fn(async (path, options = {}) => {
+    if (path === '/api/admin/uploads') {
+      return { ok: true, status: 200, json: async () => [] };
+    }
+    if (path === '/api/admin/config' && options.method !== 'PUT') {
+      return { ok: true, status: 200, json: async () => config };
+    }
+    return { ok: true, status: 204 };
+  }));
+
+  render(<ConfigEditor initialConfig={config} onAuthError={() => false} />);
+  await user.click(screen.getByRole('button', { name: '展开 成员管理' }));
+
+  const memberCard = screen.getByRole('button', { name: `收起 ${config.roster[0].name}` })
+    .closest('.array-item');
+  const binding = within(memberCard).getByLabelText('积分人物');
+  expect(binding).toHaveValue(config.roster[0].scoreMemberId);
+  expect(within(memberCard).getByRole('option', { name: config.scoreMembers[1].name }))
+    .toBeDisabled();
+
+  await user.selectOptions(binding, '');
+  await user.click(screen.getByRole('button', { name: '保存全部配置' }));
+
+  const saveCall = fetch.mock.calls.find(([path, options]) =>
+    path === '/api/admin/config' && options?.method === 'PUT');
+  const savedConfig = JSON.parse(saveCall[1].body);
+  expect(savedConfig.roster[0].scoreMemberId).toBe('');
+});
+
+it('restores referenced score identities from the latest config before saving a stale draft', async () => {
+  const user = userEvent.setup();
+  const latestConfig = createSeedConfig();
+  const staleConfig = structuredClone(latestConfig);
+  staleConfig.scoreMembers = staleConfig.scoreMembers.slice(0, 2);
+  vi.stubGlobal('fetch', vi.fn(async (path, options = {}) => {
+    if (path === '/api/admin/uploads') {
+      return { ok: true, status: 200, json: async () => [] };
+    }
+    if (path === '/api/admin/config' && options.method !== 'PUT') {
+      return { ok: true, status: 200, json: async () => latestConfig };
+    }
+    return { ok: true, status: 204 };
+  }));
+
+  render(<ConfigEditor initialConfig={staleConfig} onAuthError={() => false} />);
+  await user.click(screen.getByRole('button', { name: '保存全部配置' }));
+
+  const saveCall = fetch.mock.calls.find(([path, options]) =>
+    path === '/api/admin/config' && options?.method === 'PUT');
+  const savedConfig = JSON.parse(saveCall[1].body);
+  expect(savedConfig.scoreMembers.map((member) => member.id)).toEqual(
+    expect.arrayContaining(latestConfig.scoreMembers.map((member) => member.id)),
+  );
+});
+
+it('keeps an explicitly deleted score identity removed when saving', async () => {
+  const user = userEvent.setup();
+  const config = createSeedConfig();
+  const removedId = config.scoreMembers[0].id;
+  config.roster[0].scoreMemberId = removedId;
+  config.dailyScores = [{
+    date: '2026-08-04',
+    rows: [{ id: removedId, teamRace: [1, null, null], openRace: [null, null, null] }],
+  }];
+  config.weekendScores = [{ date: '2026-08-02', rows: [{ id: removedId, points: 10 }] }];
+  vi.stubGlobal('fetch', vi.fn(async (path, options = {}) => {
+    if (path === '/api/admin/uploads') {
+      return { ok: true, status: 200, json: async () => [] };
+    }
+    if (path === '/api/admin/config' && options.method !== 'PUT') {
+      return { ok: true, status: 200, json: async () => config };
+    }
+    return { ok: true, status: 204 };
+  }));
+
+  render(<ConfigEditor initialConfig={config} onAuthError={() => false} />);
+  await user.click(screen.getByRole('button', { name: '展开 星屿积分榜' }));
+  await user.click(screen.getByRole('tab', { name: '积分队员' }));
+  await user.click(screen.getByRole('button', { name: '删除积分队员 1' }));
+  await user.click(screen.getByRole('button', { name: '保存全部配置' }));
+
+  const saveCall = fetch.mock.calls.find(([path, options]) =>
+    path === '/api/admin/config' && options?.method === 'PUT');
+  const savedConfig = JSON.parse(saveCall[1].body);
+  expect(savedConfig.scoreMembers.some((member) => member.id === removedId)).toBe(false);
+  expect(savedConfig.dailyScores[0].rows).toEqual([]);
+  expect(savedConfig.weekendScores[0].rows).toEqual([]);
+  expect(savedConfig.roster[0].scoreMemberId).toBe('');
 });
 
 it('collapses existing news into title category and date summaries', async () => {
@@ -287,4 +392,25 @@ it('toggles a news pinned flag and edits the category list', async () => {
   const savedConfig = JSON.parse(fetch.mock.calls.at(-1)[1].body);
   expect(savedConfig.news[0].pinned).toBe(true);
   expect(savedConfig.newsCategories).toEqual(['公告', '活动', '赛事']);
+});
+it('adds albums and photos when crypto.randomUUID is unavailable (LAN http)', async () => {
+  const user = userEvent.setup();
+  const config = createSeedConfig();
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
+  vi.stubGlobal('crypto', { ...globalThis.crypto, randomUUID: undefined });
+
+  render(<ConfigEditor initialConfig={config} onAuthError={() => false} />);
+  await user.click(screen.getByRole('button', { name: '展开 相册管理' }));
+  const section = screen.getByRole('heading', { name: '相册管理' }).closest('section');
+
+  const albumCount = () => within(section).getAllByLabelText('名称').length;
+  expect(albumCount()).toBe(3);
+  await user.click(within(section).getAllByRole('button', { name: '新增' })[0]);
+  expect(albumCount()).toBe(4);
+
+  const cards = section.querySelectorAll('.array-item');
+  const newAlbum = cards[cards.length - 1];
+  expect(within(newAlbum).getByLabelText('ID').value).not.toBe('');
+  await user.click(within(newAlbum).getByRole('button', { name: '新增' }));
+  expect(within(newAlbum).getAllByLabelText('素材路径上传')).toHaveLength(1);
 });

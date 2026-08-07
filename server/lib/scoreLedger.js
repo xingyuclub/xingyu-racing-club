@@ -40,6 +40,7 @@ export function projectScores({ dailyScores = [], weekendScores = [], roster = [
   let weekTotals = new Map();
   let saturdayPoints = new Map();
   const previousSundayPoints = new Map();
+  let weekMembers = new Set();
 
   for (const event of events) {
     const isWeekend = event.kind === 'weekend';
@@ -47,6 +48,7 @@ export function projectScores({ dailyScores = [], weekendScores = [], roster = [
     if (activeWeek !== null && eventWeek !== activeWeek) {
       weekTotals = new Map();
       saturdayPoints = new Map();
+      weekMembers = new Set();
       for (const memberId of totals.keys()) totals.set(memberId, 0);
     }
     activeWeek = eventWeek;
@@ -55,6 +57,7 @@ export function projectScores({ dailyScores = [], weekendScores = [], roster = [
       if (isWeekend && !hasWeekendValues(row)) return [];
       const memberId = String(row.id);
       if (!totals.has(memberId)) totals.set(memberId, 0);
+      weekMembers.add(memberId);
       const teamRace = isWeekend ? [] : [...(row.teamRace || [])];
       const openRace = isWeekend ? [] : [...(row.openRace || [])];
       const importedScore = numericValue(row.score);
@@ -101,5 +104,5 @@ export function projectScores({ dailyScores = [], weekendScores = [], roster = [
     }
   }
 
-  return { totals, dailyDetail };
+  return { totals, dailyDetail, weekMembers };
 }

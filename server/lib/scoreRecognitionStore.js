@@ -1,4 +1,5 @@
 import * as defaultFileSystem from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
@@ -51,7 +52,12 @@ export function createScoreRecognitionStore({ dataDir, storageDir, fileSystem: p
       const filename = `${String(index + 1).padStart(2, '0')}.${extension}`;
       const filePath = join(batchDir, filename);
       await fs.writeFile(filePath, file.bytes);
-      images.push({ originalName: file.name, path: filePath, mimeType: file.mimeType });
+      images.push({
+        originalName: file.name,
+        path: filePath,
+        mimeType: file.mimeType,
+        sha256: createHash('sha256').update(file.bytes).digest('hex'),
+      });
     }
 
     const now = new Date().toISOString();

@@ -203,6 +203,22 @@ function validateConfig(config) {
     }
   }
 
+  const seenRosterScoreMemberIds = new Set();
+  if (Array.isArray(config.roster)) {
+    for (let index = 0; index < config.roster.length; index += 1) {
+      const member = config.roster[index];
+      if (!isObject(member) || !isNonEmptyString(member.scoreMemberId)) continue;
+      const path = `roster[${index}].scoreMemberId`;
+      if (!scoreMemberIds.has(member.scoreMemberId)) {
+        details.push(`${path} must reference an existing score member`);
+      } else if (seenRosterScoreMemberIds.has(member.scoreMemberId)) {
+        details.push(`${path} must be unique`);
+      } else {
+        seenRosterScoreMemberIds.add(member.scoreMemberId);
+      }
+    }
+  }
+
   const seenAlbumIds = new Set();
   const seenPhotoIds = new Set();
   if (!Array.isArray(config.albums)) {
@@ -232,7 +248,10 @@ function validateConfig(config) {
         }
 
         requireUniqueString(photo.id, `${photoPath}.id`, seenPhotoIds, details);
-        requireStrings(photo, ['src', 'title', 'date', 'alt'], photoPath, details);
+        requireStrings(photo, ['src', 'title', 'date'], photoPath, details);
+        if (photo.alt !== undefined && typeof photo.alt !== 'string') {
+          details.push(`${photoPath}.alt must be a string`);
+        }
         if (photo.mediaType !== undefined && !['image', 'video'].includes(photo.mediaType)) {
           details.push(`${photoPath}.mediaType must be image or video`);
         }

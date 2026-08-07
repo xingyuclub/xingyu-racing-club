@@ -129,6 +129,32 @@ describe('config store', () => {
     });
   });
 
+  it('rejects roster bindings that reference no score member', async () => {
+    const store = await createConfigStore({ dataDir });
+    const config = await store.read();
+    config.roster[0].scoreMemberId = 'missing-score-member';
+
+    await expect(store.write(config)).rejects.toMatchObject({
+      code: 'INVALID_CONFIG',
+      details: expect.arrayContaining([
+        'roster[0].scoreMemberId must reference an existing score member',
+      ]),
+    });
+  });
+
+  it('rejects two roster members bound to the same score member', async () => {
+    const store = await createConfigStore({ dataDir });
+    const config = await store.read();
+    config.roster[1].scoreMemberId = config.roster[0].scoreMemberId;
+
+    await expect(store.write(config)).rejects.toMatchObject({
+      code: 'INVALID_CONFIG',
+      details: expect.arrayContaining([
+        'roster[1].scoreMemberId must be unique',
+      ]),
+    });
+  });
+
   it.each([
     ['dailyScores', (config) => config.dailyScores[0].rows[0]],
     ['weekendScores', (config) => {
@@ -214,6 +240,13 @@ describe('config store', () => {
     await expect(access(join(dataDir, 'site-config.json.next'))).rejects.toMatchObject({
       code: 'ENOENT',
     });
+  });
+
+  it('accepts album photos with an empty alt', async () => {
+    const store = await createConfigStore({ dataDir });
+    const next = await store.read();
+    next.albums[0].photos[0].alt = '';
+    await expect(store.write(next)).resolves.toEqual(next);
   });
 
   it.each([
@@ -648,9 +681,9 @@ describe('config store', () => {
       'albums[1].photos[0].id must be unique',
     ],
     [
-      'an invalid photo field',
-      (config) => (config.albums[0].photos[0].alt = ''),
-      'albums[0].photos[0].alt must be a non-empty string',
+      'a non-string photo alt',
+      (config) => (config.albums[0].photos[0].alt = 42),
+      'albums[0].photos[0].alt must be a string',
     ],
     [
       'an invalid photo media type',

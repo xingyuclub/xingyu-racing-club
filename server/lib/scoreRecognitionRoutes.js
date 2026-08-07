@@ -125,15 +125,20 @@ export function createScoreRecognitionRouter({
 
   router.put('/batches/:id/review', async (request, response, next) => {
     try {
-      const { evidenceId, rank, memberId, ignored, duplicate, notDuplicate } = request.body || {};
-      if (typeof evidenceId !== 'string' || !evidenceId) {
-        return response.status(400).json({ error: '缺少证据 ID' });
+      const {
+        evidenceId, imageIndex, rank, memberId, scoreMemberId, ignored, duplicate, notDuplicate,
+      } = request.body || {};
+      if ((typeof evidenceId !== 'string' || !evidenceId) && !Number.isInteger(imageIndex)) {
+        return response.status(400).json({ error: '缺少证据 ID 或图片序号' });
       }
       if (rank !== undefined && (!Number.isInteger(rank) || rank < 1)) {
         return response.status(400).json({ error: '名次必须是正整数' });
       }
       if (memberId !== undefined && (typeof memberId !== 'string' || !memberId)) {
         return response.status(400).json({ error: '成员 ID 无效' });
+      }
+      if (scoreMemberId !== undefined && (typeof scoreMemberId !== 'string' || !scoreMemberId)) {
+        return response.status(400).json({ error: '积分人物 ID 无效' });
       }
       if (ignored !== undefined && typeof ignored !== 'boolean') {
         return response.status(400).json({ error: '忽略状态无效' });
@@ -144,8 +149,10 @@ export function createScoreRecognitionRouter({
       }
       response.json(await getService().reviewBatch(request.params.id, {
         evidenceId,
+        imageIndex,
         rank,
         memberId,
+        scoreMemberId,
         ignored,
         duplicate,
         notDuplicate,

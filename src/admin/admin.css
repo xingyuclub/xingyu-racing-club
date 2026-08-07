@@ -27,6 +27,7 @@
 .score-recognition-rematch{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:10px 20px;border-radius:4px;background:#334155;color:#fff;font-weight:700;border:none;cursor:pointer}
 .score-recognition-rematch:disabled{opacity:.5;cursor:not-allowed}
 .recognition-duplicate-note{margin:0;padding:10px 12px;border-left:1px solid #2563eb;background:#eff6ff;color:#1d4ed8;font-size:13px}
+.recognition-issue-guidance{margin:0 0 10px;color:#991b1b;font-size:13px}
 .admin-remember{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#475569;cursor:pointer}
 .admin-remember input{accent-color:#1d4ed8}
 .news-categories-field{margin-bottom:18px}.category-row{display:flex;gap:8px;align-items:center}.category-row input{flex:1;min-width:0}.category-row button{flex:0 0 auto}

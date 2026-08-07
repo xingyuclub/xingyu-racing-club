@@ -39,6 +39,8 @@ describe('score recognition store', () => {
     expect(batch.raceType).toBe('team');
     expect(batch.images).toHaveLength(2);
     expect(batch.images.map((image) => image.originalName)).toEqual(['a.jpg', 'b.png']);
+    expect(batch.images[0].sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(batch.images[0].sha256).not.toBe(batch.images[1].sha256);
 
     const stored = await store.readBatch('batch-1');
     expect(stored.status).toBe('uploaded');

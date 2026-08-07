@@ -1,8 +1,56 @@
 import { teamData } from './teamData.js';
 import { projectScores } from '../../server/lib/scoreLedger.js';
+import { buildScoreMemberMatcher } from './scoreRules.js';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const sum = (values) => values.reduce((total, value) => total + Number(value || 0), 0);
+
+export function nextScoreMemberId(scoreMembers = []) {
+  const used = new Set(scoreMembers.map((member) => String(member.id || '').trim()));
+  let id = 1;
+  while (used.has(String(id))) id += 1;
+  return String(id);
+}
+
+export function removeScoreMember(config, id) {
+  const next = clone(config);
+  next.scoreMembers = (next.scoreMembers || []).filter((member) => member.id !== id);
+  next.dailyScores = (next.dailyScores || []).map((round) => ({
+    ...round,
+    rows: (round.rows || []).filter((row) => row.id !== id),
+  }));
+  next.weekendScores = (next.weekendScores || []).map((round) => ({
+    ...round,
+    rows: (round.rows || []).filter((row) => row.id !== id),
+  }));
+  next.roster = (next.roster || []).map((member) => (
+    member.scoreMemberId === id ? { ...member, scoreMemberId: '' } : member
+  ));
+  return next;
+}
+
+export function renumberScoreMemberIds(config) {
+  const next = clone(config);
+  const idMap = new Map((next.scoreMembers || []).map((member, index) => [
+    member.id,
+    String(index + 1),
+  ]));
+  next.scoreMembers = (next.scoreMembers || []).map((member) => ({
+    ...member,
+    id: idMap.get(member.id),
+  }));
+  const remapRounds = (rounds = []) => rounds.map((round) => ({
+    ...round,
+    rows: (round.rows || []).map((row) => ({ ...row, id: idMap.get(row.id) || row.id })),
+  }));
+  next.dailyScores = remapRounds(next.dailyScores);
+  next.weekendScores = remapRounds(next.weekendScores);
+  next.roster = (next.roster || []).map((member) => ({
+    ...member,
+    scoreMemberId: idMap.get(member.scoreMemberId) || '',
+  }));
+  return next;
+}
 const inferMediaType = (src) => /\.(mp4|webm)(?:$|[?#])/i.test(String(src || '')) ? 'video' : 'image';
 
 const createRawScoreRow = ({ id, teamRace, openRace, score, total }) => ({
@@ -49,18 +97,26 @@ export function migrateRawConfig(input) {
     : derivedCategories.length > 0
       ? derivedCategories
       : ['公告', '活动'];
-  const normalizedRoster = roster.map((member) => ({
+  const rosterMembers = roster.map((member) => ({
     ...createRawMember(member, sortedScores),
     signature: typeof member.signature === 'string' ? member.signature : '',
   }));
   const normalizedScoreMembers = Array.isArray(scoreMembers)
     ? scoreMembers
-    : normalizedRoster.map(({ id, name, basePoints = 0, wins = 0 }) => ({
+    : rosterMembers.map(({ id, name, basePoints = 0, wins = 0 }) => ({
         id,
         name,
         basePoints,
         wins,
       }));
+  const scoreMemberIds = new Set(normalizedScoreMembers.map((member) => member.id));
+  const matchScoreMember = buildScoreMemberMatcher(normalizedScoreMembers);
+  const normalizedRoster = rosterMembers.map((member) => ({
+    ...member,
+    scoreMemberId: typeof member.scoreMemberId === 'string' && scoreMemberIds.has(member.scoreMemberId)
+      ? member.scoreMemberId
+      : matchScoreMember(member.name) || '',
+  }));
   const normalizedTeam = team && typeof team === 'object'
     ? (() => {
         const { heroImage, ...teamWithoutLegacyMedia } = team;
@@ -107,7 +163,7 @@ export function createSeedConfig() {
 export function hydrateSiteData(rawConfig) {
   const config = clone(rawConfig);
   const scoreMembersById = new Map(config.scoreMembers.map((member) => [member.id, member]));
-  const { totals, dailyDetail } = projectScores({
+  const { totals, dailyDetail, weekMembers } = projectScores({
     dailyScores: config.dailyScores,
     weekendScores: config.weekendScores,
     roster: config.scoreMembers,
@@ -132,17 +188,21 @@ export function hydrateSiteData(rawConfig) {
   const roster = config.roster;
   const latestRound = dailyScores.at(-1);
   const latestDate = latestRound?.date || '';
-  const leaderboard = (latestRound?.rows || [])
-    .slice()
+  const leaderboard = [...weekMembers]
+    .map((id) => ({
+      id,
+      name: scoreMembersById.get(id)?.name || '',
+      points: totals.get(id) ?? 0,
+    }))
     .sort(
       (left, right) =>
-        right.total - left.total || left.name.localeCompare(right.name),
+        right.points - left.points || left.name.localeCompare(right.name),
     )
     .map((row, index) => ({
       id: row.id,
       rank: index + 1,
       name: row.name,
-      points: row.total,
+      points: row.points,
     }));
   return {
     ...config,

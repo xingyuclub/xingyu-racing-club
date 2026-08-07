@@ -8,8 +8,8 @@ import { createScoreRecognitionStore } from './scoreRecognitionStore.js';
 import { createScoreRecognitionService } from './scoreRecognitionService.js';
 
 const roster = [
-  { id: 'r1', name: '稳稳' },
-  { id: 'r2', name: '闪电' },
+  { id: 'r1', name: '稳稳', scoreMemberId: 's1' },
+  { id: 'r2', name: '闪电', scoreMemberId: 's2' },
 ];
 const scoreMembers = [
   { id: 's1', name: '稳稳', basePoints: 0, wins: 0 },
@@ -35,7 +35,18 @@ function baseConfig(overrides = {}) {
   };
 }
 
-function setupService({ aiResponses = [], config = baseConfig() } = {}) {
+function setupService({
+  aiResponses = [],
+  config = baseConfig(),
+  fingerprintImage = async (bytes) => ({
+    sha256: Buffer.from(bytes).toString('hex'),
+    pixelHash: Buffer.from(bytes).toString('hex'),
+    sample: Buffer.from(bytes).toString('base64'),
+  }),
+  compareFingerprints = (left, right) => (
+    left.sha256 === right.sha256 ? 'exact' : 'distinct'
+  ),
+} = {}) {
   const store = createScoreRecognitionStore({
     dataDir: join(rootDir, 'data'),
     storageDir: join(rootDir, 'storage'),
@@ -46,7 +57,13 @@ function setupService({ aiResponses = [], config = baseConfig() } = {}) {
     if (response instanceof Error) ai.extractMatches.mockRejectedValueOnce(response);
     else ai.extractMatches.mockResolvedValueOnce(response);
   }
-  const service = createScoreRecognitionService({ ai, store, configStore });
+  const service = createScoreRecognitionService({
+    ai,
+    store,
+    configStore,
+    fingerprintImage,
+    compareFingerprints,
+  });
   return { store, configStore, ai, service };
 }
 
@@ -63,6 +80,111 @@ beforeEach(async () => { rootDir = await mkdtemp(join(tmpdir(), 'srv-')); });
 afterEach(async () => { await rm(rootDir, { recursive: true, force: true }); });
 
 describe('score recognition service', () => {
+  it('recognizes identical uploaded images once and auto-skips the duplicate', async () => {
+    const { service, store, ai } = setupService({
+      aiResponses: [[{ participants: [{ nickname: '稳稳', rank: 1 }] }]],
+    });
+    await createBatch(store, {
+      files: [
+        { name: 'first.jpg', bytes: Buffer.from([7]), mimeType: 'image/jpeg' },
+        { name: 'copy.jpg', bytes: Buffer.from([7]), mimeType: 'image/jpeg' },
+      ],
+    });
+
+    const draft = await service.previewBatch('b1');
+
+    expect(ai.extractMatches).toHaveBeenCalledTimes(1);
+    expect(draft.duplicateImageCount).toBe(1);
+    expect(draft.suspectedDuplicateImageCount).toBe(0);
+    expect(draft.summary).toEqual([
+      expect.objectContaining({ id: 's1', score: 1, evidenceIds: ['i0-m0-p0'] }),
+    ]);
+  });
+
+  it('blocks a visually suspected duplicate until the reviewer resolves it', async () => {
+    const { service, store } = setupService({
+      aiResponses: [
+        [{ participants: [{ nickname: '稳稳', rank: 1, score: 10 }] }],
+        [{ participants: [{ nickname: '闪电', rank: 1, score: 11 }] }],
+      ],
+      compareFingerprints: (left, right) => (
+        left.sha256 === right.sha256 ? 'exact' : 'suspected'
+      ),
+    });
+    await createBatch(store, {
+      files: [
+        { name: 'first.jpg', bytes: Buffer.from([7]), mimeType: 'image/jpeg' },
+        { name: 'similar.jpg', bytes: Buffer.from([8]), mimeType: 'image/jpeg' },
+      ],
+    });
+
+    const draft = await service.previewBatch('b1');
+    expect(draft.suspectedDuplicateImageCount).toBe(1);
+    expect(draft.canCommit).toBe(false);
+    expect(draft.issues).toContainEqual({
+      code: 'suspected-duplicate-image',
+      imageIndex: 1,
+      duplicateOfImageIndex: 0,
+    });
+
+    const distinct = await service.reviewBatch('b1', {
+      imageIndex: 1,
+      notDuplicate: true,
+    });
+    expect(distinct.suspectedDuplicateImageCount).toBe(0);
+    expect(distinct.duplicateImageCount).toBe(0);
+    expect(distinct.canCommit).toBe(true);
+  });
+
+  it('auto-releases a visually suspected pair when their maps differ', async () => {
+    const { service, store, ai } = setupService({
+      aiResponses: [
+        [{ mapName: '香波岛', participants: [{ nickname: '稳稳', rank: 1, score: 10 }] }],
+        [{ mapName: '广寒仙境', participants: [{ nickname: '稳稳', rank: 1, score: 11 }] }],
+      ],
+      compareFingerprints: (left, right) => (
+        left.sha256 === right.sha256 ? 'exact' : 'suspected'
+      ),
+    });
+    await createBatch(store, {
+      files: [
+        { name: 'first.jpg', bytes: Buffer.from([7]), mimeType: 'image/jpeg' },
+        { name: 'similar.jpg', bytes: Buffer.from([8]), mimeType: 'image/jpeg' },
+      ],
+    });
+
+    const draft = await service.previewBatch('b1');
+    expect(ai.extractMatches).toHaveBeenCalledTimes(2);
+    expect(draft.autoDistinctImageCount).toBe(1);
+    expect(draft.suspectedDuplicateImageCount).toBe(0);
+    expect(draft.duplicateImageCount).toBe(0);
+    expect(draft.canCommit).toBe(true);
+    expect(draft.issues).toEqual([]);
+  });
+
+  it('still blocks a visually suspected pair when a map is missing', async () => {
+    const { service, store } = setupService({
+      aiResponses: [
+        [{ mapName: '香波岛', participants: [{ nickname: '稳稳', rank: 1, score: 10 }] }],
+        [{ participants: [{ nickname: '稳稳', rank: 1, score: 11 }] }],
+      ],
+      compareFingerprints: (left, right) => (
+        left.sha256 === right.sha256 ? 'exact' : 'suspected'
+      ),
+    });
+    await createBatch(store, {
+      files: [
+        { name: 'first.jpg', bytes: Buffer.from([7]), mimeType: 'image/jpeg' },
+        { name: 'similar.jpg', bytes: Buffer.from([8]), mimeType: 'image/jpeg' },
+      ],
+    });
+
+    const draft = await service.previewBatch('b1');
+    expect(draft.suspectedDuplicateImageCount).toBe(1);
+    expect(draft.autoDistinctImageCount).toBe(0);
+    expect(draft.canCommit).toBe(false);
+  });
+
   it('stores per-image observations and derives a reviewable draft', async () => {
     const { service, store, ai } = setupService({
       aiResponses: [[{ participants: [
@@ -116,6 +238,47 @@ describe('score recognition service', () => {
     expect((await store.readBatch('b1')).reviews).toEqual({
       'i0-m0-p0': { rank: 1 },
       'i0-m0-p1': { memberId: 'r2', ignored: false },
+    });
+  });
+
+  it('keeps existing reviews when reprocessing a batch', async () => {
+    const { service, store } = setupService({
+      aiResponses: [
+        [{ participants: [{ nickname: '稳稳', rank: 1 }, { nickname: '路人', rank: 2 }] }],
+        [{ participants: [{ nickname: '稳稳', rank: 1 }, { nickname: '路人', rank: 2 }] }],
+      ],
+    });
+    await createBatch(store);
+    await service.previewBatch('b1');
+    await service.reviewBatch('b1', { evidenceId: 'i0-m0-p1', ignored: true });
+
+    await service.previewBatch('b1');
+    const batch = await store.readBatch('b1');
+    expect(batch.reviews).toEqual({ 'i0-m0-p1': { ignored: true } });
+  });
+
+  it('reviews an unmatched result against a score identity directly', async () => {
+    const { service, store } = setupService({
+      aiResponses: [[{ participants: [{ nickname: '陌生名', rank: 1 }] }]],
+      config: baseConfig({
+        roster: [],
+        scoreMembers: [{ id: '87', name: '赴约·太困', basePoints: 0, wins: 0 }],
+      }),
+    });
+    await createBatch(store);
+    await service.previewBatch('b1');
+
+    const mapped = await service.reviewBatch('b1', {
+      evidenceId: 'i0-m0-p0', scoreMemberId: '87', ignored: false,
+    });
+
+    expect(mapped).toMatchObject({ issues: [], canCommit: true });
+    expect(mapped.summary).toEqual([
+      expect.objectContaining({ id: '87', name: '赴约·太困', score: 1 }),
+    ]);
+    expect((await store.readBatch('b1')).reviews['i0-m0-p0']).toEqual({
+      scoreMemberId: '87',
+      ignored: false,
     });
   });
 
@@ -231,9 +394,9 @@ describe('score recognition service', () => {
     expect((await store.readBatch('b1')).status).toBe('committed');
   });
 
-  it('writes ranked scores into openRace and creates a missing score identity', async () => {
+  it('blocks a nickname that has no existing score identity', async () => {
     const config = baseConfig({
-      roster: [{ id: 'r3', name: 'ˣʸ༩·新成员' }],
+      roster: [{ id: 'r3', name: 'ˣʸ༩·新成员', scoreMemberId: '' }],
       scoreMembers: [],
     });
     const { service, store, configStore } = setupService({
@@ -242,16 +405,17 @@ describe('score recognition service', () => {
     });
     await createBatch(store, { raceType: 'ranked' });
     const draft = await service.previewBatch('b1');
-    await service.commitBatch('b1', draft.rosterVersion);
+    expect(draft.canCommit).toBe(false);
+    expect(draft.issues).toContainEqual({
+      evidenceId: 'i0-m0-p0',
+      code: 'unmatched',
+    });
+    await expect(service.commitBatch('b1', draft.rosterVersion))
+      .rejects.toMatchObject({ statusCode: 422 });
 
     const saved = await configStore.read();
-    expect(saved.scoreMembers).toContainEqual({
-      id: 'score:%E6%96%B0%E6%88%90%E5%91%98',
-      name: 'ˣʸ༩·新成员',
-      basePoints: 0,
-      wins: 0,
-    });
-    expect(saved.dailyScores[0].rows[0].openRace).toEqual([1, null, null]);
+    expect(saved.scoreMembers).toEqual([]);
+    expect(saved.dailyScores).toEqual([]);
   });
 
   it('clears imported totals when adding a score', async () => {

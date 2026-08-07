@@ -3,6 +3,9 @@ import { prepareRecognitionImage } from './scoreRecognitionImage.js';
 function validateMatch(match, index) {
   const path = `matches[${index}]`;
   if (!match || typeof match !== 'object') throw new Error(`${path} must be an object`);
+  if (match.mapName !== undefined && typeof match.mapName !== 'string') {
+    throw new Error(`${path}.mapName must be a string`);
+  }
   if (!Array.isArray(match.participants) || match.participants.length === 0) {
     throw new Error(`${path}.participants must be a non-empty array`);
   }
@@ -31,7 +34,7 @@ function validateMatch(match, index) {
 
 function buildPrompt({ multiMatch }) {
   const rules = [
-    '你是一个赛车游戏结算截图解析助手。只读取截图中可见的玩家昵称和游戏名次。',
+    '你是一个赛车游戏结算截图解析助手。只读取截图中可见的玩家昵称、游戏名次和地图名称。',
     '返回严格的 JSON：{ "matches": [ { "participants": [ { "nickname": string, "rank": number } ] } ] }。',
     multiMatch
       ? '这张截图可能包含多场比赛：例如一张图里上下或左右并列两套结算卡片，每套是一场比赛，请逐场提取为一个 match，一场都不能漏；同一场比赛的排名行绝不能拆成多个 match。'
@@ -43,8 +46,9 @@ function buildPrompt({ multiMatch }) {
     '名次是从 1 开始的整数，从上到下必须连续递增，绝不能跳过名次。',
     '必须列出截图中每一个排名行，一行都不能漏：即使某行昵称被遮挡或看不清，也要输出该行，并把昵称写成你确实看到的部分。',
     '昵称里的车队前缀（如 xy、xy/、xy2、xyr、xyf、xy♂ 等）和其他符号请原样抄写整行，不要删减。',
+    '每场比赛必须抄写结算表标题区显示的地图名称到 mapName（如 香波岛、广寒仙境、洛杉矶）：标题区一定有地图名，严禁输出空字符串，也不能把房间号、模式名或截图底部时间当作地图名。',
     '每行还要按结算表抄写该玩家的数值列：score 是 MVP分列、attack 是攻击列、defense 是防御列、assist 是援助列，都必须是整数；看不清或该列不存在时省略该字段，绝不能把其他列的数字当作名次。',
-    '时间列和除上述数值列以外的其他列一律忽略。',
+    '截图底部日期、显示时间和除上述数值列以外的其他列一律忽略。',
     '不计算积分，不要根据成员名单猜测昵称。',
     '只输出 JSON，不要解释文字。',
   ];
@@ -66,8 +70,9 @@ const RESPONSE_FORMAT = {
           items: {
             type: 'object',
             additionalProperties: false,
-            required: ['participants'],
+            required: ['mapName', 'participants'],
             properties: {
+              mapName: { type: 'string', minLength: 1 },
               participants: {
                 type: 'array',
                 minItems: 1,

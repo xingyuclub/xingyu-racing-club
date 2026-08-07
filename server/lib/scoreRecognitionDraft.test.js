@@ -5,11 +5,14 @@ import { buildRecognitionDraft } from './scoreRecognitionDraft.js';
 
 const config = {
   roster: [
-    { id: 'roster-1', name: '十二' },
-    { id: 'roster-2', name: '黑岩' },
+    { id: 'roster-1', name: '十二', scoreMemberId: 'score-twelve' },
+    { id: 'roster-2', name: '黑岩', scoreMemberId: 'score-black' },
   ],
   memberAliases: [{ memberId: 'roster-2', value: '旧名' }],
-  scoreMembers: [{ id: 'score-twelve', name: 'ˣʸ༩·十二' }],
+  scoreMembers: [
+    { id: 'score-twelve', name: 'ˣʸ༩·十二' },
+    { id: 'score-black', name: 'ˣʸ༩·黑岩' },
+  ],
   dailyScores: [],
 };
 
@@ -23,6 +26,25 @@ function buildDraft({ raceType = 'team', matches, reviews, config: nextConfig = 
 }
 
 describe('buildRecognitionDraft', () => {
+  it('matches a score identity even when it is not present in the roster', () => {
+    const draft = buildDraft({
+      matches: [{ participants: [{ nickname: '赴约·太困', rank: 1 }] }],
+      config: {
+        roster: [],
+        memberAliases: [],
+        scoreMembers: [{ id: '87', name: '赴约·太困' }],
+        dailyScores: [],
+      },
+    });
+
+    expect(draft).toMatchObject({ issues: [], canCommit: true });
+    expect(draft.evidence[0]).toMatchObject({
+      scoreMemberId: '87',
+      memberName: '赴约·太困',
+      score: 1,
+    });
+  });
+
   it('scores team races, counts ignored road users, and summarizes assigned evidence', () => {
     const draft = buildDraft({
       matches: [
@@ -46,7 +68,7 @@ describe('buildRecognitionDraft', () => {
         evidenceIds: ['i0-m0-p0', 'i0-m1-p0'],
       }),
       expect.objectContaining({
-        id: 'score:%E9%BB%91%E5%B2%A9',
+        id: 'score-black',
         name: '黑岩',
         score: 2,
         evidenceIds: ['i0-m1-p1'],
@@ -102,7 +124,7 @@ describe('buildRecognitionDraft', () => {
     expect(draft.evidence.find((item) => item.id === 'i0-m0-p1')).toMatchObject({
       nickname: '陌生名',
       memberId: 'roster-2',
-      scoreMemberId: 'score:%E9%BB%91%E5%B2%A9',
+      scoreMemberId: 'score-black',
       rank: 2,
     });
   });
@@ -234,8 +256,8 @@ describe('buildRecognitionDraft', () => {
   it('keeps same-roster races with different numbers as distinct automatically', () => {
     const draft = buildDraft({
       matches: [
-        { participants: [{ nickname: '十二', rank: 1, score: 15, attack: 12 }] },
-        { participants: [{ nickname: '十二', rank: 1, score: 9, attack: 4 }] },
+        { mapName: '香波岛', participants: [{ nickname: '十二', rank: 1, score: 15, attack: 12 }] },
+        { mapName: '香波岛', participants: [{ nickname: '十二', rank: 1, score: 9, attack: 4 }] },
       ],
     });
 
@@ -253,8 +275,8 @@ describe('buildRecognitionDraft', () => {
   it('auto-drops an identical race when content and numbers match', () => {
     const draft = buildDraft({
       matches: [
-        { participants: [{ nickname: '十二', rank: 1, score: 15, attack: 12 }] },
-        { participants: [{ nickname: '十二', rank: 1, score: 15, attack: 12 }] },
+        { mapName: '香波岛', participants: [{ nickname: '十二', rank: 1, score: 15, attack: 12 }] },
+        { mapName: '香波岛', participants: [{ nickname: '十二', rank: 1, score: 15, attack: 12 }] },
       ],
     });
 
@@ -269,11 +291,84 @@ describe('buildRecognitionDraft', () => {
     });
   });
 
+  it('treats the same people and ranks on different maps as distinct races', () => {
+    const draft = buildDraft({
+      matches: [
+        { mapName: '香波岛', participants: [{ nickname: '十二', rank: 1 }, { nickname: '黑岩', rank: 2 }] },
+        { mapName: '广寒仙境', participants: [{ nickname: '十二', rank: 1 }, { nickname: '黑岩', rank: 2 }] },
+      ],
+    });
+
+    expect(draft.suspectedDuplicateCount).toBe(0);
+    expect(draft.duplicateCount).toBe(0);
+    expect(draft.autoDistinctCount).toBe(0);
+    expect(draft.canCommit).toBe(true);
+    expect(draft.evidence.map((item) => [item.mapName, item.duplicate, item.suspectedDuplicate]))
+      .toEqual([
+        ['香波岛', false, false], ['香波岛', false, false],
+        ['广寒仙境', false, false], ['广寒仙境', false, false],
+      ]);
+    expect(draft.summary.find((item) => item.name === '十二')).toMatchObject({
+      score: 4,
+      evidenceIds: ['i0-m0-p0', 'i0-m1-p0'],
+    });
+  });
+
+  it('still dedups the same-map race when a different-map race sits in between', () => {
+    const draft = buildDraft({
+      matches: [
+        { mapName: '香波岛', participants: [{ nickname: '十二', rank: 1, score: 15 }] },
+        { mapName: '广寒仙境', participants: [{ nickname: '十二', rank: 1, score: 9 }] },
+        { mapName: '广寒仙境', participants: [{ nickname: '十二', rank: 1, score: 9 }] },
+      ],
+    });
+
+    expect(draft.duplicateCount).toBe(1);
+    expect(draft.autoDistinctCount).toBe(0);
+    expect(draft.suspectedDuplicateCount).toBe(0);
+    expect(draft.summary.find((item) => item.name === '十二')).toMatchObject({
+      score: 2,
+      evidenceIds: ['i0-m0-p0', 'i0-m1-p0'],
+    });
+  });
+
+  it('keeps the conservative fallback when one race has no map name', () => {
+    const draft = buildDraft({
+      matches: [
+        { mapName: '香波岛', participants: [{ nickname: '十二', rank: 1 }] },
+        { participants: [{ nickname: '十二', rank: 1 }] },
+      ],
+    });
+
+    expect(draft.suspectedDuplicateCount).toBe(1);
+    expect(draft.duplicateCount).toBe(0);
+    expect(draft.issues).toContainEqual(expect.objectContaining({
+      code: 'suspected-duplicate',
+      evidenceId: 'i0-m1-p0',
+    }));
+  });
+
+  it('keeps the conservative fallback when the earlier race has no map name', () => {
+    const draft = buildDraft({
+      matches: [
+        { participants: [{ nickname: '十二', rank: 1 }] },
+        { mapName: '香波岛', participants: [{ nickname: '十二', rank: 1 }] },
+      ],
+    });
+
+    expect(draft.suspectedDuplicateCount).toBe(1);
+    expect(draft.duplicateCount).toBe(0);
+    expect(draft.issues).toContainEqual(expect.objectContaining({
+      code: 'suspected-duplicate',
+      evidenceId: 'i0-m1-p0',
+    }));
+  });
+
   it('falls back to manual confirmation when numbers are missing on one side', () => {
     const draft = buildDraft({
       matches: [
-        { participants: [{ nickname: '十二', rank: 1, score: 15 }] },
-        { participants: [{ nickname: '十二', rank: 1 }] },
+        { mapName: '香波岛', participants: [{ nickname: '十二', rank: 1, score: 15 }] },
+        { mapName: '香波岛', participants: [{ nickname: '十二', rank: 1 }] },
       ],
     });
 
@@ -309,7 +404,23 @@ describe('buildRecognitionDraft', () => {
 
     expect(draft.evidence[0]).toMatchObject({
       memberId: 'roster-2',
-      scoreMemberId: 'score:%E9%BB%91%E5%B2%A9',
+      scoreMemberId: 'score-black',
+    });
+  });
+
+  it('matches the score identity even when the roster binding is empty', () => {
+    const draft = buildDraft({
+      matches: [{ participants: [{ nickname: '十二', rank: 1 }] }],
+      config: {
+        ...config,
+        roster: [{ id: 'roster-1', name: '十二', scoreMemberId: '' }],
+      },
+    });
+
+    expect(draft).toMatchObject({ canCommit: true, issues: [] });
+    expect(draft.evidence[0]).toMatchObject({
+      scoreMemberId: 'score-twelve',
+      memberName: 'ˣʸ༩·十二',
     });
   });
 
@@ -371,7 +482,7 @@ describe('buildRecognitionDraft', () => {
     const draft = buildDraft({
       matches: [{ participants: [{ nickname: 'xγ_黑岩99', rank: 1 }] }],
       config: {
-        roster: [{ id: 'roster-black', name: 'ˣʸ༩·黑岩' }],
+        roster: [{ id: 'roster-black', name: 'ˣʸ༩·黑岩', scoreMemberId: 's1' }],
         memberAliases: [],
         scoreMembers: [{ id: 's1', name: '黑岩' }],
         dailyScores: [],

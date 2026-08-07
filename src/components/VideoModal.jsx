@@ -42,6 +42,11 @@ export function VideoModal({ member, onClose }) {
       }}
     >
       <section className="video-modal member-video-modal" data-entrance role="dialog" aria-modal="true">
+        {member.videoUrl ? (
+          <video ref={videoRef} src={member.videoUrl} autoPlay muted controls playsInline preload="metadata" />
+        ) : (
+          <div className="video-fallback">高光视频素材待替换</div>
+        )}
         {member.signature?.trim() && (
           <p className="member-video-signature">
             <ShinyText
@@ -53,11 +58,6 @@ export function VideoModal({ member, onClose }) {
               respectReducedMotion={false}
             />
           </p>
-        )}
-        {member.videoUrl ? (
-          <video ref={videoRef} src={member.videoUrl} autoPlay muted controls playsInline preload="metadata" />
-        ) : (
-          <div className="video-fallback">高光视频素材待替换</div>
         )}
       </section>
     </div>

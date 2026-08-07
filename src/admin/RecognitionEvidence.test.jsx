@@ -5,8 +5,13 @@ import { RecognitionEvidence } from './RecognitionEvidence.jsx';
 
 const config = {
   roster: [
-    { id: 'roster-1', name: '十二' },
-    { id: 'roster-2', name: '黑岩' },
+    { id: 'roster-1', name: '十二', scoreMemberId: 'score-1' },
+    { id: 'roster-2', name: '黑岩', scoreMemberId: 'score-2' },
+  ],
+  scoreMembers: [
+    { id: 'score-1', name: '十二' },
+    { id: 'score-2', name: '黑岩' },
+    { id: 'score-3', name: '赴约·太困' },
   ],
 };
 
@@ -65,9 +70,10 @@ describe('RecognitionEvidence', () => {
       />,
     );
 
-    await userEvent.selectOptions(screen.getByLabelText('未匹配昵称 路人 对应成员'), 'roster-1');
+    expect(screen.getByRole('option', { name: '赴约·太困' })).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText('未匹配昵称 路人 对应成员'), 'score-3');
     expect(onReview).toHaveBeenCalledWith({
-      evidenceId: 'i0-m0-p1', memberId: 'roster-1', ignored: false,
+      evidenceId: 'i0-m0-p1', scoreMemberId: 'score-3', ignored: false,
     });
 
     const rankInput = screen.getByLabelText('路人名次');
@@ -78,7 +84,7 @@ describe('RecognitionEvidence', () => {
     await userEvent.tab();
     expect(onReview).toHaveBeenCalledWith({ evidenceId: 'i0-m0-p1', rank: 3 });
 
-    await userEvent.click(screen.getByRole('button', { name: '标记路人为非车队成员' }));
+    await userEvent.click(screen.getByRole('button', { name: '标记路人为非积分成员' }));
     expect(onReview).toHaveBeenCalledWith({ evidenceId: 'i0-m0-p1', ignored: true });
   });
 
@@ -96,6 +102,60 @@ describe('RecognitionEvidence', () => {
     expect(screen.getByText(/黑岩 已达当天三局上限/)).toBeInTheDocument();
     expect(container.querySelector('.recognition-warning')).toBeInTheDocument();
     expect(container.querySelector('.recognition-warning')).not.toHaveClass('recognition-issue');
+  });
+
+  it('shows an unmatched nickname with the score identity selector', () => {
+    render(
+      <RecognitionEvidence
+        batchId="b1"
+        config={{
+          ...config,
+          roster: [{ id: 'roster-1', name: '十二', scoreMemberId: '' }],
+        }}
+        draft={{
+          ...draft,
+          summary: [],
+          evidence: [{
+            id: 'i0-m0-p0', imageIndex: 0, matchIndex: 0,
+            nickname: '十二', rank: 1, memberId: 'roster-1', memberName: '十二',
+          }],
+          issues: [{ evidenceId: 'i0-m0-p0', code: 'unmatched' }],
+        }}
+        busy={false}
+        onReview={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('未匹配成员')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: '赴约·太困' })).toBeInTheDocument();
+  });
+
+  it('asks the reviewer to resolve a suspected duplicate image', async () => {
+    const onReview = vi.fn();
+    render(
+      <RecognitionEvidence
+        batchId="b1"
+        config={config}
+        draft={{
+          ...draft,
+          issues: [{
+            code: 'suspected-duplicate-image', imageIndex: 2, duplicateOfImageIndex: 0,
+          }],
+          suspectedDuplicateImageCount: 1,
+          duplicateImageCount: 0,
+        }}
+        busy={false}
+        onReview={onReview}
+      />,
+    );
+
+    expect(screen.getByText(/发现 1 张疑似重复图片/)).toBeInTheDocument();
+    const issues = within(screen.getByRole('region', { name: '待处理识别项' }));
+    expect(issues.getByRole('link', { name: '查看截图 3' })).toBeInTheDocument();
+    expect(issues.getByRole('link', { name: '查看截图 1' })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: '确认是重复图片' }));
+    expect(onReview).toHaveBeenCalledWith({ imageIndex: 2, duplicate: true });
   });
 
   it('shows a non-blocking warning when ranks are not contiguous', () => {
@@ -186,6 +246,51 @@ describe('RecognitionEvidence', () => {
     );
 
     expect(screen.getByText('有 2 场人员与名次相同但数值不同的比赛，已按不同场次自动保留。'))
+      .toBeInTheDocument();
+  });
+
+  it('shows the map name on evidence rows and in the issue editor', () => {
+    render(
+      <RecognitionEvidence
+        batchId="b1"
+        config={config}
+        draft={{
+          ...draft,
+          evidence: [
+            {
+              id: 'i0-m0-p0', imageIndex: 0, matchIndex: 0, mapName: '香波岛',
+              nickname: '十二', rank: 1, score: 8, slot: 0,
+              memberId: 'roster-1', memberName: '十二',
+            },
+            {
+              id: 'i0-m0-p1', imageIndex: 0, matchIndex: 0, mapName: '香波岛',
+              nickname: '路人', rank: 2,
+            },
+          ],
+          issues: [{ evidenceId: 'i0-m0-p1', code: 'unmatched' }],
+        }}
+        busy={false}
+        onReview={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('地图 香波岛')).toBeInTheDocument();
+    const editor = screen.getByRole('region', { name: '待处理识别项' });
+    expect(within(editor).getByDisplayValue('香波岛')).toBeInTheDocument();
+  });
+
+  it('notes suspected images released automatically when their maps differ', () => {
+    render(
+      <RecognitionEvidence
+        batchId="b1"
+        config={config}
+        draft={{ ...draft, autoDistinctImageCount: 1 }}
+        busy={false}
+        onReview={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('有 1 张疑似重复图片的地图不同，已按不同比赛自动放行。'))
       .toBeInTheDocument();
   });
 

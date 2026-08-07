@@ -43,6 +43,17 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
+  useEffect(() => {
+    if (!('scrollRestoration' in window.history)) return undefined;
+    const previous = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
+    return () => { window.history.scrollRestoration = previous; };
+  }, []);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [route.name, route.newsId]);
+
   const goHome = () => {
     window.location.hash = '';
     setRoute({ name: 'home' });
@@ -102,13 +113,13 @@ export default function App() {
           onSelect={setSelectedMember}
           paused={selectedMember !== null}
         />
+        <Roster members={siteData.roster} onSelect={setSelectedMember} />
         <NewsFeed items={getHomeNews(siteData.news)} />
         <GalleryPreview
           photos={siteData.gallery}
           onOpenPhoto={setSelectedPhoto}
           onOpenAlbum={openAlbum}
         />
-        <Roster members={siteData.roster} onSelect={setSelectedMember} />
         <Leaderboard rows={siteData.leaderboard} scoreDate={siteData.latestScoreDate} onOpenDetails={() => setShowScoreDetails(true)} />
         <VideoModal member={selectedMember} onClose={() => setSelectedMember(null)} />
         <PhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} />

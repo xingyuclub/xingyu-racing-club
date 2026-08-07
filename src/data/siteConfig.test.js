@@ -1,8 +1,42 @@
 import { describe, expect, it } from 'vitest';
-import { createSeedConfig, getHomeNews, hydrateSiteData, migrateRawConfig, parseNewsDate } from './siteConfig.js';
+import {
+  createSeedConfig,
+  getHomeNews,
+  hydrateSiteData,
+  migrateRawConfig,
+  parseNewsDate,
+  renumberScoreMemberIds,
+} from './siteConfig.js';
 import { teamData } from './teamData.js';
 
 describe('site configuration', () => {
+  it('renumbers score identities and every stored reference in current list order', () => {
+    const config = createSeedConfig();
+    config.scoreMembers = [
+      { id: 'score-old-a', name: '甲' },
+      { id: 'score-old-b', name: '乙' },
+    ];
+    config.roster = [
+      { ...config.roster[0], scoreMemberId: 'score-old-b' },
+      { ...config.roster[1], scoreMemberId: 'score-old-a' },
+    ];
+    config.dailyScores = [{
+      date: '2026-08-04',
+      rows: [{ id: 'score-old-a', teamRace: [1, null, null], openRace: [null, null, null] }],
+    }];
+    config.weekendScores = [{
+      date: '2026-08-02',
+      rows: [{ id: 'score-old-b', points: 20 }],
+    }];
+
+    const next = renumberScoreMemberIds(config);
+
+    expect(next.scoreMembers.map((member) => member.id)).toEqual(['1', '2']);
+    expect(next.roster.map((member) => member.scoreMemberId)).toEqual(['2', '1']);
+    expect(next.dailyScores[0].rows[0].id).toBe('1');
+    expect(next.weekendScores[0].rows[0].id).toBe('2');
+  });
+
   it('adds an empty signature to legacy roster members', () => {
     const legacy = structuredClone(teamData);
     delete legacy.roster[0].signature;
@@ -26,6 +60,22 @@ describe('site configuration', () => {
     expect(migrated.scoreMembers.map(({ id, name }) => ({ id, name }))).toEqual(
       migrated.roster.map(({ id, name }) => ({ id, name })),
     );
+  });
+
+  it('auto-binds a roster member when exactly one score identity has the same normalized name', () => {
+    const input = structuredClone(teamData);
+    input.roster = [{ ...input.roster[0], id: 'roster-1', name: 'ˣʸ༩·青山' }];
+    input.scoreMembers = [{ id: 'score-qingshan', name: '青山', basePoints: 0, wins: 0 }];
+
+    expect(migrateRawConfig(input).roster[0].scoreMemberId).toBe('score-qingshan');
+  });
+
+  it('keeps an unmatched roster member explicitly unbound', () => {
+    const input = structuredClone(teamData);
+    input.roster = [{ ...input.roster[0], id: 'roster-1', name: '没有积分身份' }];
+    input.scoreMembers = [{ id: 'score-other', name: '其他人', basePoints: 0, wins: 0 }];
+
+    expect(migrateRawConfig(input).roster[0].scoreMemberId).toBe('');
   });
 
   it('migrates legacy hero image configuration to typed media fields', () => {
@@ -112,6 +162,7 @@ describe('site configuration', () => {
     expect(config).not.toHaveProperty('featuredMembers');
     expect(config.roster[0]).toHaveProperty('basePoints');
     expect(config.roster[0]).toHaveProperty('signature', '');
+    expect(config.roster[0]).toHaveProperty('scoreMemberId', config.scoreMembers[0].id);
     expect(config.roster[0]).not.toHaveProperty('points');
     expect(config.dailyScores[0]).not.toHaveProperty('weekday');
     expect(config.dailyScores[0].rows[0]).toEqual({
@@ -349,6 +400,27 @@ describe('site configuration', () => {
     expect(data.leaderboard.map((member) => member.id)).toEqual(['departed-member', config.scoreMembers[0].id]);
     expect(data.dailyScores[0].rows).toHaveLength(2);
     expect(data.dailyScores[0].rows.find((row) => row.id === 'departed-member').total).toBe(5);
+  });
+
+  it('keeps members who played earlier in the week on the leaderboard when they miss the latest day', () => {
+    const config = createSeedConfig();
+    config.dailyScores = [];
+    config.scoreMembers = [
+      { id: 'monday-player', name: '周一队员', basePoints: 0, wins: 0 },
+      { id: 'tuesday-player', name: '周二队员', basePoints: 0, wins: 0 },
+    ];
+    config.dailyScores = [
+      { date: '2026-08-03', rows: [{ id: 'monday-player', teamRace: [3, 0, 0], openRace: [0, 0, 0] }] },
+      { date: '2026-08-04', rows: [{ id: 'tuesday-player', teamRace: [5, 0, 0], openRace: [0, 0, 0] }] },
+    ];
+
+    const data = hydrateSiteData(config);
+
+    expect(data.latestScoreDate).toBe('2026-08-04');
+    expect(data.leaderboard).toEqual([
+      { id: 'tuesday-player', rank: 1, name: '周二队员', points: 5 },
+      { id: 'monday-player', rank: 2, name: '周一队员', points: 3 },
+    ]);
   });
 
   it('shows no leaderboard before any score date has been imported', () => {

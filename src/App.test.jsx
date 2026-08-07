@@ -22,6 +22,7 @@ let mediaLoad;
 
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+  vi.stubGlobal('scrollTo', vi.fn());
   mediaPlay = vi
     .spyOn(HTMLMediaElement.prototype, 'play')
     .mockImplementation(() => new Promise(() => {}));
@@ -93,6 +94,25 @@ describe('teamData', () => {
 });
 
 describe('App', () => {
+  it('starts at the top after refresh and every public route change', async () => {
+    const user = userEvent.setup();
+    const scrollTo = vi.fn();
+    vi.stubGlobal('scrollTo', scrollTo);
+    window.location.hash = '#album';
+
+    render(<App />);
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' });
+    scrollTo.mockClear();
+
+    await user.click(screen.getByRole('button', { name: '返回首页' }));
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' });
+
+    scrollTo.mockClear();
+    await user.click(await screen.findByRole('link', { name: '查看更多动态' }));
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' });
+  });
+
   it('renders the server configuration after it loads', async () => {
     const configuredTeamName = '欢迎来到星⁡⁠屿';
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
@@ -429,6 +449,38 @@ describe('App', () => {
     expect(readRotation()).not.toBeCloseTo(start, 3);
   });
 
+  it('captures native touch dragging before the page can scroll', () => {
+    render(<App />);
+
+    const roster = screen.getByTestId('roster-grid');
+    const sphere = within(roster).getByTestId('roster-sphere');
+    const main = roster.querySelector('.sphere-main');
+    const touchEvent = (type, clientX, clientY) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      const touch = { clientX, clientY };
+      Object.defineProperties(event, {
+        touches: { value: type === 'touchend' ? [] : [touch] },
+        changedTouches: { value: [touch] },
+      });
+      return event;
+    };
+    const readRotation = () => sphere.style.transform;
+
+    const start = readRotation();
+    const touchStart = touchEvent('touchstart', 200, 260);
+    const touchMove = touchEvent('touchmove', 260, 200);
+    const touchEnd = touchEvent('touchend', 260, 200);
+
+    act(() => {
+      main.dispatchEvent(touchStart);
+      main.dispatchEvent(touchMove);
+      main.dispatchEvent(touchEnd);
+    });
+
+    expect(touchMove.defaultPrevented).toBe(true);
+    expect(readRotation()).not.toBe(start);
+  });
+
   it('opens a roster video after a touch tap with slight finger movement', () => {
     render(<App />);
 
@@ -512,6 +564,19 @@ describe('App', () => {
     expect(ruleStyle('.item__image img,\n.item__placeholder').filter).toContain('var(--image-filter');
     expect(ruleStyle('.item__image::before')).toBeUndefined();
     expect(ruleStyle('.overlay')).not.toBeUndefined();
+
+    style.remove();
+  });
+
+  it('keeps page scrolling disabled across the entire roster sphere touch surface', () => {
+    const style = document.createElement('style');
+    style.textContent = domeGalleryStyles;
+    document.head.append(style);
+    const rules = Array.from(style.sheet.cssRules);
+    const ruleStyle = (selector) => rules.find((rule) => rule.selectorText === selector)?.style;
+
+    expect(ruleStyle('main.sphere-main').getPropertyValue('touch-action')).toBe('none');
+    expect(ruleStyle('.item__image').getPropertyValue('touch-action')).toBe('none');
 
     style.remove();
   });
@@ -607,6 +672,15 @@ describe('App', () => {
     await user.click(screen.getAllByTestId('album-folder')[0]);
     expect(screen.getAllByTestId('album-photo')).toHaveLength(teamData.albums[0].photos.length);
     expect(screen.getAllByTestId('album-photo')[0].querySelector('img')).not.toHaveClass('photo-card-image--contain');
+  });
+
+  it('anchors album covers and photo thumbnails to the top so portraits keep their heads', () => {
+    expect(globalStyles).toMatch(
+      /\.album-folder img\s*\{[^}]*object-fit:\s*cover;[^}]*object-position:\s*top;/s,
+    );
+    expect(globalStyles).toMatch(
+      /\.album-photo img\s*\{[^}]*object-fit:\s*cover;[^}]*object-position:\s*top;/s,
+    );
   });
 
   it('shows the homepage hero module at the top of every secondary page', async () => {
@@ -757,7 +831,7 @@ describe('App', () => {
     expect(globalStyles).toMatch(/\.member-video-modal\s*>\s*video\s*\{[^}]*margin-top:\s*0/s);
   });
 
-  it('shows a non-empty signature above the video without name or close button', () => {
+  it('shows a non-empty signature below the video without name or close button', () => {
     const { container } = render(
       <VideoModal
         member={{ name: '成员 01', signature: '一路向星光', videoUrl: '/videos/member-01.mp4' }}
@@ -769,7 +843,7 @@ describe('App', () => {
     const signature = within(dialog).getByText('一路向星光');
     const video = container.querySelector('video');
     expect(container.querySelector('.modal-backdrop')).toHaveClass('video-modal-backdrop');
-    expect(signature.compareDocumentPosition(video) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(video.compareDocumentPosition(signature) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(dialog).queryByText('成员 01')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '关闭视频弹窗' })).not.toBeInTheDocument();
     expect(globalStyles).toMatch(/\.video-modal-backdrop\s*\{[^}]*padding:\s*0/s);

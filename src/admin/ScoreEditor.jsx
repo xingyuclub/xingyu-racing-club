@@ -1,7 +1,11 @@
 import { useMemo, useState } from 'react';
 import { ArrowDownWideNarrow, Download, FileDown, Plus, Trash2, Upload, X } from 'lucide-react';
-import { hydrateSiteData } from '../data/siteConfig.js';
-import { createScoreMemberId, invalidateFollowingWeekTotals } from '../data/scoreRules.js';
+import {
+  hydrateSiteData,
+  nextScoreMemberId,
+  removeScoreMember as removeScoreMemberFromConfig,
+} from '../data/siteConfig.js';
+import { invalidateFollowingWeekTotals } from '../data/scoreRules.js';
 import {
   downloadScoreWorkbook,
   mergeScoreImport,
@@ -153,22 +157,23 @@ export function ScoreEditor({ config, onChange }) {
     const next = clone(config);
     if (!Array.isArray(next.scoreMembers)) next.scoreMembers = [];
     const baseName = '新积分队员';
-    const used = new Set(next.scoreMembers.map((member) => member.id));
+    const usedNames = new Set(next.scoreMembers.map((member) => member.name));
     let name = baseName;
     let suffix = 2;
-    let id = createScoreMemberId(name);
-    while (used.has(id)) {
+    while (usedNames.has(name)) {
       name = `${baseName}${suffix}`;
       suffix += 1;
-      id = createScoreMemberId(name);
     }
-    next.scoreMembers.push({ id, name, basePoints: 0, wins: 0 });
+    next.scoreMembers.push({
+      id: nextScoreMemberId(next.scoreMembers),
+      name,
+      basePoints: 0,
+      wins: 0,
+    });
     onChange(next);
   };
   const removeScoreMember = (index) => {
-    const next = clone(config);
-    next.scoreMembers.splice(index, 1);
-    onChange(next);
+    onChange(removeScoreMemberFromConfig(config, config.scoreMembers[index].id));
   };
 
   const download = async (template) => {

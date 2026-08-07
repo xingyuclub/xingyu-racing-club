@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import request from 'supertest';
+import sharp from 'sharp';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createApp } from './index.js';
 
@@ -472,7 +473,6 @@ describe('score recognition API', () => {
     }];
     const { app } = await createRecognitionFixture({ aiClient: createFakeAiClient(matches) });
     const { agent } = await loginAsAdmin(app);
-
     const upload = await agent
       .post('/api/admin/score-recognition/batches')
       .field('date', '2026-08-01')
@@ -563,6 +563,8 @@ describe('score recognition API', () => {
     ] }];
     const { app } = await createRecognitionFixture({ aiClient: createFakeAiClient(matches) });
     const { agent } = await loginAsAdmin(app);
+    const rawConfig = await agent.get('/api/admin/config').expect(200);
+    const selectedScoreMemberId = rawConfig.body.scoreMembers[1].id;
     const upload = await agent
       .post('/api/admin/score-recognition/batches')
       .field('date', '2026-08-01')
@@ -582,9 +584,12 @@ describe('score recognition API', () => {
     await agent.put(url + '/review')
       .send({ evidenceId: 'i0-m0-p1', memberId: 'missing' })
       .expect(400);
+    await agent.put(url + '/review')
+      .send({ evidenceId: 'i0-m0-p1', scoreMemberId: 'missing' })
+      .expect(400);
 
     const reviewed = await agent.put(url + '/review')
-      .send({ evidenceId: 'i0-m0-p1', ignored: true })
+      .send({ evidenceId: 'i0-m0-p1', scoreMemberId: selectedScoreMemberId, ignored: false })
       .expect(200);
     expect(reviewed.body.canCommit).toBe(true);
     await agent.post(url + '/commit')
@@ -593,6 +598,9 @@ describe('score recognition API', () => {
   });
 
   it('reports the failing image number and marks the batch as failed', async () => {
+    const secondJpgBytes = await sharp({
+      create: { width: 4, height: 4, channels: 3, background: '#f6d365' },
+    }).jpeg().toBuffer();
     let calls = 0;
     const aiClient = {
       chat: { completions: { create: async () => {
@@ -610,7 +618,7 @@ describe('score recognition API', () => {
       .field('date', '2026-08-01')
       .field('raceType', 'team')
       .attach('files', jpgBytes, { filename: 'one.jpg', contentType: 'image/jpeg' })
-      .attach('files', jpgBytes, { filename: 'two.jpg', contentType: 'image/jpeg' })
+      .attach('files', secondJpgBytes, { filename: 'two.jpg', contentType: 'image/jpeg' })
       .expect(201);
     const url = '/api/admin/score-recognition/batches/' + upload.body.id;
 
