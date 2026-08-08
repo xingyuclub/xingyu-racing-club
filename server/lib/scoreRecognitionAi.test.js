@@ -107,6 +107,7 @@ describe('score recognition AI adapter', () => {
     expect(request.messages[0].content).toContain('上方较大的文字是玩家昵称');
     expect(request.messages[0].content).toContain('本车队归属标签包括“星屿车队”“星屿”');
     expect(request.messages[0].content).toContain('绝不能输出为任何 participant 的 nickname');
+    expect(request.messages[0].content).toContain('不能用车队归属标签代替昵称');
     expect(request.messages[0].content).toContain('score 是 MVP分列');
     expect(request.messages[0].content).toContain('每场比赛必须抄写结算表标题区显示的地图名称到 mapName');
     expect(request.messages[0].content).not.toMatch(/胜负/);

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createSeedConfig } from '../data/siteConfig.js';
 import AdminApp from './AdminApp.jsx';
-import { ConfigEditor } from './ConfigEditor.jsx';
+import { applyUploadResult, ConfigEditor } from './ConfigEditor.jsx';
 import { UploadField } from './UploadField.jsx';
 
 afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); });
@@ -33,7 +33,15 @@ it('logs in, edits public content, uploads a cover, and saves the draft', async 
     .mockResolvedValueOnce({ ok: true, status: 204 })
     .mockResolvedValueOnce({ ok: true, json: async () => config })
     .mockResolvedValueOnce({ ok: true, json: async () => [] })
-    .mockResolvedValueOnce({ ok: true, status: 201, json: async () => ({ name: 'abc--hero.mp4', path: '/uploads/abc--hero.mp4', type: 'video', size: 5 }) })
+    .mockResolvedValueOnce({ ok: true, status: 201, json: async () => ({
+      name: 'abc--hero.mp4',
+      path: '/videos/abc--hero--720p.mp4',
+      originalPath: '/originals/abc--hero.mp4',
+      posterPath: '/posters/abc--hero--poster.webp',
+      type: 'video',
+      size: 5,
+      metadata: { width: 1920, height: 1080, duration: 10 },
+    }) })
     .mockResolvedValueOnce({ ok: true, status: 201, json: async () => ({ name: 'def--fallback.png', path: '/uploads/def--fallback.png', type: 'image', size: 5 }) })
     .mockResolvedValueOnce({ ok: true, status: 200, json: async () => config })
     .mockResolvedValueOnce({ ok: true, status: 204 }));
@@ -71,7 +79,16 @@ it('logs in, edits public content, uploads a cover, and saves the draft', async 
     const savedConfig = JSON.parse(saveCall[1].body);
     expect(savedConfig.roster[0].role).toBe('队长');
     expect(savedConfig.roster[0].signature).toBe('一路向星光');
-    expect(savedConfig.team.heroMedia).toEqual({ src: '/uploads/abc--hero.mp4', type: 'video' });
+    expect(savedConfig.team.heroMedia).toEqual({
+      src: '/videos/abc--hero--720p.mp4',
+      type: 'video',
+      originalSrc: '/originals/abc--hero.mp4',
+      originalSize: 5,
+      posterSrc: '/posters/abc--hero--poster.webp',
+      width: 1920,
+      height: 1080,
+      duration: 10,
+    });
     expect(savedConfig.team.heroFallbackImage).toBe('/uploads/def--fallback.png');
     expect(screen.getByText('hero.mp4', { selector: 'code' })).toBeInTheDocument();
     expect(screen.getByText('fallback.png', { selector: 'code' })).toBeInTheDocument();
@@ -145,6 +162,44 @@ it('adds an editable signature field to legacy members without rebuilding them',
     videoUrl: legacyMember.videoUrl,
     signature: '一起冲向终点',
   }));
+});
+
+it('stores lightweight and original media paths without exposing them as manual fields', () => {
+  const config = createSeedConfig();
+  const withAvatar = applyUploadResult(config, ['roster', 0, 'avatar'], {
+    path: '/variants/avatar--display.webp',
+    originalPath: '/originals/avatar.jpg',
+    size: 4_000_000,
+    type: 'image',
+    variants: {
+      thumb: '/variants/avatar--thumb.webp',
+      card: '/variants/avatar--card.webp',
+      display: '/variants/avatar--display.webp',
+    },
+  });
+  const withVideo = applyUploadResult(withAvatar, ['roster', 0, 'videoUrl'], {
+    path: '/videos/member--720p.mp4',
+    originalPath: '/originals/member.mp4',
+    posterPath: '/posters/member--poster.webp',
+    size: 120_000_000,
+    type: 'video',
+    metadata: { width: 1920, height: 1080, duration: 48 },
+  });
+
+  expect(withVideo.roster[0]).toMatchObject({
+    avatar: '/variants/avatar--card.webp',
+    avatarThumb: '/variants/avatar--thumb.webp',
+    avatarCard: '/variants/avatar--card.webp',
+    avatarOriginalSrc: '/originals/avatar.jpg',
+    avatarOriginalSize: 4_000_000,
+    videoUrl: '/videos/member--720p.mp4',
+    videoPosterSrc: '/posters/member--poster.webp',
+    videoOriginalUrl: '/originals/member.mp4',
+    videoOriginalSize: 120_000_000,
+    videoWidth: 1920,
+    videoHeight: 1080,
+    videoDuration: 48,
+  });
 });
 it('edits the permanent score identity binding on a roster member', async () => {
   const user = userEvent.setup();

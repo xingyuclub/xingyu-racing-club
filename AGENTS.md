@@ -2,7 +2,7 @@
 
 当前项目根目录：`C:\Users\Admin\Documents\H5`
 
-最后更新：2026-08-07
+最后更新：2026-08-08
 
 ## 项目一句话
 这是一个基于 Vite + React 的星屿车队移动端 H5，核心是首页展示、成员阵容、积分榜、资讯、相册和音乐浮窗。
@@ -24,7 +24,7 @@
 - `活跃排名` 已从 `3st` 修正为 `3rd`
 - 首页四个统计格使用蓝、紫、青、玫红独立强调色，并加强数字与标签的显示层次
 - 统计区外层紫色波浪框已移除，内部 4 个统计小框保留 `StarBorder`；积分榜使用普通列表容器
-- 队员展示是圆柱形持续滚动，不是平面列表
+- 队员展示当前使用 `DomeGallery` 球形画廊：默认静止，仅支持鼠标/触摸拖拽旋转；成员卡片点击仍可打开详情
 - 队员卡片点击仍可打开详情
 - 轮播支持 hover 暂停、拖拽加速、松手后缓慢回到基础速度
 - 车队风采轮播每 4 秒自动切换；系统开启“减少动态效果”时仍保持自动切换
@@ -33,6 +33,8 @@
 - 本地配置后台与 API 已实现，设计和实施记录见 `docs/superpowers/specs/2026-07-28-xingyu-config-admin-design.md`、`docs/superpowers/plans/2026-07-28-xingyu-config-admin-implementation.md`
 - 星屿积分榜后台已采用独立 `scoreMembers` 的“按日期纵向明细 + 积分人物期初积分”模型，支持 Excel 式在线编辑、模板下载、`.xlsx` 导入预览确认和当前数据导出
 - 原始配置保存积分人物、期初积分、日期、积分人物 ID、六局成绩及 Excel/周末原始的得分和总分；星期和首页排行榜在运行时派生，成员阵容继续独立使用 `roster`
+- 公网部署架构已落地：GitHub Pages 只提供公开静态 H5，腾讯 COS/CDN 提供媒体和公开配置脚本，本机 Node `3000` 继续提供后台、上传与积分截图识别，本机 Ollama 继续提供 `xingyu-score-recognition`
+- 公网构建通过 `VITE_PUBLIC_ONLY=true` 隐藏后台入口，并在应用启动前加载 `VITE_PUBLIC_CONFIG_SCRIPT_URL` 指向的 COS 配置脚本；公网前台不请求本机 `/api/config` 或 SSE，本地前台仍使用 API + SSE/focus 刷新
 - 普通 Excel 中出现的日期整体覆盖、未出现的日期保留；KW27-KW31 旧周表通过 `scripts/import-legacy-score-workbook.js` 专用脚本导入
 - 旧配置中的成员 `points` 会自动迁移为 `basePoints`，原运行时文件会保存为 `.bak`
 - 公开 H5 的新 UI/UX 方向已确认采用 `Pit Wall / 车队维修区`，完整设计见 `docs/superpowers/specs/2026-07-29-xingyu-pit-wall-ui-redesign-design.md`
@@ -230,3 +232,31 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 2026-08-07 首次生产截图识别出现 `第 1 张截图识别失败：Connection error.`，根因是 Node 正常但本机 Ollama 未启动。已启动 `127.0.0.1:11434`并实测 `xingyu-score-recognition` 推理成功；失败批次 `ce5362aa` 已重试并处理 15 张图，人工按原图修正安忆/浪漫/fafa，忽略未在名单内的“暮”/“橘絮”，最终 19 人的 2026-08-06 队内赛积分已提交，批次状态为 `committed`。`start-public.ps1` 已增加 Ollama 自动启动、端口就绪和模型存在性检查，避免电脑重启后再次出现同类连接失败。
 
 - 2026-08-07 已补齐截图识别纠错闭环：AI 提示词会识别并过滤重复出现的车队归属标签，后台支持按单张截图重新识别、按比赛人工补录漏识别成员并删除补录项，服务端同步校验截图/场次、名次唯一性和积分人物有效性；重新识别会清理该图旧审核及人工补录，避免残留错误。首页 Hero 视频改为用户点击后带声音播放，播放期间自动暂停背景音乐，再点视频可暂停；默认 Hero 与失败备用图改用非真人 `/images/album/placeholder-01.jpg`，并删除仓库中的 9 MB 真人合照 `public/images/hero-home.png`，`PRODUCT.md` 已同步素材说明。最终 `npm test -- --run` 通过 25 个测试文件、470 项测试，`npm run build` 通过；生产服务 `/`、`/api/config`、`/admin` 均返回 200，浏览器 390/1280 视口无页面级横向溢出，视频/音乐互斥生效且控制台无警告或错误。
+- 2026-08-08 已完成 COS/CDN 公网前端部署链路：新增 `server/lib/cosStorage.js`、`mediaMigration.js`、`mediaVariants.js`、`publicConfigPublisher.js`，后台上传可写入 COS 并生成公开媒体 URL；站点配置保存后可同步发布 `config/site-config.js`；GitHub Actions 工作流位于 `.github/workflows/deploy-pages.yml`，构建时使用 `VITE_PUBLIC_ONLY=true`、`VITE_PUBLIC_CONFIG_SCRIPT_URL`，公开页面不包含后台入口。`.env.example` 已补充 COS 与公网配置变量，`docs/github-pages-deploy.md` 已补充 GitHub Pages、COS/CDN、本机后台和自定义域名说明。COS 未配置时本地开发仍保留本地存储回退。
+
+- 2026-08-08 已修复公网配置首次加载时的首屏竞态：`src/main.jsx` 继续按 `VITE_PUBLIC_ONLY` 选择公开前台，`src/hooks/useSiteConfig.js` 在公网构建中读取 `window.__XINGYU_PUBLIC_CONFIG_SCRIPT_URL__`/`VITE_PUBLIC_CONFIG_SCRIPT_URL`，`vite.config.js` 会把公开配置脚本注入 HTML `head`，因此 React 首次渲染前即可拿到最新配置；公网模式不建立本机 SSE，配置脚本使用时间戳避免缓存。
+
+- 2026-08-08 当前主分支为 `main`，HEAD 为 `97efe42`（`fix: ensure roster portraits load in mobile webviews`），其父提交 `50c6ee2` 为公网配置首屏加载修复；`main` 当前领先 `origin/main` 1 个提交。本轮验证：`npm test -- --run` 通过 30 个测试文件、486 项测试；`npm run build` 通过（主前台 JS gzip 122.58 kB，后台和 ExcelJS 仍为独立 chunk）。
+
+- 2026-08-08 已提交移动 WebView 图片加载修复（`97efe42`）：`src/components/DomeGallery.jsx` 将成员头像从 `loading="lazy"` 改为 `loading="eager"`，避免经过 3D transform 的图片在部分移动 WebView 中不加载；`src/App.test.jsx` 已同步回归断言。该改动已包含在上述 486 项测试和构建中。
+
+- 2026-08-08 微信拦截申诉验证文件已部署并推送，提交为 `6465f59`：`public/89f36bc3e512795deb62700c7e42d531.txt` 内容为微信指定校验串。GitHub Pages 项目地址 `/xingyu-racing-club/89f36bc3e512795deb62700c7e42d531.txt` 已实测 HTTP 200 且内容正确；`wodelaodashicfer.github.io` 域名根目录同名文件仍为 404。若微信按项目路径校验可直接提交；若强制按域名根目录校验，需要绑定独立域名或建立 `wodelaodashicfer.github.io` 用户主页仓库后重新部署文件。
+
+- 2026-08-08 微信实际点击“开始验证”后返回“校验失败，请按要求部署文件及内容”，已确认是上述根目录/项目子路径不匹配，而非 TXT 文件内容错误。当前可行路径：先用“仅提交证明材料”申诉；或提供一个可控制的独立域名，绑定到 GitHub Pages 后把验证文件放在该域名根目录，再重新验证。
+- 2026-08-08 已完成媒体变体（media variants）系统：后台上传图片时自动生成三档 WebP 变体（缩略图 thumb 480px、卡片 card 960px、展示 display 1920px），上传视频时通过 ffmpeg 转码为 720p H.264 MP4 并截取中间帧 WebP 海报；`server/lib/mediaVariants.js` 从单变体改为多变体工厂，新增 `server/lib/videoVariants.js`（依赖 `ffmpeg-static`/`ffprobe-static`），`server/index.js` 上传/列表/删除路由同步管理多变体 COS 键，`server/lib/configStore.js` 增加对 originalSrc/posterSrc/thumbSrc/cardSrc 及尺寸时长等可选媒体字段的校验。前端各展示面按场景消费最合适变体：`Roster` 用 avatarThumb、`FeaturedMembers`（DomeGallery）用 avatarCard、`GalleryPreview` 用 cardSrc、`AlbumPage` 用 thumbSrc/coverThumbSrc、`Hero` 视频用 posterSrc 做封面；`Hero`/`VideoModal`/`PhotoModal` 新增查看原图/在线播放原视频外链。后台 `ConfigEditor.jsx` 新增 `applyUploadResult` 将变体写入对应配置字段，`hiddenMediaFields` 在树编辑器中隐藏内部变体字段；`UploadField` 显示原始文件名。截图识别同步优化：AI 提示词补充昵称看不清时不车队标签代替，`scoreRecognitionDraft` 将车队归属标签识别为 `team-label` 而非 `unmatched`，`ScoreRecognition` 错误提示移到预览顶部。新增依赖 `ffmpeg-static@5.3.0`、`ffprobe-static@3.1.0`（仅服务端，不影响前台 bundle）。最终 `npm test -- --run` 通过 31 个测试文件、500 项测试，`npm run build` 通过（前台 JS gzip 123.78 kB，ExcelJS 仍独立）；未留下新的功能风险。
+
+- 2026-08-08 用户提出候选域名 `黄石和园建材.中国`（ASCII/Punycode：`xn--0tr48cxwl51iluvqh7c.xn--fiqs8s`）。当前主域名没有 DNS 解析；`media.` 子域名已有腾讯云 CDN 解析但 HTTPS 证书不匹配。若采用该域名作为公网 H5，应先在 DNS 设置 GitHub Pages 指向（主域名使用 GitHub Pages 要求的 A/ALIAS，或使用 `www` 子域名 CNAME），再在仓库配置 `public/CNAME`、生产构建使用根路径 `/`，确认 HTTPS 后重新验证微信 TXT 文件。
+
+## 当前交接重点
+- 公网 H5：GitHub Actions 发布静态前台；媒体与配置脚本依赖 COS/CDN；具体变量见 `.env.example`，发布说明见 `docs/github-pages-deploy.md`。
+- 本机后台：`http://127.0.0.1:3000/admin`；公网前台不能访问本机后台 API。截图识别必须在这台 Windows 电脑上运行 Node 服务和 Ollama 模型 `xingyu-score-recognition`。
+- 微信域名验证：微信要求在公网域名根目录放置指定 TXT 文件并能通过 HTTPS 直接访问；局域网 `192.168.x.x`、`localhost` 或仅 GitHub Actions 构建目录不能完成该验证。
+- 数据安全：`.env`、`server/config/admin.local.json`、运行时 `server/data/site-config.json`、上传媒体和识别原图均不可提交；部署前私有备份位于 `output/deployment-backups/20260807-110721`。
+- 识别队列：已收口为 `10 committed + 10 discarded`，无 `ready/uploaded/failed`；旧批次若需重算，必须在后台重新处理以获得最新地图、去重和人工纠错逻辑。
+- Pit Wall：仅保留在独立 `codex/pit-wall-ui-redesign` 分支/工作树，当前原版 `main` 不启用，也不添加永久主题切换。
+
+## 继续工作前的核对顺序
+1. 先查看 `git status --short --branch`；最新提交已包含媒体变体系统（图片三档 WebP + 视频 720p MP4 转码）、截图识别车队标签过滤和 DomeGallery eager-loading 修复，工作区应为干净状态。
+2. 修改前先运行 `npm test -- --run`；涉及前台布局或媒体时，再运行 `npm run build` 并做 390/768/1280 视口检查。
+3. 需要更新公网内容时，在本机后台保存配置并确认 COS 配置脚本时间戳/内容已更新；不直接编辑 GitHub Pages 产物。
+4. 需要截图识别时，先确认 `127.0.0.1:3000` 和 `127.0.0.1:11434` 可用，并确认 Ollama 模型存在。

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { ExternalLink } from 'lucide-react';
 import ShinyText from './ShinyText.jsx';
 
 export function VideoModal({ member, onClose }) {
@@ -43,6 +44,17 @@ export function VideoModal({ member, onClose }) {
     >
       <section className="video-modal member-video-modal" data-entrance role="dialog" aria-modal="true">
         <video ref={videoRef} src={member.videoUrl} autoPlay controls playsInline preload="metadata" />
+        {member.videoOriginalUrl && member.videoOriginalUrl !== member.videoUrl && (
+          <a
+            className="media-original-action member-video-original-action"
+            href={member.videoOriginalUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <ExternalLink aria-hidden="true" size={15} />
+            在线播放原视频
+          </a>
+        )}
         {member.signature?.trim() && (
           <p className="member-video-signature">
             <ShinyText

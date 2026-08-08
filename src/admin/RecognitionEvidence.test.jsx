@@ -71,7 +71,9 @@ describe('RecognitionEvidence', () => {
     );
 
     expect(screen.getByRole('option', { name: '赴约·太困' })).toBeInTheDocument();
-    await userEvent.selectOptions(screen.getByLabelText('未匹配昵称 路人 对应成员'), 'score-3');
+    const memberSelect = screen.getByLabelText('未匹配昵称 路人 对应成员');
+    await userEvent.selectOptions(memberSelect, 'score-3');
+    expect(memberSelect).toHaveValue('score-3');
     expect(onReview).toHaveBeenCalledWith({
       evidenceId: 'i0-m0-p1', scoreMemberId: 'score-3', ignored: false,
     });
@@ -128,6 +130,29 @@ describe('RecognitionEvidence', () => {
 
     expect(screen.getByText('未匹配成员')).toBeInTheDocument();
     expect(screen.getByRole('option', { name: '赴约·太困' })).toBeInTheDocument();
+  });
+
+  it('labels the team name as an OCR mistake instead of a member nickname', () => {
+    render(
+      <RecognitionEvidence
+        batchId="b1"
+        config={config}
+        draft={{
+          ...draft,
+          summary: [],
+          evidence: [{
+            id: 'i0-m0-p0', imageIndex: 0, matchIndex: 0,
+            nickname: 'xy♂·星屿', rank: 2,
+          }],
+          issues: [{ evidenceId: 'i0-m0-p0', code: 'team-label' }],
+        }}
+        busy={false}
+        onReview={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('误读为车队名')).toBeInTheDocument();
+    expect(screen.getByText('“星屿”是车队归属标签，不是队员昵称。')).toBeInTheDocument();
   });
 
   it('asks the reviewer to resolve a suspected duplicate image', async () => {

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { buildRecognitionDraft } from './scoreRecognitionDraft.js';
 
 const config = {
+  team: { name: '星屿车队' },
   roster: [
     { id: 'roster-1', name: '十二', scoreMemberId: 'score-twelve' },
     { id: 'roster-2', name: '黑岩', scoreMemberId: 'score-black' },
@@ -150,14 +151,14 @@ describe('buildRecognitionDraft', () => {
     expect(ignored.canCommit).toBe(true);
   });
 
-  it('keeps a team-label-only OCR result available for manual member confirmation', () => {
+  it('flags a team-label-only OCR result instead of treating it as a nickname', () => {
     const matches = [{ participants: [{ nickname: 'xy/2·星屿', rank: 1 }] }];
     const unmatched = buildDraft({ matches });
 
     expect(unmatched.evidence[0]).toMatchObject({ nickname: 'xy/2·星屿', rank: 1 });
     expect(unmatched.issues).toContainEqual({
       evidenceId: 'i0-m0-p0',
-      code: 'unmatched',
+      code: 'team-label',
     });
     expect(unmatched.canCommit).toBe(false);
 

@@ -126,7 +126,7 @@ export function AlbumPage({ albums, onBack, onOpenPhoto }) {
                       onClick={() => onOpenPhoto(photo)}
                       aria-label={`${isVideo ? '查看视频' : '查看'}${photo.title}`}
                     >
-                      {photo.src && <img src={photo.src} alt="" loading="lazy" />}
+                      {(photo.thumbSrc || photo.src) && <img src={photo.thumbSrc || photo.src} alt="" loading="lazy" />}
                       {isVideo && (
                         <span className="photo-video-badge" aria-hidden="true">
                           视频
@@ -155,7 +155,7 @@ export function AlbumPage({ albums, onBack, onOpenPhoto }) {
                     onClick={() => openAlbum(album)}
                     aria-label={`打开文件夹${album.name}`}
                   >
-                    {album.coverSrc && <img src={album.coverSrc} alt="" loading="lazy" />}
+                    {(album.coverThumbSrc || album.coverSrc) && <img src={album.coverThumbSrc || album.coverSrc} alt="" loading="lazy" />}
                     {album.password && (
                       <span className="album-folder-lock" aria-hidden="true">
                         <LockKeyhole size={15} />

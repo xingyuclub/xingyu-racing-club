@@ -431,11 +431,35 @@ describe('score recognition service', () => {
     expect((await store.readBatch('b1')).reviews).toEqual({});
   });
 
-  it('identifies which image failed during sequential recognition', async () => {
-    const { service, store } = setupService({
+  it('saves partial results when one image fails and the rest succeed', async () => {
+    const { service, store, ai } = setupService({
       aiResponses: [
         [{ participants: [{ nickname: '稳稳', rank: 1 }] }],
         new Error('模型超时'),
+        [{ participants: [{ nickname: '闪电', rank: 1 }] }],
+      ],
+    });
+    await createBatch(store, { files: [
+      { name: 'a.jpg', bytes: Buffer.from([1]), mimeType: 'image/jpeg' },
+      { name: 'b.jpg', bytes: Buffer.from([2]), mimeType: 'image/jpeg' },
+      { name: 'c.jpg', bytes: Buffer.from([3]), mimeType: 'image/jpeg' },
+    ] });
+
+    const draft = await service.previewBatch('b1');
+    expect(draft.imageErrors).toHaveLength(1);
+    expect(draft.imageErrors[0]).toMatchObject({ imageIndex: 1, message: '模型超时' });
+    expect(ai.extractMatches).toHaveBeenCalledTimes(3);
+    const batch = await store.readBatch('b1');
+    expect(batch.status).toBe('ready');
+    expect(batch.observations).toHaveLength(2);
+    expect(batch.imageErrors).toHaveLength(1);
+  });
+
+  it('throws when every image fails recognition', async () => {
+    const { service, store } = setupService({
+      aiResponses: [
+        new Error('模型超时'),
+        new Error('图片损坏'),
       ],
     });
     await createBatch(store, { files: [
@@ -443,7 +467,7 @@ describe('score recognition service', () => {
       { name: 'b.jpg', bytes: Buffer.from([2]), mimeType: 'image/jpeg' },
     ] });
 
-    await expect(service.previewBatch('b1')).rejects.toThrow(/第 2 张截图.*模型超时/);
+    await expect(service.previewBatch('b1')).rejects.toThrow(/全部截图识别失败/);
   });
 
   it('blocks unresolved drafts and commits reviewed evidence into the selected slot', async () => {

@@ -12,6 +12,7 @@ import { PhotoModal } from './components/PhotoModal.jsx';
 import { FeaturedMembers } from './components/FeaturedMembers.jsx';
 import { Roster } from './components/Roster.jsx';
 import { AlbumPage } from './components/AlbumPage.jsx';
+import { GalleryPreview } from './components/GalleryPreview.jsx';
 import { NewsFeed } from './components/NewsFeed.jsx';
 import { NewsDetailPage } from './components/NewsDetailPage.jsx';
 
@@ -27,7 +28,10 @@ function renderAppWithMemberVideo() {
   const roster = config.roster.map((member, index) => (
     index === 0 ? { ...member, videoUrl: '/videos/member-01.mp4' } : member
   ));
-  window.__XINGYU_SITE_CONFIG__ = hydrateSiteData({ ...config, roster });
+  window.__XINGYU_SITE_CONFIG__ = hydrateSiteData({
+    ...config,
+    roster,
+  });
   return render(<App />);
 }
 
@@ -235,6 +239,25 @@ describe('App', () => {
     ).toBeGreaterThan(0);
   });
 
+  it('uses thumbnail and card image variants for roster surfaces', () => {
+    const member = {
+      id: '1',
+      name: '成员 01',
+      role: '队员',
+      avatar: '/images/display.webp',
+      avatarThumb: '/images/thumb.webp',
+      avatarCard: '/images/card.webp',
+    };
+    const roster = render(<Roster members={[member]} />);
+    expect(roster.container.querySelector('[data-testid="roster-tile"] img'))
+      .toHaveAttribute('src', '/images/thumb.webp');
+    roster.unmount();
+
+    const featured = render(<FeaturedMembers members={[member]} onSelect={() => {}} />);
+    expect(featured.container.querySelector('.driver-portrait').style.getPropertyValue('--member-image'))
+      .toContain('/images/card.webp');
+  });
+
   it('renders a click-to-play audible looping hero video', () => {
     const config = hydrateSiteData({
       ...createSeedConfig(),
@@ -264,7 +287,12 @@ describe('App', () => {
       ...seed,
       team: {
         ...seed.team,
-        heroMedia: { src: '/uploads/hero.mp4', type: 'video' },
+        heroMedia: {
+          src: '/videos/hero--720p.mp4',
+          type: 'video',
+          originalSrc: '/originals/hero.mp4',
+          posterSrc: '/posters/hero.webp',
+        },
         heroFallbackImage: '',
       },
     });
@@ -273,7 +301,10 @@ describe('App', () => {
     const poster = container.querySelector('img.hero-media--poster');
     const video = container.querySelector('video.hero-media');
 
-    expect(poster).toHaveAttribute('src', '/images/album/placeholder-01.jpg');
+    expect(poster).toHaveAttribute('src', '/posters/hero.webp');
+    expect(video).toHaveAttribute('src', '/videos/hero--720p.mp4');
+    expect(screen.getByRole('link', { name: '在线播放原视频' }))
+      .toHaveAttribute('href', '/originals/hero.mp4');
     expect(video).toHaveClass('hero-media--pending');
     expect(container.querySelector('.hero-play-button')).toBeInTheDocument();
 
@@ -633,8 +664,7 @@ describe('App', () => {
 
     expect(ruleStyle('.driver-portrait::after').opacity).toBe('1');
     expect(ruleStyle('.driver-card.is-next').opacity).toBe('0.72');
-    const imageRule = rules.find((rule) => rule.selectorText?.includes('.item__placeholder'));
-    expect(imageRule?.style.filter).toContain('var(--image-filter');
+    expect(ruleStyle('.item__image img,\n.item__placeholder').filter).toContain('var(--image-filter');
     expect(ruleStyle('.item__image::before')).toBeUndefined();
     expect(ruleStyle('.overlay')).not.toBeUndefined();
 
@@ -745,6 +775,40 @@ describe('App', () => {
     await user.click(screen.getAllByTestId('album-folder')[0]);
     expect(screen.getAllByTestId('album-photo')).toHaveLength(teamData.albums[0].photos.length);
     expect(screen.getAllByTestId('album-photo')[0].querySelector('img')).not.toHaveClass('photo-card-image--contain');
+  });
+
+  it('uses lightweight album variants for cards and keeps originals out of card requests', () => {
+    const photo = {
+      id: 'photo-1',
+      title: '训练照',
+      date: '2026-08-08',
+      src: '/images/display.webp',
+      thumbSrc: '/images/thumb.webp',
+      cardSrc: '/images/card.webp',
+      originalSrc: '/originals/photo.jpg',
+      featured: true,
+    };
+    const album = {
+      id: 'album-1',
+      name: '训练日',
+      date: '2026-08-08',
+      coverSrc: '/images/cover-card.webp',
+      coverThumbSrc: '/images/cover-thumb.webp',
+      photos: [photo],
+    };
+
+    const preview = render(
+      <GalleryPreview photos={[photo]} onOpenPhoto={() => {}} onOpenAlbum={() => {}} />,
+    );
+    expect(preview.container.querySelector('img')).toHaveAttribute('src', '/images/card.webp');
+    preview.unmount();
+
+    const albums = render(<AlbumPage albums={[album]} onBack={() => {}} onOpenPhoto={() => {}} />);
+    expect(albums.container.querySelector('.album-folder img'))
+      .toHaveAttribute('src', '/images/cover-thumb.webp');
+    fireEvent.click(screen.getByRole('button', { name: '打开文件夹训练日' }));
+    expect(albums.container.querySelector('.album-photo img'))
+      .toHaveAttribute('src', '/images/thumb.webp');
   });
 
   it('requires the configured album password before opening a protected folder', async () => {
@@ -883,7 +947,7 @@ describe('App', () => {
     expect(container.querySelector('video')).not.toHaveAttribute('muted');
   });
 
-  it('does not select members without a video', async () => {
+  it('does not open member details when the selected member has no video', async () => {
     const user = userEvent.setup();
     const member = { ...teamData.roster[0], videoUrl: '' };
     const onSelect = vi.fn();
@@ -940,6 +1004,23 @@ describe('App', () => {
     expect(globalStyles).toMatch(/\.member-video-modal\s*\{[^}]*max-height:\s*100dvh/s);
     expect(globalStyles).toMatch(/\.member-video-modal\s*\{[^}]*padding:\s*0/s);
     expect(globalStyles).toMatch(/\.member-video-modal\s*>\s*video\s*\{[^}]*margin-top:\s*0/s);
+  });
+
+  it('streams the optimized member video by default and exposes the original on demand', () => {
+    const { container } = render(
+      <VideoModal
+        member={{
+          name: '成员 01',
+          videoUrl: '/videos/member--720p.mp4',
+          videoOriginalUrl: '/originals/member.mp4',
+        }}
+        onClose={() => {}}
+      />,
+    );
+
+    expect(container.querySelector('video')).toHaveAttribute('src', '/videos/member--720p.mp4');
+    expect(screen.getByRole('link', { name: '在线播放原视频' }))
+      .toHaveAttribute('href', '/originals/member.mp4');
   });
 
   it('shows a non-empty signature below the video without name or close button', () => {
@@ -1023,6 +1104,38 @@ describe('App', () => {
     expect(container.querySelector('video')).toHaveAttribute('preload', 'metadata');
   });
 
+  it('keeps album originals behind an explicit link', () => {
+    const { rerender } = render(
+      <PhotoModal
+        photo={{
+          title: '训练照',
+          src: '/images/display.webp',
+          originalSrc: '/originals/photo.jpg',
+          alt: '训练照',
+        }}
+        onClose={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole('img', { name: '训练照' })).toHaveAttribute('src', '/images/display.webp');
+    expect(screen.getByRole('link', { name: '查看原图' }))
+      .toHaveAttribute('href', '/originals/photo.jpg');
+
+    rerender(
+      <PhotoModal
+        photo={{
+          title: '训练视频',
+          src: '/posters/video.webp',
+          videoUrl: '/videos/video--720p.mp4',
+          videoOriginalUrl: '/originals/video.mp4',
+        }}
+        onClose={() => {}}
+      />,
+    );
+    expect(screen.getByRole('link', { name: '在线播放原视频' }))
+      .toHaveAttribute('href', '/originals/video.mp4');
+  });
+
   it('presents album media in a screenshot viewer with a download action', () => {
     const { container } = render(
       <PhotoModal
@@ -1083,12 +1196,13 @@ describe('App', () => {
 
   it('closes the member dialog when the backdrop is clicked', async () => {
     const user = userEvent.setup();
-    const { container } = render(<App />);
-
-    await user.click(screen.getByRole('button', { name: '查看成员 01 高光视频' }));
+    const onClose = vi.fn();
+    const { container } = render(
+      <VideoModal member={{ name: '成员 01', videoUrl: '/member.mp4' }} onClose={onClose} />,
+    );
     await user.click(container.querySelector('.modal-backdrop'));
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('reveals content immediately when IntersectionObserver is unavailable', () => {

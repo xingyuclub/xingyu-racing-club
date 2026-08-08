@@ -23,7 +23,7 @@ export function GalleryPreview({ photos, onOpenPhoto, onOpenAlbum }) {
                 onClick={() => onOpenPhoto(photo)}
                 aria-label={`${isVideo ? '查看视频' : '查看'}${photo.title}`}
               >
-                {photo.src && <img className="photo-card-image--contain" src={photo.src} alt="" loading="lazy" />}
+                {(photo.cardSrc || photo.src) && <img className="photo-card-image--contain" src={photo.cardSrc || photo.src} alt="" loading="lazy" />}
                 {isVideo && (
                   <span className="photo-video-badge" aria-hidden="true">
                     <PlayCircle size={14} />

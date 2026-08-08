@@ -981,6 +981,39 @@ h2 {
   border-left: 0;
 }
 
+.media-original-action {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  border-radius: 6px;
+  background: rgba(4, 24, 58, 0.78);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-decoration: none;
+  backdrop-filter: blur(8px);
+  transition: background 180ms ease, border-color 180ms ease;
+}
+
+.media-original-action:hover,
+.media-original-action:focus-visible {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.72);
+  background: rgba(4, 24, 58, 0.94);
+}
+
+.member-video-original-action {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+}
+
 .photo-modal video {
   width: 100%;
   aspect-ratio: 16 / 9;
@@ -1882,6 +1915,11 @@ button:focus-visible {
   text-decoration: none;
 }
 
+.photo-original-action {
+  width: fit-content;
+  margin: 14px 18px 0;
+}
+
 .photo-screenshot-frame {
   margin: 16px 18px 18px;
   overflow: hidden;
@@ -1969,6 +2007,10 @@ button:focus-visible {
 
   .photo-viewer-toolbar h2 {
     font-size: 1.2rem;
+  }
+
+  .photo-original-action {
+    margin: 12px 12px 0;
   }
 
   .photo-screenshot-frame {
@@ -2386,6 +2428,13 @@ button:focus-visible {
   width: 32px;
   height: 32px;
   margin-left: 4px;
+}
+
+.hero-original-action {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 3;
 }
 
 .hero-media--video[role='button'] {

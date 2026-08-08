@@ -88,9 +88,11 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
     try {
       setDraft(await reviewRecognitionEvidence(batchId, change));
       setStatus('ready');
+      return true;
     } catch (next) {
       setError(next.message);
       setStatus('ready');
+      return false;
     }
   };
 
@@ -245,6 +247,7 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
 
       {draft && (status === 'ready' || status === 'reviewing') && (
         <div className="score-recognition-preview">
+          {error && <div className="admin-error" role="alert"><XCircle aria-hidden="true" size={16} /> {error}</div>}
           <RecognitionEvidence
             batchId={batchId}
             config={config}
@@ -255,7 +258,6 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
             onAddManual={addManual}
             onRemoveManual={removeManual}
           />
-          {error && <div className="admin-error" role="alert"><XCircle aria-hidden="true" size={16} /> {error}</div>}
           <div className="score-recognition-actions">
             <button
               type="button"

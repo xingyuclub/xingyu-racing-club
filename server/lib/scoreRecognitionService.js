@@ -142,6 +142,7 @@ export function createScoreRecognitionService({
     const observations = [];
     const fingerprints = [];
     const imageDuplicates = [];
+    const imageErrors = [];
     const images = batch.images.map((image) => ({ ...image }));
 
     for (let imageIndex = 0; imageIndex < batch.images.length; imageIndex += 1) {
@@ -177,22 +178,24 @@ export function createScoreRecognitionService({
           }),
         });
       } catch (error) {
-        throw Object.assign(
-          new Error(`第 ${imageIndex + 1} 张截图识别失败：${error.message}`),
-          { statusCode: error.statusCode || 422 },
-        );
+        imageErrors.push({ imageIndex, message: error.message });
+        continue;
       }
+
+
+    if (observations.length === 0 && imageErrors.length > 0) {
+      const detail = imageErrors.map((item) => `第 ${item.imageIndex + 1} 张：${item.message}`).join("\uFF1B");
+      throw Object.assign(new Error(`全部截图识别失败：${detail}`), { statusCode: 422 });
     }
 
-    // 重新识别必须保留已有 reviews（人工确认的成员匹配/名次），否则重处理会清空审核记录
     const reviews = { ...(batch.reviews || {}) };
     const imageReviews = { ...(batch.imageReviews || {}) };
-    const nextBatch = { ...batch, images, observations, reviews, imageDuplicates, imageReviews };
+    const nextBatch = { ...batch, images, observations, reviews, imageDuplicates, imageErrors, imageReviews };
     const draft = buildDraft({ batch: nextBatch, config });
     await store.updateBatch(batchId, {
-      status: 'ready', images, observations, reviews, imageDuplicates, imageReviews, draft,
+      status: 'ready', images, observations, reviews, imageDuplicates, imageErrors, imageReviews, draft,
     });
-    return draft;
+    return { ...draft, imageErrors };
   }
 
   async function reprocessImage(batchId, imageIndex) {

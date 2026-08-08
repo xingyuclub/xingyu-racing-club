@@ -3,6 +3,7 @@ import {
   buildDuplicateSignature,
   buildMemberMatcher,
   hasRaceDiscriminator,
+  normalizeNickname,
   scoreRankedRace,
   scoreTeamRace,
 } from '../../src/data/scoreRules.js';
@@ -94,10 +95,21 @@ function matchMembers(races, config) {
     return scoreMemberId ? [{ memberId: scoreMemberId, value: alias.value }] : [];
   });
   const matchScoreMember = buildMemberMatcher(scoreMembers, scoreAliases);
+  const teamName = typeof config.team?.name === 'string' ? config.team.name : '';
+  const teamLabels = new Set([
+    normalizeNickname(teamName),
+    normalizeNickname(teamName.replace(/车队$/, '')),
+  ].filter(Boolean));
 
   for (const race of races) {
     for (const item of race.evidence) {
       if (item.ignored) continue;
+      const hasManualIdentity = item.reviewedMemberId !== undefined
+        || item.reviewedScoreMemberId !== undefined;
+      if (!hasManualIdentity && teamLabels.has(normalizeNickname(item.nickname))) {
+        item.teamLabelOnly = true;
+        continue;
+      }
       const legacyScoreMemberId = item.reviewedMemberId === undefined
         ? undefined
         : rosterById.get(item.reviewedMemberId)?.scoreMemberId;
@@ -142,7 +154,10 @@ function validateRaces(races) {
         issues.push({ evidenceId: item.id, code: 'duplicate-rank' });
       }
       if (!item.ignored && !item.scoreMemberId) {
-        issues.push({ evidenceId: item.id, code: 'unmatched' });
+        issues.push({
+          evidenceId: item.id,
+          code: item.teamLabelOnly ? 'team-label' : 'unmatched',
+        });
       }
     }
   }

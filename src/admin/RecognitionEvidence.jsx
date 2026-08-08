@@ -3,6 +3,7 @@ import { Ban, Check, Image, Plus, ScanSearch, Trash2, UserCheck } from 'lucide-r
 
 const ISSUE_LABELS = {
   unmatched: '未匹配成员',
+  'team-label': '误读为车队名',
   'invalid-rank': '名次无效',
   'duplicate-rank': '名次重复',
   'suspected-duplicate': '疑似重复场次',
@@ -37,7 +38,13 @@ function EvidenceRow({ batchId, item }) {
 
 function IssueEditor({ batchId, issue, evidence, scoreMembers, busy, onReview }) {
   const [rank, setRank] = useState(String(evidence?.rank ?? ''));
+  const [selectedScoreMemberId, setSelectedScoreMemberId] = useState(
+    evidence?.scoreMemberId || '',
+  );
   useEffect(() => { setRank(String(evidence?.rank ?? '')); }, [evidence?.rank]);
+  useEffect(() => {
+    setSelectedScoreMemberId(evidence?.scoreMemberId || '');
+  }, [evidence?.id, evidence?.scoreMemberId]);
   if (!evidence) return null;
 
   const submitRank = () => {
@@ -53,6 +60,11 @@ function IssueEditor({ batchId, issue, evidence, scoreMembers, busy, onReview })
         <strong>{ISSUE_LABELS[issue.code] || '待处理'}</strong>
         <ImageLink batchId={batchId} item={evidence} />
       </div>
+      {issue.code === 'team-label' && (
+        <p className="recognition-issue-guidance">
+          “星屿”是车队归属标签，不是队员昵称。
+        </p>
+      )}
       <div className="recognition-issue-fields">
         <label>
           <span>地图</span>
@@ -84,13 +96,20 @@ function IssueEditor({ batchId, issue, evidence, scoreMembers, busy, onReview })
         <label>
           <span>对应成员</span>
           <select
-            value={evidence.scoreMemberId || ''}
+            value={selectedScoreMemberId}
             disabled={busy}
             aria-label={`未匹配昵称 ${evidence.nickname} 对应成员`}
-            onChange={(event) => {
-              if (event.target.value) {
-                onReview({ evidenceId: evidence.id, scoreMemberId: event.target.value, ignored: false });
-              }
+            onChange={async (event) => {
+              const nextScoreMemberId = event.target.value;
+              if (!nextScoreMemberId) return;
+              const previousScoreMemberId = selectedScoreMemberId;
+              setSelectedScoreMemberId(nextScoreMemberId);
+              const accepted = await onReview({
+                evidenceId: evidence.id,
+                scoreMemberId: nextScoreMemberId,
+                ignored: false,
+              });
+              if (accepted === false) setSelectedScoreMemberId(previousScoreMemberId);
             }}
           >
             <option value="">请选择</option>

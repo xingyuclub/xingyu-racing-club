@@ -12,7 +12,8 @@ import { hydrateSiteData } from '../src/data/siteConfig.js';
 import { createScoreRecognitionRouter } from './lib/scoreRecognitionRoutes.js';
 import { createOpenAiClient } from './lib/openaiClient.js';
 import { createCosStorageFromEnv } from './lib/cosStorage.js';
-import { createImageVariant, getMediaKeys } from './lib/mediaVariants.js';
+import { createImageVariants, getMediaKeys } from './lib/mediaVariants.js';
+import { createVideoVariants } from './lib/videoVariants.js';
 import { createPublicConfigPublisher } from './lib/publicConfigPublisher.js';
 
 const currentFilePath = fileURLToPath(import.meta.url);
@@ -87,6 +88,8 @@ export async function createApp(options = {}) {
   const mediaStorage = Object.prototype.hasOwnProperty.call(options, 'mediaStorage')
     ? options.mediaStorage
     : createCosStorageFromEnv();
+  const imageProcessor = options.imageProcessor ?? createImageVariants;
+  const videoProcessor = options.videoProcessor ?? createVideoVariants;
 
   await fileSystem.mkdir(uploadDir, { recursive: true });
 
@@ -133,18 +136,31 @@ export async function createApp(options = {}) {
 
   const listUploadFiles = async () => {
     if (mediaStorage) {
-      const objects = await mediaStorage.listObjects('originals/');
-      const files = await Promise.all(objects.map(async (object) => {
+      const objects = await mediaStorage.listObjects();
+      const availableKeys = new Set(objects.map((object) => String(object.Key || '')));
+      const originals = objects.filter((object) => String(object.Key || '').startsWith('originals/'));
+      const files = await Promise.all(originals.map(async (object) => {
         const name = String(object.Key || '').slice('originals/'.length);
         const upload = allowedUploadByExtension.get(extname(name).toLowerCase());
         if (!upload || !name) return null;
 
-        const { variantKey } = getMediaKeys(name, upload.type);
-        const publicKey = variantKey || `originals/${name}`;
+        const { originalKey, variantKeys } = getMediaKeys(name, upload.type);
+        const existingVariants = Object.fromEntries(
+          Object.entries(variantKeys)
+            .filter(([, key]) => availableKeys.has(key))
+            .map(([variant, key]) => [variant, mediaStorage.publicUrl(key)]),
+        );
+        const publicKey = upload.type === 'image'
+          ? variantKeys.display && availableKeys.has(variantKeys.display) ? variantKeys.display : originalKey
+          : upload.type === 'video'
+            ? variantKeys.video720 && availableKeys.has(variantKeys.video720) ? variantKeys.video720 : originalKey
+            : originalKey;
         return {
           name,
           path: mediaStorage.publicUrl(publicKey),
-          originalPath: mediaStorage.publicUrl(`originals/${name}`),
+          originalPath: mediaStorage.publicUrl(originalKey),
+          variants: existingVariants,
+          ...(existingVariants.poster ? { posterPath: existingVariants.poster } : {}),
           type: upload.type,
           size: Number(object.Size || 0),
         };
@@ -332,8 +348,23 @@ export async function createApp(options = {}) {
 
         if (mediaStorage) {
           const uploadedKeys = [];
-          const { originalKey, variantKey } = getMediaKeys(request.file.filename, request.uploadType);
+          const temporaryPaths = [];
+          const { originalKey, variantKeys } = getMediaKeys(request.file.filename, request.uploadType);
           try {
+            let variantBodies = {};
+            let metadata = {};
+            if (request.uploadType === 'image' && Object.keys(variantKeys).length > 0) {
+              variantBodies = await imageProcessor(request.file.path);
+            } else if (request.uploadType === 'video') {
+              const processed = await videoProcessor(request.file.path, { workDir: uploadDir });
+              temporaryPaths.push(processed.video720Path);
+              variantBodies = {
+                video720: createReadStream(processed.video720Path),
+                poster: processed.poster,
+              };
+              metadata = processed.metadata || {};
+            }
+
             await mediaStorage.putObject({
               key: originalKey,
               body: createReadStream(request.file.path),
@@ -343,30 +374,39 @@ export async function createApp(options = {}) {
             uploadedKeys.push(originalKey);
 
             let publicKey = originalKey;
-            if (variantKey) {
-              const variant = await createImageVariant(request.file.path);
+            const variants = {};
+            for (const [variant, key] of Object.entries(variantKeys)) {
+              const body = variantBodies[variant];
+              if (!body) continue;
               await mediaStorage.putObject({
-                key: variantKey,
-                body: variant,
-                contentType: 'image/webp',
+                key,
+                body,
+                contentType: variant === 'video720' ? 'video/mp4' : 'image/webp',
                 cacheControl: 'public,max-age=31536000,immutable',
               });
-              uploadedKeys.push(variantKey);
-              publicKey = variantKey;
+              uploadedKeys.push(key);
+              variants[variant] = mediaStorage.publicUrl(key);
             }
+            if (request.uploadType === 'image' && variants.display) publicKey = variantKeys.display;
+            if (request.uploadType === 'video' && variants.video720) publicKey = variantKeys.video720;
 
             await removeFileIfPresent(request.file.path);
+            await Promise.all(temporaryPaths.map(removeFileIfPresent));
             response.status(201).json({
               name: request.file.filename,
               path: mediaStorage.publicUrl(publicKey),
               originalPath: mediaStorage.publicUrl(originalKey),
+              variants,
+              ...(variants.poster ? { posterPath: variants.poster } : {}),
               type: request.uploadType,
               size: request.file.size,
+              ...(request.uploadType === 'video' ? { metadata } : {}),
             });
             return;
           } catch (storageError) {
             await Promise.all(uploadedKeys.map((key) => mediaStorage.deleteObject(key).catch(() => undefined)));
             await removeFileIfPresent(request.file.path);
+            await Promise.all(temporaryPaths.map(removeFileIfPresent));
             throw storageError;
           }
         }
@@ -407,9 +447,11 @@ export async function createApp(options = {}) {
 
         const upload = allowedUploadByExtension.get(extname(name).toLowerCase());
         if (!upload) throw createRequestError('文件名不合法');
-        const { originalKey, variantKey } = getMediaKeys(name, upload.type);
-        await mediaStorage.deleteObject(originalKey);
-        if (variantKey) await mediaStorage.deleteObject(variantKey);
+        const { originalKey, variantKeys } = getMediaKeys(name, upload.type);
+        await Promise.all([
+          originalKey,
+          ...Object.values(variantKeys),
+        ].map((key) => mediaStorage.deleteObject(key)));
         response.status(204).end();
         return;
       }

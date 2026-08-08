@@ -13,7 +13,7 @@ function displayName(value) {
 
 export function Roster({ members, onSelect = () => {} }) {
   const images = members.map((member) => ({
-    src: member.avatar || '',
+    src: member.avatarThumb || member.avatar || '',
     alt: `查看${member.name} 卡片详情`,
     label: displayName(member.name),
   }));

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Play } from 'lucide-react';
+import { ExternalLink, Play } from 'lucide-react';
 import GradientText from './GradientText.jsx';
 import { resolvePublicAssetPath } from '../utils/publicAsset.js';
 
@@ -20,6 +20,7 @@ export function Hero({ team, showMedia = true, onVideoPlaybackChange }) {
   const [imageFailed, setImageFailed] = useState(false);
 
   const fallbackImage = team.heroFallbackImage || DEFAULT_HERO_FALLBACK_IMAGE;
+  const posterImage = primaryMedia.posterSrc || fallbackImage;
   const isVideo = primaryMedia.type === 'video' && Boolean(primaryMedia.src) && !videoFailed;
   const isImage = primaryMedia.type === 'image' && Boolean(primaryMedia.src);
   const mediaSrc = isVideo || isImage ? primaryMedia.src : fallbackImage;
@@ -31,7 +32,7 @@ export function Hero({ team, showMedia = true, onVideoPlaybackChange }) {
     setVideoStarted(false);
     setImageFailed(false);
     onVideoPlaybackChange?.(false);
-  }, [showMedia, primaryMedia.src, primaryMedia.type, fallbackImage, onVideoPlaybackChange]);
+  }, [showMedia, primaryMedia.src, primaryMedia.type, posterImage, fallbackImage, onVideoPlaybackChange]);
 
   const handlePlaybackClick = () => {
     const video = videoRef.current;
@@ -99,7 +100,7 @@ export function Hero({ team, showMedia = true, onVideoPlaybackChange }) {
           <div className="hero-media-stack">
             <img
               className="hero-media hero-media--poster"
-              src={fallbackImage}
+              src={posterImage}
               alt=""
               aria-hidden="true"
               onError={() => setImageFailed(true)}
@@ -131,15 +132,39 @@ export function Hero({ team, showMedia = true, onVideoPlaybackChange }) {
                 <Play aria-hidden="true" />
               </button>
             )}
+            {primaryMedia.originalSrc && primaryMedia.originalSrc !== primaryMedia.src && (
+              <a
+                className="media-original-action hero-original-action"
+                href={primaryMedia.originalSrc}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <ExternalLink aria-hidden="true" size={15} />
+                在线播放原视频
+              </a>
+            )}
           </div>
         ) : hasMedia ? (
-          <img
-            className="hero-media"
-            src={mediaSrc}
-            alt=""
-            aria-hidden="true"
-            onError={() => setImageFailed(true)}
-          />
+          <>
+            <img
+              className="hero-media"
+              src={mediaSrc}
+              alt=""
+              aria-hidden="true"
+              onError={() => setImageFailed(true)}
+            />
+            {isImage && primaryMedia.originalSrc && primaryMedia.originalSrc !== primaryMedia.src && (
+              <a
+                className="media-original-action hero-original-action"
+                href={primaryMedia.originalSrc}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <ExternalLink aria-hidden="true" size={15} />
+                查看原图
+              </a>
+            )}
+          </>
         ) : (
           <div className="hero-media" aria-hidden="true" />
         )}

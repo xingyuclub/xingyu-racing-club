@@ -12,6 +12,79 @@ const newId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID =
   : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 const labels = { name:'名称', heroLines:'首屏文案', label:'英文标识', motto:'车队口号', heroMedia:'首页主媒体', heroFallbackImage:'视频失败备用图', src:'素材路径', cover:'封面', id:'ID', scoreMemberId:'积分人物', role:'角色', signature:'个性签名', avatar:'头像', videoUrl:'视频地址', title:'标题', category:'分类', date:'日期', imageSrc:'资讯图片', imageAlt:'图片说明', summary:'摘要', body:'正文', coverSrc:'相册封面', password:'访问密码', photos:'照片', alt:'替代文本', featured:'精选', mediaType:'媒体类型', pinned:'置顶', newsCategories:'分类列表', value:'数值' };
 const empty = { heroLines:'', roster:{ id:'',number:'',name:'',scoreMemberId:'',role:'队员',signature:'',basePoints:0,wins:0,avatar:'',videoUrl:'' }, news:{ id:'',title:'',category:'',date:'',imageSrc:'',imageAlt:'',summary:'',body:'',bodyHtml:'',pinned:false }, albums:{ id:'',name:'',date:'',coverSrc:'',password:'',photos:[] }, photos:{ id:'',src:'',title:'',date:'',alt:'',featured:false,mediaType:'image',videoUrl:'' } };
+const hiddenMediaFields = new Set([
+  'originalSrc', 'originalSize', 'posterSrc', 'thumbSrc', 'cardSrc', 'width', 'height', 'duration',
+  'avatarThumb', 'avatarCard', 'avatarOriginalSrc', 'avatarOriginalSize',
+  'videoPosterSrc', 'videoOriginalUrl', 'videoOriginalSize', 'videoWidth', 'videoHeight', 'videoDuration',
+  'coverThumbSrc', 'coverCardSrc', 'coverOriginalSrc', 'coverOriginalSize',
+]);
+
+function assignIfPresent(target, key, value) {
+  if (value !== undefined && value !== null && value !== '') target[key] = value;
+}
+
+function getAt(value, path) {
+  return path.reduce((current, key) => current?.[key], value);
+}
+
+export function applyUploadResult(config, path, result) {
+  const next = clone(config);
+  let parent = next;
+  path.slice(0, -1).forEach((key) => { parent = parent[key]; });
+  const fieldKey = path.at(-1);
+  const display = result.variants?.display || result.path;
+  const card = result.variants?.card || display;
+  const thumb = result.variants?.thumb || card;
+
+  if (fieldKey === 'avatar') {
+    parent.avatar = card;
+    parent.avatarThumb = thumb;
+    parent.avatarCard = card;
+    assignIfPresent(parent, 'avatarOriginalSrc', result.originalPath);
+    assignIfPresent(parent, 'avatarOriginalSize', result.size);
+    return next;
+  }
+
+  if (fieldKey === 'videoUrl') {
+    parent.videoUrl = result.path;
+    assignIfPresent(parent, 'videoPosterSrc', result.posterPath);
+    assignIfPresent(parent, 'videoOriginalUrl', result.originalPath);
+    assignIfPresent(parent, 'videoOriginalSize', result.size);
+    assignIfPresent(parent, 'videoWidth', result.metadata?.width);
+    assignIfPresent(parent, 'videoHeight', result.metadata?.height);
+    assignIfPresent(parent, 'videoDuration', result.metadata?.duration);
+    if (path[0] === 'albums') {
+      parent.mediaType = 'video';
+      if (result.posterPath) {
+        parent.src = result.posterPath;
+        parent.thumbSrc = result.posterPath;
+        parent.cardSrc = result.posterPath;
+      }
+    }
+    return next;
+  }
+
+  if (fieldKey === 'src' && path[0] === 'albums') {
+    parent.src = display;
+    parent.thumbSrc = thumb;
+    parent.cardSrc = card;
+    assignIfPresent(parent, 'originalSrc', result.originalPath);
+    assignIfPresent(parent, 'originalSize', result.size);
+    return next;
+  }
+
+  if (fieldKey === 'coverSrc') {
+    parent.coverSrc = card;
+    parent.coverThumbSrc = thumb;
+    parent.coverCardSrc = card;
+    assignIfPresent(parent, 'coverOriginalSrc', result.originalPath);
+    assignIfPresent(parent, 'coverOriginalSize', result.size);
+    return next;
+  }
+
+  parent[fieldKey] = fieldKey === 'imageSrc' || fieldKey === 'cover' ? card : display;
+  return next;
+}
 function createDraft(config) {
   const draft = clone(config);
   draft.newsCategories = Array.isArray(draft.newsCategories) ? draft.newsCategories : [];
@@ -56,7 +129,17 @@ function nextMemberId(members) {
 }
 function Field({ value, path, fieldKey, draft, setDraft, roster, refresh }) {
   const update=(next)=>setDraft((current)=>setAt(current,path,next));
-  if (['heroFallbackImage','avatar','videoUrl','imageSrc','coverSrc','src','cover'].includes(fieldKey)) return <UploadField label={`${labels[fieldKey] || fieldKey}上传`} value={value} onChange={update} onUploaded={refresh} />;
+  if (['heroFallbackImage','avatar','videoUrl','imageSrc','coverSrc','src','cover'].includes(fieldKey)) {
+    const allowedTypes = fieldKey === 'videoUrl' ? ['video'] : ['image'];
+    const parent = getAt(draft, path.slice(0, -1)) || {};
+    const displayValue = {
+      avatar: parent.avatarOriginalSrc,
+      videoUrl: parent.videoOriginalUrl,
+      coverSrc: parent.coverOriginalSrc,
+      src: parent.originalSrc,
+    }[fieldKey];
+    return <UploadField label={`${labels[fieldKey] || fieldKey}上传`} value={value} displayValue={displayValue} onChange={(_value, result)=>setDraft((current)=>applyUploadResult(current,path,result))} onUploaded={refresh} allowedTypes={allowedTypes} />;
+  }
   if (typeof value === 'boolean') return <label className="check"><input type="checkbox" checked={value} onChange={(e)=>update(e.target.checked)} />{labels[fieldKey]||fieldKey}</label>;
   if (fieldKey === 'password') return <label>{labels[fieldKey]}<input type="password" value={value || ''} autoComplete="new-password" onChange={(e)=>update(e.target.value)} /></label>;
   if (fieldKey === 'id' && path.includes('rows')) return <label>{labels[fieldKey]}<select value={value} onChange={(e)=>update(e.target.value)}><option value="">请选择成员</option>{roster.map((member)=><option key={member.id} value={member.id}>{member.name}</option>)}</select></label>;
@@ -98,10 +181,18 @@ function ArrayItem({ item, index, value, fieldKey, fixed, change, path, draft, s
 function Tree({ value, path, fieldKey, draft, setDraft, roster, fixed=false, refresh }) {
   if (fieldKey === 'heroMedia') {
     const update = (_path, result) => setDraft((current) => setAt(current, path, {
-      src: result.path,
+      src: result.type === 'image' ? result.variants?.display || result.path : result.path,
       type: result.type,
+      ...(result.originalPath ? { originalSrc: result.originalPath } : {}),
+      ...(result.size !== undefined ? { originalSize: result.size } : {}),
+      ...(result.posterPath ? { posterSrc: result.posterPath } : {}),
+      ...(result.variants?.thumb ? { thumbSrc: result.variants.thumb } : {}),
+      ...(result.variants?.card ? { cardSrc: result.variants.card } : {}),
+      ...(result.metadata?.width ? { width: result.metadata.width } : {}),
+      ...(result.metadata?.height ? { height: result.metadata.height } : {}),
+      ...(result.metadata?.duration ? { duration: result.metadata.duration } : {}),
     }));
-    return <UploadField label="首页主媒体上传" value={value?.src} onChange={update} onUploaded={refresh} allowedTypes={['image', 'video']} />;
+    return <UploadField label="首页主媒体上传" value={value?.src} displayValue={value?.originalSrc} onChange={update} onUploaded={refresh} allowedTypes={['image', 'video']} />;
   }
   if (fieldKey === 'news' && value && !Array.isArray(value)) {
     return <NewsFields item={value} {...{path,draft,setDraft,roster,refresh}} />;
@@ -117,7 +208,7 @@ function Tree({ value, path, fieldKey, draft, setDraft, roster, fixed=false, ref
     };
     return <div className="array-field"><div className="array-title">{labels[fieldKey]||fieldKey}{!fixed && <button title="新增" onClick={addItem}><Plus size={16}/></button>}</div>{value.map((item,index)=><ArrayItem key={index} {...{item,index,value,fieldKey,fixed,change,path,draft,setDraft,roster,refresh}} />)}</div>;
   }
-  return <div className="field-grid">{Object.entries(value).filter(([key]) => key !== 'heroImage' && !(fieldKey === 'roster' && ['number', 'basePoints', 'wins'].includes(key))).map(([key,item])=><Tree key={key} value={item} path={[...path,key]} fieldKey={key} fixed={['stats','teamRace','openRace'].includes(key)} {...{draft,setDraft,roster,refresh}} />)}</div>;
+  return <div className="field-grid">{Object.entries(value).filter(([key]) => key !== 'heroImage' && !hiddenMediaFields.has(key) && !(fieldKey === 'roster' && ['number', 'basePoints', 'wins'].includes(key))).map(([key,item])=><Tree key={key} value={item} path={[...path,key]} fieldKey={key} fixed={['stats','teamRace','openRace'].includes(key)} {...{draft,setDraft,roster,refresh}} />)}</div>;
 }
 function AdminSection({ title, children }) {
   const [collapsed, setCollapsed] = useState(true);

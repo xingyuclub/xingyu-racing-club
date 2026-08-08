@@ -14,7 +14,14 @@ const binaryParser = (response, callback) => {
   response.on('end', () => callback(null, Buffer.concat(chunks)));
 };
 
-async function createFixture({ dev = true, withCredentials = true, distIndex = '<!doctype html><html><body>admin</body></html>', mediaStorage = null } = {}) {
+async function createFixture({
+  dev = true,
+  withCredentials = true,
+  distIndex = '<!doctype html><html><body>admin</body></html>',
+  mediaStorage = null,
+  imageProcessor,
+  videoProcessor,
+} = {}) {
   const rootDir = await mkdtemp(join(tmpdir(), 'config-admin-api-'));
   const dataDir = join(rootDir, 'server', 'data');
   const uploadDir = join(rootDir, 'server', 'storage', 'uploads');
@@ -42,6 +49,8 @@ async function createFixture({ dev = true, withCredentials = true, distIndex = '
     distDir,
     dev,
     mediaStorage,
+    imageProcessor,
+    videoProcessor,
   });
 
   return { app, rootDir, dataDir, uploadDir, credentialsPath, distDir };
@@ -242,14 +251,72 @@ describe('config admin API', () => {
       type: 'image',
       path: expect.stringContaining('/variants/'),
       originalPath: expect.stringContaining('/originals/'),
+      variants: {
+        thumb: expect.stringContaining('--thumb.webp'),
+        card: expect.stringContaining('--card.webp'),
+        display: expect.stringContaining('--display.webp'),
+      },
     });
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(4);
     expect(calls[0].key).toMatch(/^originals\/.+首页\.png$/);
     expect(calls[1]).toMatchObject({
+      key: expect.stringMatching(/^variants\/.+--thumb\.webp$/),
+      contentType: 'image/webp',
+    });
+    expect(calls[2]).toMatchObject({
+      key: expect.stringMatching(/^variants\/.+--card\.webp$/),
+      contentType: 'image/webp',
+    });
+    expect(calls[3]).toMatchObject({
       key: expect.stringMatching(/^variants\/.+--display\.webp$/),
       contentType: 'image/webp',
     });
     expect(await fixture.app.locals.listUploadFiles()).toEqual([]);
+  });
+
+  it('uploads original video, 720p MP4 and poster without running FFmpeg in the API test', async () => {
+    const calls = [];
+    const mediaStorage = {
+      publicUrl: (key) => `https://media.example.test/${key}`,
+      putObject: async (input) => calls.push(input),
+      deleteObject: async () => {},
+      listObjects: async () => [],
+    };
+    const videoProcessor = async (_filePath, { workDir }) => {
+      const video720Path = join(workDir, 'test-output-720p.mp4');
+      await writeFile(video720Path, Buffer.from('720p'));
+      return {
+        video720Path,
+        poster: Buffer.from('poster'),
+        metadata: { width: 1920, height: 1080, duration: 12.5 },
+      };
+    };
+    const fixture = await createFixture({ mediaStorage, videoProcessor });
+    tempRoots.push(fixture.rootDir);
+    const { agent } = await loginAsAdmin(fixture.app);
+
+    const response = await agent
+      .post('/api/admin/upload')
+      .attach('file', Buffer.from('original-video'), {
+        filename: '比赛.mp4',
+        contentType: 'video/mp4',
+      })
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      type: 'video',
+      path: expect.stringContaining('/videos/'),
+      originalPath: expect.stringContaining('/originals/'),
+      posterPath: expect.stringContaining('/posters/'),
+      variants: {
+        video720: expect.stringContaining('--720p.mp4'),
+        poster: expect.stringContaining('--poster.webp'),
+      },
+      metadata: { width: 1920, height: 1080, duration: 12.5 },
+    });
+    expect(calls).toHaveLength(3);
+    expect(calls.map((call) => call.contentType)).toEqual(['video/mp4', 'video/mp4', 'image/webp']);
+    await expect(stat(join(fixture.uploadDir, 'test-output-720p.mp4'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('publishes hydrated public config after an authenticated config save', async () => {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Download, X } from 'lucide-react';
+import { Download, ExternalLink, X } from 'lucide-react';
 
 export function PhotoModal({ photo, onClose }) {
   const videoRef = useRef(null);
@@ -75,6 +75,28 @@ export function PhotoModal({ photo, onClose }) {
             </button>
           </div>
         </header>
+        {isVideo && photo.videoOriginalUrl && photo.videoOriginalUrl !== photo.videoUrl && (
+          <a
+            className="media-original-action photo-original-action"
+            href={photo.videoOriginalUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <ExternalLink aria-hidden="true" size={15} />
+            在线播放原视频
+          </a>
+        )}
+        {!isVideo && photo.originalSrc && photo.originalSrc !== photo.src && (
+          <a
+            className="media-original-action photo-original-action"
+            href={photo.originalSrc}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <ExternalLink aria-hidden="true" size={15} />
+            查看原图
+          </a>
+        )}
         <div className="photo-screenshot-frame">
           <div className="photo-screenshot-bar" aria-hidden="true">
             <span />

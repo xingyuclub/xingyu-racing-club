@@ -56,6 +56,22 @@ function requireString(value, fields, path, details) {
   }
 }
 
+function validateOptionalStrings(value, fields, path, details) {
+  for (const field of fields) {
+    if (value?.[field] !== undefined && typeof value[field] !== 'string') {
+      details.push(`${path}.${field} must be a string`);
+    }
+  }
+}
+
+function validateOptionalNumbers(value, fields, path, details) {
+  for (const field of fields) {
+    if (value?.[field] !== undefined && !isNonNegativeFinite(value[field])) {
+      details.push(`${path}.${field} must be a non-negative finite number`);
+    }
+  }
+}
+
 function requireUniqueString(value, path, seen, details) {
   if (!isNonEmptyString(value)) {
     details.push(`${path} must be a non-empty string`);
@@ -96,6 +112,18 @@ function validateConfig(config) {
     if (!['image', 'video'].includes(config.team.heroMedia.type)) {
       details.push('team.heroMedia.type must be image or video');
     }
+    validateOptionalStrings(
+      config.team.heroMedia,
+      ['originalSrc', 'posterSrc', 'thumbSrc', 'cardSrc'],
+      'team.heroMedia',
+      details,
+    );
+    validateOptionalNumbers(
+      config.team.heroMedia,
+      ['originalSize', 'width', 'height', 'duration'],
+      'team.heroMedia',
+      details,
+    );
   }
   if (typeof config.team?.heroFallbackImage !== 'string') {
     details.push('team.heroFallbackImage must be a string');
@@ -160,6 +188,18 @@ function validateConfig(config) {
       requireUniqueString(member.number, `${path}.number`, seenMemberNumbers, details);
       requireStrings(member, ['name', 'role'], path, details);
       requireString(member, ['avatar', 'videoUrl', 'signature'], path, details);
+      validateOptionalStrings(
+        member,
+        ['avatarThumb', 'avatarCard', 'avatarOriginalSrc', 'videoPosterSrc', 'videoOriginalUrl'],
+        path,
+        details,
+      );
+      validateOptionalNumbers(
+        member,
+        ['avatarOriginalSize', 'videoOriginalSize', 'videoWidth', 'videoHeight', 'videoDuration'],
+        path,
+        details,
+      );
       for (const field of ['basePoints', 'wins']) {
         if (!isNonNegativeFinite(member[field])) {
           details.push(`${path}.${field} must be a non-negative finite number`);
@@ -237,6 +277,13 @@ function validateConfig(config) {
       if (album.password !== undefined && typeof album.password !== 'string') {
         details.push(`${path}.password must be a string`);
       }
+      validateOptionalStrings(
+        album,
+        ['coverThumbSrc', 'coverCardSrc', 'coverOriginalSrc'],
+        path,
+        details,
+      );
+      validateOptionalNumbers(album, ['coverOriginalSize'], path, details);
       if (!Array.isArray(album.photos)) {
         details.push(`${path}.photos must be an array`);
         continue;
@@ -264,6 +311,18 @@ function validateConfig(config) {
         if (photo.videoUrl !== undefined && typeof photo.videoUrl !== 'string') {
           details.push(`${photoPath}.videoUrl must be a string`);
         }
+        validateOptionalStrings(
+          photo,
+          ['thumbSrc', 'cardSrc', 'originalSrc', 'videoPosterSrc', 'videoOriginalUrl'],
+          photoPath,
+          details,
+        );
+        validateOptionalNumbers(
+          photo,
+          ['originalSize', 'videoOriginalSize', 'videoWidth', 'videoHeight', 'videoDuration'],
+          photoPath,
+          details,
+        );
       }
     }
   }
