@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import multer from 'multer';
+import { createReadStream } from 'node:fs';
 import * as fileSystem from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { dirname, basename, extname, join, resolve, sep } from 'node:path';
@@ -10,6 +11,9 @@ import { createAuth } from './lib/auth.js';
 import { hydrateSiteData } from '../src/data/siteConfig.js';
 import { createScoreRecognitionRouter } from './lib/scoreRecognitionRoutes.js';
 import { createOpenAiClient } from './lib/openaiClient.js';
+import { createCosStorageFromEnv } from './lib/cosStorage.js';
+import { createImageVariant, getMediaKeys } from './lib/mediaVariants.js';
+import { createPublicConfigPublisher } from './lib/publicConfigPublisher.js';
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const defaultRootDir = resolve(dirname(currentFilePath), '..');
@@ -80,11 +84,18 @@ export async function createApp(options = {}) {
     options.credentialsPath ?? join(rootDir, 'server', 'config', 'admin.local.json');
   const distDir = options.distDir ?? join(rootDir, 'dist');
   const dev = Boolean(options.dev);
+  const mediaStorage = Object.prototype.hasOwnProperty.call(options, 'mediaStorage')
+    ? options.mediaStorage
+    : createCosStorageFromEnv();
 
   await fileSystem.mkdir(uploadDir, { recursive: true });
 
   const auth = await createAuth({ credentialsPath });
   const store = await createConfigStore({ dataDir });
+  const publishPublicConfig = createPublicConfigPublisher({
+    configStore: store,
+    mediaStorage,
+  });
 
   const scoreRecognitionDataDir = options.scoreRecognitionDataDir ?? join(dataDir, 'score-recognition');
   const scoreRecognitionStorageDir = options.scoreRecognitionStorageDir ?? join(rootDir, 'server', 'storage', 'score-recognition');
@@ -96,6 +107,13 @@ export async function createApp(options = {}) {
       res.write('data: ' + JSON.stringify({ version }) + '\n\n');
     }
   };
+  const publishAndNotifyConfigUpdate = async () => {
+    if (publishPublicConfig) await publishPublicConfig();
+    notifyConfigUpdate();
+  };
+  if (publishPublicConfig && process.env.NODE_ENV !== 'test' && options.publishPublicConfigOnStart !== false) {
+    await publishPublicConfig();
+  }
   const aiClient = options.aiClient ?? (process.env.OPENAI_API_KEY
     ? createOpenAiClient({
       apiKey: process.env.OPENAI_API_KEY,
@@ -108,12 +126,35 @@ export async function createApp(options = {}) {
     storageDir: scoreRecognitionStorageDir,
     aiClient,
     model: process.env.OPENAI_VISION_MODEL || 'gpt-4o',
-    onConfigUpdate: notifyConfigUpdate,
+    onConfigUpdate: publishAndNotifyConfigUpdate,
   });
   const resolvedUploadDir = resolve(uploadDir);
   const fallbackIndexPath = join(distDir, 'index.html');
 
   const listUploadFiles = async () => {
+    if (mediaStorage) {
+      const objects = await mediaStorage.listObjects('originals/');
+      const files = await Promise.all(objects.map(async (object) => {
+        const name = String(object.Key || '').slice('originals/'.length);
+        const upload = allowedUploadByExtension.get(extname(name).toLowerCase());
+        if (!upload || !name) return null;
+
+        const { variantKey } = getMediaKeys(name, upload.type);
+        const publicKey = variantKey || `originals/${name}`;
+        return {
+          name,
+          path: mediaStorage.publicUrl(publicKey),
+          originalPath: mediaStorage.publicUrl(`originals/${name}`),
+          type: upload.type,
+          size: Number(object.Size || 0),
+        };
+      }));
+
+      return files
+        .filter(Boolean)
+        .sort((left, right) => left.name.localeCompare(right.name));
+    }
+
     const entries = await fileSystem.readdir(uploadDir, { withFileTypes: true });
     const files = await Promise.all(
       entries
@@ -184,6 +225,8 @@ export async function createApp(options = {}) {
 
   const app = express();
   app.locals.listUploadFiles = listUploadFiles;
+  app.locals.mediaStorage = mediaStorage;
+  app.locals.publishPublicConfig = publishPublicConfig;
 
   app.use(express.json({ limit: '5mb' }));
   app.use('/uploads', express.static(uploadDir));
@@ -263,7 +306,7 @@ export async function createApp(options = {}) {
   app.put('/api/admin/config', async (request, response, next) => {
     try {
       await store.write(request.body);
-      notifyConfigUpdate();
+      await publishAndNotifyConfigUpdate();
       response.status(204).end();
     } catch (error) {
       next(error);
@@ -285,6 +328,47 @@ export async function createApp(options = {}) {
         if (request.uploadType === 'image' && request.file.size > MAX_IMAGE_BYTES) {
           await removeFileIfPresent(request.file.path);
           throw createRequestError('图片大小不能超过 10MB');
+        }
+
+        if (mediaStorage) {
+          const uploadedKeys = [];
+          const { originalKey, variantKey } = getMediaKeys(request.file.filename, request.uploadType);
+          try {
+            await mediaStorage.putObject({
+              key: originalKey,
+              body: createReadStream(request.file.path),
+              contentType: request.file.mimetype,
+              cacheControl: 'public,max-age=31536000,immutable',
+            });
+            uploadedKeys.push(originalKey);
+
+            let publicKey = originalKey;
+            if (variantKey) {
+              const variant = await createImageVariant(request.file.path);
+              await mediaStorage.putObject({
+                key: variantKey,
+                body: variant,
+                contentType: 'image/webp',
+                cacheControl: 'public,max-age=31536000,immutable',
+              });
+              uploadedKeys.push(variantKey);
+              publicKey = variantKey;
+            }
+
+            await removeFileIfPresent(request.file.path);
+            response.status(201).json({
+              name: request.file.filename,
+              path: mediaStorage.publicUrl(publicKey),
+              originalPath: mediaStorage.publicUrl(originalKey),
+              type: request.uploadType,
+              size: request.file.size,
+            });
+            return;
+          } catch (storageError) {
+            await Promise.all(uploadedKeys.map((key) => mediaStorage.deleteObject(key).catch(() => undefined)));
+            await removeFileIfPresent(request.file.path);
+            throw storageError;
+          }
         }
 
         response.status(201).json({
@@ -309,6 +393,27 @@ export async function createApp(options = {}) {
 
   app.delete('/api/admin/uploads/:name', async (request, response, next) => {
     try {
+      if (mediaStorage) {
+        const name = request.params.name;
+        if (
+          typeof name !== 'string' ||
+          name.length === 0 ||
+          name !== basename(name) ||
+          name.includes('/') ||
+          name.includes('\\')
+        ) {
+          throw createRequestError('文件名不合法');
+        }
+
+        const upload = allowedUploadByExtension.get(extname(name).toLowerCase());
+        if (!upload) throw createRequestError('文件名不合法');
+        const { originalKey, variantKey } = getMediaKeys(name, upload.type);
+        await mediaStorage.deleteObject(originalKey);
+        if (variantKey) await mediaStorage.deleteObject(variantKey);
+        response.status(204).end();
+        return;
+      }
+
       const targetPath = resolveUploadPath(request.params.name);
       await fileSystem.rm(targetPath);
       response.status(204).end();

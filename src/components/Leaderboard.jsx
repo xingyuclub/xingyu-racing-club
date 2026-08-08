@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { resolvePublicAssetPath } from '../utils/publicAsset.js';
 
 const formatDate = (dateKey) => {
   if (!dateKey) return '';
@@ -20,7 +21,7 @@ export function Leaderboard({ rows, onOpenDetails, scoreDate }) {
         <button className="text-action text-action--stacked" type="button" onClick={onOpenDetails}>
           <img
             className="score-search-icon"
-            src="/images/icons/search.png"
+            src={resolvePublicAssetPath('/images/icons/search.png')}
             alt=""
             aria-hidden="true"
           />

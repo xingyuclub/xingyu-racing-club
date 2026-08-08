@@ -1,4 +1,5 @@
 import StarBorder from './StarBorder.jsx';
+import { resolvePublicAssetPath } from '../utils/publicAsset.js';
 
 const STAT_THEMES = [
   { accent: '#2e7cff', strong: '#0b4ec4', tint: '#edf4ff' },
@@ -43,7 +44,7 @@ export function StatsBar({ stats }) {
                 <span className="gender-stat" aria-label={`男性单身成员 ${item.value.male}`}>
                   <img
                     className="gender-icon"
-                    src="/images/icons/gender-male.png"
+                    src={resolvePublicAssetPath('/images/icons/gender-male.png')}
                     alt=""
                     aria-hidden="true"
                   />
@@ -52,7 +53,7 @@ export function StatsBar({ stats }) {
                 <span className="gender-stat" aria-label={`女性单身成员 ${item.value.female}`}>
                   <img
                     className="gender-icon"
-                    src="/images/icons/gender-female.png"
+                    src={resolvePublicAssetPath('/images/icons/gender-female.png')}
                     alt=""
                     aria-hidden="true"
                   />

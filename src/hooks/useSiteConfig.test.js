@@ -41,7 +41,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  delete window.__XINGYU_PUBLIC_CONFIG_SCRIPT_URL__;
+  delete window.__XINGYU_SITE_CONFIG__;
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 it('reloads the config when a config-updated SSE event fires', async () => {
@@ -84,4 +87,22 @@ it('closes the EventSource connection on unmount', async () => {
 
   unmount();
   expect(esMock.instances[0].closed).toBe(true);
+});
+
+it('loads the public config script without calling the local API or opening SSE', async () => {
+  window.__XINGYU_PUBLIC_CONFIG_SCRIPT_URL__ = 'https://media.example.test/config/site-config.js';
+  const appendChild = vi.spyOn(document.head, 'appendChild').mockImplementation((script) => {
+    window.__XINGYU_SITE_CONFIG__ = updatedConfig;
+    queueMicrotask(() => script.onload());
+    return script;
+  });
+
+  const { result } = renderHook(() => useSiteConfig(initialConfig));
+
+  await waitFor(() => expect(result.current).toEqual(updatedConfig));
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(esMock.instances).toHaveLength(0);
+  expect(appendChild.mock.calls[0][0].src).toMatch(
+    /^https:\/\/media\.example\.test\/config\/site-config\.js\?v=\d+$/,
+  );
 });

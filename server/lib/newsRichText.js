@@ -14,6 +14,25 @@ function isProjectImagePath(value) {
   }
 }
 
+function isConfiguredMediaUrl(value) {
+  const base = String(process.env.COS_CDN_BASE_URL || '').trim();
+  if (!base || !/^https?:\/\//i.test(value || '')) return false;
+
+  try {
+    const url = new URL(value);
+    const baseUrl = new URL(base);
+    const rawPath = String(value).match(/^https?:\/\/[^/]+(\/[^?#]*)?/i)?.[1] || '/';
+    const decodedPath = decodeURIComponent(rawPath);
+    return url.origin === baseUrl.origin
+      && !url.search
+      && !url.hash
+      && !/[?#\\\u0000-\u001f\u007f]/.test(decodedPath)
+      && !decodedPath.split('/').some((segment) => segment === '.' || segment === '..');
+  } catch {
+    return false;
+  }
+}
+
 function sanitizeLinkAttributes(attributes) {
   const href = String(attributes.href || '').trim();
   if (!href || /[\\\u0000-\u001f\u007f]/.test(href)) return {};
@@ -48,7 +67,9 @@ const SANITIZE_OPTIONS = {
     a: (tagName, attributes) => ({ tagName, attribs: sanitizeLinkAttributes(attributes) }),
   },
   exclusiveFilter: (frame) => (
-    frame.tag === 'img' && !isProjectImagePath(frame.attribs.src)
+    frame.tag === 'img'
+      && !isProjectImagePath(frame.attribs.src)
+      && !isConfiguredMediaUrl(frame.attribs.src)
   ),
 };
 

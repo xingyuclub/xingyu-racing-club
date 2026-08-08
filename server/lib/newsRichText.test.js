@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { sanitizeNewsBodyHtml } from './newsRichText.js';
 
 describe('sanitizeNewsBodyHtml', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
   it('keeps supported formatting and derives readable plain text', () => {
     const result = sanitizeNewsBodyHtml(
       '<h2 style="text-align:center">规则</h2><p><strong style="color:#ff0000;font-family:SimHei;font-size:20px">第一条</strong></p><ul><li>保持活跃</li></ul>',
@@ -30,6 +33,17 @@ describe('sanitizeNewsBodyHtml', () => {
     expect(result.html).toContain('/uploads/a.jpg');
     expect(result.html).toContain('/images/album/b.jpg');
     expect(result.html).not.toContain('example.com');
+    expect(result.html).not.toContain('private.jpg');
+  });
+
+  it('allows images from the configured COS CDN origin only', () => {
+    vi.stubEnv('COS_CDN_BASE_URL', 'https://media.example.test');
+    const result = sanitizeNewsBodyHtml(
+      '<img src="https://media.example.test/originals/a.jpg" alt="A"><img src="https://evil.example.test/a.jpg" alt="B"><img src="https://media.example.test/../private.jpg" alt="C">',
+    );
+
+    expect(result.html).toContain('https://media.example.test/originals/a.jpg');
+    expect(result.html).not.toContain('evil.example.test');
     expect(result.html).not.toContain('private.jpg');
   });
 

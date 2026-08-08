@@ -16,8 +16,9 @@ import { ScoreDetailsModal } from './components/ScoreDetailsModal.jsx';
 import { MusicPlayer } from './components/MusicPlayer.jsx';
 import { useRevealOnScroll } from './hooks/useRevealOnScroll.js';
 import { useSiteConfig } from './hooks/useSiteConfig.js';
+import { resolvePublicAssetPaths } from './utils/publicAsset.js';
 
-const fallbackSiteData = hydrateSiteData(createSeedConfig());
+const fallbackSiteData = resolvePublicAssetPaths(hydrateSiteData(createSeedConfig()));
 
 const parseRoute = () => {
   const raw = window.location.hash.replace(/^#\/?/, '');

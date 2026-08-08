@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Play } from 'lucide-react';
 import GradientText from './GradientText.jsx';
+import { resolvePublicAssetPath } from '../utils/publicAsset.js';
 
 const HERO_GRADIENT_COLORS = ['#40ffaa', '#4079ff', '#a85cff', '#ff5e9f', '#40ffaa'];
-const DEFAULT_HERO_FALLBACK_IMAGE = '/images/album/placeholder-01.jpg';
+const DEFAULT_HERO_FALLBACK_IMAGE = resolvePublicAssetPath('/images/album/placeholder-01.jpg');
 
 export function Hero({ team, showMedia = true, onVideoPlaybackChange }) {
   const heroLines = Array.isArray(team.heroLines) && team.heroLines.length

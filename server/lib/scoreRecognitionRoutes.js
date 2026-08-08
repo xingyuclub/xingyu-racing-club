@@ -220,7 +220,7 @@ export function createScoreRecognitionRouter({
     try {
       const expectedVersion = request.body?.rosterVersion;
       await getService().commitBatch(request.params.id, expectedVersion);
-      if (onConfigUpdate) onConfigUpdate();
+      if (onConfigUpdate) await onConfigUpdate();
       const config = await configStore.read();
       response.json({ committed: true, config });
     } catch (error) {

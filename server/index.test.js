@@ -14,7 +14,7 @@ const binaryParser = (response, callback) => {
   response.on('end', () => callback(null, Buffer.concat(chunks)));
 };
 
-async function createFixture({ dev = true, withCredentials = true, distIndex = '<!doctype html><html><body>admin</body></html>' } = {}) {
+async function createFixture({ dev = true, withCredentials = true, distIndex = '<!doctype html><html><body>admin</body></html>', mediaStorage = null } = {}) {
   const rootDir = await mkdtemp(join(tmpdir(), 'config-admin-api-'));
   const dataDir = join(rootDir, 'server', 'data');
   const uploadDir = join(rootDir, 'server', 'storage', 'uploads');
@@ -41,6 +41,7 @@ async function createFixture({ dev = true, withCredentials = true, distIndex = '
     credentialsPath,
     distDir,
     dev,
+    mediaStorage,
   });
 
   return { app, rootDir, dataDir, uploadDir, credentialsPath, distDir };
@@ -213,6 +214,66 @@ describe('config admin API', () => {
       .expect(201);
 
     expect(response.body.name).toMatch(/^[0-9a-f-]{36}--青山头像\.jpg$/);
+  });
+
+  it('uploads new media to injected COS storage and returns a CDN display path', async () => {
+    const calls = [];
+    const mediaStorage = {
+      publicUrl: (key) => `https://media.example.test/${key}`,
+      putObject: async (input) => {
+        calls.push(input);
+      },
+      deleteObject: async () => {},
+      listObjects: async () => [],
+    };
+    const fixture = await createFixture({ mediaStorage });
+    tempRoots.push(fixture.rootDir);
+    const { agent } = await loginAsAdmin(fixture.app);
+    const image = await sharp({
+      create: { width: 24, height: 16, channels: 3, background: '#0ea5e9' },
+    }).png().toBuffer();
+
+    const response = await agent
+      .post('/api/admin/upload')
+      .attach('file', image, { filename: '首页.png', contentType: 'image/png' })
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      type: 'image',
+      path: expect.stringContaining('/variants/'),
+      originalPath: expect.stringContaining('/originals/'),
+    });
+    expect(calls).toHaveLength(2);
+    expect(calls[0].key).toMatch(/^originals\/.+首页\.png$/);
+    expect(calls[1]).toMatchObject({
+      key: expect.stringMatching(/^variants\/.+--display\.webp$/),
+      contentType: 'image/webp',
+    });
+    expect(await fixture.app.locals.listUploadFiles()).toEqual([]);
+  });
+
+  it('publishes hydrated public config after an authenticated config save', async () => {
+    const calls = [];
+    const mediaStorage = {
+      publicUrl: (key) => `https://media.example.test/${key}`,
+      putObject: async (input) => calls.push(input),
+      deleteObject: async () => {},
+      listObjects: async () => [],
+    };
+    const fixture = await createFixture({ mediaStorage });
+    tempRoots.push(fixture.rootDir);
+    const { agent } = await loginAsAdmin(fixture.app);
+    const config = await agent.get('/api/admin/config').expect(200);
+
+    config.body.team.motto = '公开配置已同步';
+    await agent.put('/api/admin/config').send(config.body).expect(204);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      key: 'config/site-config.js',
+      contentType: 'application/javascript; charset=utf-8',
+    });
+    expect(calls[0].body.toString('utf8')).toContain('公开配置已同步');
   });
 
   it('strips path separators and reserved characters from the original filename', async () => {
