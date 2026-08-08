@@ -258,6 +258,25 @@ describe('App', () => {
       .toContain('/images/card.webp');
   });
 
+  it('shows the original hero image directly without a link', () => {
+    const config = hydrateSiteData({
+      ...createSeedConfig(),
+      team: {
+        ...createSeedConfig().team,
+        heroMedia: {
+          src: '/images/hero-card.webp',
+          type: 'image',
+          originalSrc: '/originals/hero.jpg',
+        },
+      },
+    });
+
+    const { container } = render(<Hero team={config.team} />);
+
+    const img = container.querySelector('img.hero-media');
+    expect(img).toHaveAttribute('src', '/originals/hero.jpg');
+    expect(screen.queryByRole('link', { name: '查看原图' })).not.toBeInTheDocument();
+  });
   it('renders a click-to-play audible looping hero video', () => {
     const config = hydrateSiteData({
       ...createSeedConfig(),

@@ -23,7 +23,8 @@ export function Hero({ team, showMedia = true, onVideoPlaybackChange }) {
   const posterImage = primaryMedia.posterSrc || fallbackImage;
   const isVideo = primaryMedia.type === 'video' && Boolean(primaryMedia.src) && !videoFailed;
   const isImage = primaryMedia.type === 'image' && Boolean(primaryMedia.src);
-  const mediaSrc = isVideo || isImage ? primaryMedia.src : fallbackImage;
+  const imageSrc = isImage && (primaryMedia.originalSrc || primaryMedia.src);
+  const mediaSrc = isVideo ? primaryMedia.src : imageSrc || fallbackImage;
   const hasMedia = Boolean(mediaSrc) && !imageFailed;
 
   useEffect(() => {
@@ -145,26 +146,13 @@ export function Hero({ team, showMedia = true, onVideoPlaybackChange }) {
             )}
           </div>
         ) : hasMedia ? (
-          <>
-            <img
-              className="hero-media"
-              src={mediaSrc}
-              alt=""
-              aria-hidden="true"
-              onError={() => setImageFailed(true)}
-            />
-            {isImage && primaryMedia.originalSrc && primaryMedia.originalSrc !== primaryMedia.src && (
-              <a
-                className="media-original-action hero-original-action"
-                href={primaryMedia.originalSrc}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <ExternalLink aria-hidden="true" size={15} />
-                查看原图
-              </a>
-            )}
-          </>
+          <img
+            className="hero-media"
+            src={mediaSrc}
+            alt=""
+            aria-hidden="true"
+            onError={() => setImageFailed(true)}
+          />
         ) : (
           <div className="hero-media" aria-hidden="true" />
         )}
