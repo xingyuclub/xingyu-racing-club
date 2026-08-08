@@ -29,7 +29,7 @@ export function loadPublicConfigScript(url) {
 }
 
 export function useSiteConfig(fallback) {
-  const [config, setConfig] = useState(fallback);
+  const [config, setConfig] = useState(() => window.__XINGYU_SITE_CONFIG__ || fallback);
 
   useEffect(() => {
     let active = true;

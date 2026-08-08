@@ -1,9 +1,23 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+const publicConfigScriptUrl = String(process.env.VITE_PUBLIC_CONFIG_SCRIPT_URL || '').trim();
+
 export default defineConfig({
   base: process.env.VITE_BASE_PATH || '/',
-  plugins: [react()],
+  plugins: [
+    react(),
+    publicConfigScriptUrl && {
+      name: 'public-runtime-config',
+      transformIndexHtml() {
+        return [{
+          tag: 'script',
+          attrs: { src: publicConfigScriptUrl },
+          injectTo: 'head-prepend',
+        }];
+      },
+    },
+  ].filter(Boolean),
   server: {
     allowedHosts: true,
     watch: {
