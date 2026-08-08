@@ -765,7 +765,7 @@ describe('score recognition API', () => {
       .expect(200);
   });
 
-  it('reports the failing image number and marks the batch as failed', async () => {
+  it('saves partial results when a later image fails during processing', async () => {
     const secondJpgBytes = await sharp({
       create: { width: 4, height: 4, channels: 3, background: '#f6d365' },
     }).jpeg().toBuffer();
@@ -790,10 +790,11 @@ describe('score recognition API', () => {
       .expect(201);
     const url = '/api/admin/score-recognition/batches/' + upload.body.id;
 
-    const response = await agent.post(url + '/process').expect(422);
-    expect(response.body.error).toMatch(/第 2 张截图.*模型超时/);
+    const response = await agent.post(url + '/process').expect(200);
+    expect(response.body.imageErrors).toHaveLength(1);
+    expect(response.body.imageErrors[0]).toMatchObject({ imageIndex: 1 });
     const detail = await agent.get(url).expect(200);
-    expect(detail.body).toMatchObject({ status: 'failed', error: expect.stringMatching(/第 2 张截图/) });
+    expect(detail.body).toMatchObject({ status: 'ready' });
   });
 
   it('returns a useful recognition error and marks the batch as failed', async () => {

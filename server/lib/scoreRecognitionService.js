@@ -181,8 +181,7 @@ export function createScoreRecognitionService({
         imageErrors.push({ imageIndex, message: error.message });
         continue;
       }
-
-
+    }
     if (observations.length === 0 && imageErrors.length > 0) {
       const detail = imageErrors.map((item) => `第 ${item.imageIndex + 1} 张：${item.message}`).join("\uFF1B");
       throw Object.assign(new Error(`全部截图识别失败：${detail}`), { statusCode: 422 });

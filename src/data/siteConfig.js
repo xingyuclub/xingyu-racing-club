@@ -192,7 +192,11 @@ export function hydrateSiteData(rawConfig) {
   const roster = config.roster;
   const latestRound = dailyScores.at(-1);
   const latestDate = latestRound?.date || '';
-  const leaderboard = [...weekMembers]
+  const leaderboardIds = new Set((config.scoreMembers || []).map((member) => member.id));
+  for (const id of totals.keys()) {
+    if (!leaderboardIds.has(id)) leaderboardIds.add(id);
+  }
+  const leaderboard = [...leaderboardIds]
     .map((id) => ({
       id,
       name: scoreMembersById.get(id)?.name || '',

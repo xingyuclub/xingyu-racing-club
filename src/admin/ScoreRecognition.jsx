@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Camera, CheckCircle2, Loader2, RefreshCw, ScanSearch, Upload, XCircle } from 'lucide-react';
+import { AlertTriangle, Camera, CheckCircle2, Loader2, RefreshCw, ScanSearch, Upload, XCircle } from 'lucide-react';
 import {
   commitRecognitionBatch,
   addManualRecognitionParticipant,
@@ -248,6 +248,12 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
       {draft && (status === 'ready' || status === 'reviewing') && (
         <div className="score-recognition-preview">
           {error && <div className="admin-error" role="alert"><XCircle aria-hidden="true" size={16} /> {error}</div>}
+          {draft.imageErrors?.length > 0 && (
+            <div className="admin-warning" role="status">
+              <AlertTriangle aria-hidden="true" size={16} />
+              {'部分截图识别失败（第 ' + draft.imageErrors.map((e) => e.imageIndex + 1).join('、') + ' 张），已保存成功部分。可点击“重新识别全部截图”重试。'}
+            </div>
+          )}
           <RecognitionEvidence
             batchId={batchId}
             config={config}

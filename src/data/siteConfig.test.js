@@ -233,13 +233,14 @@ describe('site configuration', () => {
     expect(data.dailyScores[1].rows[0].total).toBe(12);
     expect(data.roster[0]).not.toHaveProperty('points');
     expect(data.featuredMembers[0]).not.toHaveProperty('points');
-    expect(data.leaderboard).toEqual([expect.objectContaining({
-      id: config.roster[0].id,
+    expect(data.leaderboard[0]).toMatchObject({
+      id: config.scoreMembers[0].id,
       points: 12,
       rank: 1,
-    })]);
-  });
+    });
+    expect(data.leaderboard).toHaveLength(2);
 
+  });
   it('includes the latest-day score members in the leaderboard regardless of roster', () => {
     const config = createSeedConfig();
     config.roster = [{ ...config.roster[0], id: 'roster-1', name: '后台名称' }];
@@ -443,7 +444,7 @@ describe('site configuration', () => {
     expect(data.gallery.some((photo) => protectedIds.has(photo.id))).toBe(false);
   });
 
-  it('shows no leaderboard before any score date has been imported', () => {
+  it('shows all score members with zero points before any score date has been imported', () => {
     const config = createSeedConfig();
     config.dailyScores = [];
     config.scoreMembers = config.scoreMembers.slice(0, 2).map((member, index) => ({
@@ -453,7 +454,8 @@ describe('site configuration', () => {
 
     const data = hydrateSiteData(config);
 
-    expect(data.leaderboard).toEqual([]);
+    expect(data.leaderboard).toHaveLength(2);
+    expect(data.leaderboard.every((member) => member.points === 0)).toBe(true);
   });
 
   it('builds the leaderboard from all score members on the latest imported date', () => {

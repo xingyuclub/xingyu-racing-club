@@ -247,6 +247,10 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 
 - 2026-08-08 用户提出候选域名 `黄石和园建材.中国`（ASCII/Punycode：`xn--0tr48cxwl51iluvqh7c.xn--fiqs8s`）。当前主域名没有 DNS 解析；`media.` 子域名已有腾讯云 CDN 解析但 HTTPS 证书不匹配。若采用该域名作为公网 H5，应先在 DNS 设置 GitHub Pages 指向（主域名使用 GitHub Pages 要求的 A/ALIAS，或使用 `www` 子域名 CNAME），再在仓库配置 `public/CNAME`、生产构建使用根路径 `/`，确认 HTTPS 后重新验证微信 TXT 文件。
 
+- 2026-08-08 已修复截图识别单张失败拖累全批的问题：`previewBatch` 改为逐张容错，单张识别失败时收集到 `imageErrors` 并继续处理其余截图，至少一张成功即保存部分结果（批次状态 `ready`），全部失败才抛出 422；前端 `ScoreRecognition` 预览区新增黄色警告条提示哪些截图失败并可重试。新增 2 项服务测试（部分成功 + 全部失败）并更新 1 项 API 集成测试；`npm test -- --run` 通过 31 个测试文件、501 项测试，`npm run build` 通过。
+- 2026-08-08 积分榜已改为显示全部积分人物（含零分）：`hydrateSiteData` 的排行榜来源从仅当周有成绩的 `weekMembers` 改为全部 `scoreMembers`，同时保留 `totals` 中有成绩但已不在名单的已离开成员；零分成员以 0 分排在末尾。更新 3 条受影响测试断言；`npm test -- --run` 通过 31 个测试文件、501 项测试，`npm run build` 通过。
+- 2026-08-08 首页视频已补做 720p 省流版：原片 2560×1180、134MB，上传时因媒体变体系统尚未上线而只存了原始文件。现已用 FFmpeg 转码为 720p H.264 + AAC（带 `+faststart`）、19.8MB（减小 85%），并截取中间帧 WebP 海报，两者均已上传到 COS（`/videos/...--720p.mp4` 和 `/posters/...--poster.webp`）；`site-config.json` 的 `heroMedia.src` 已从 `/originals/` 更新为 `/videos/...--720p.mp4`，API 和 CDN 均确认可访问且支持 byte-range。此后后台重新上传视频会自动生成省流版。
+
 ## 当前交接重点
 - 公网 H5：GitHub Actions 发布静态前台；媒体与配置脚本依赖 COS/CDN；具体变量见 `.env.example`，发布说明见 `docs/github-pages-deploy.md`。
 - 本机后台：`http://127.0.0.1:3000/admin`；公网前台不能访问本机后台 API。截图识别必须在这台 Windows 电脑上运行 Node 服务和 Ollama 模型 `xingyu-score-recognition`。
@@ -256,7 +260,7 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - Pit Wall：仅保留在独立 `codex/pit-wall-ui-redesign` 分支/工作树，当前原版 `main` 不启用，也不添加永久主题切换。
 
 ## 继续工作前的核对顺序
-1. 先查看 `git status --short --branch`；最新提交已包含媒体变体系统（图片三档 WebP + 视频 720p MP4 转码）、截图识别车队标签过滤和 DomeGallery eager-loading 修复，工作区应为干净状态。
+1. 先查看 `git status --short --branch`；最新提交已包含媒体变体系统（图片三档 WebP + 视频 720p MP4 转码）、截图识别逐张容错（单张失败不拖累全批）、积分榜显示零分成员、首页视频 720p 省流版，工作区应为干净状态。
 2. 修改前先运行 `npm test -- --run`；涉及前台布局或媒体时，再运行 `npm run build` 并做 390/768/1280 视口检查。
 3. 需要更新公网内容时，在本机后台保存配置并确认 COS 配置脚本时间戳/内容已更新；不直接编辑 GitHub Pages 产物。
 4. 需要截图识别时，先确认 `127.0.0.1:3000` 和 `127.0.0.1:11434` 可用，并确认 Ollama 模型存在。
