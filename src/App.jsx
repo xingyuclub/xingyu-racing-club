@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createSeedConfig, getHomeNews, hydrateSiteData } from './data/siteConfig.js';
 import { Hero } from './components/Hero.jsx';
 import { StatsBar } from './components/StatsBar.jsx';
@@ -31,7 +31,8 @@ const parseRoute = () => {
 };
 
 export default function App() {
-  const siteData = useSiteConfig(fallbackSiteData);
+  const loadedSiteData = useSiteConfig(fallbackSiteData);
+  const siteData = useMemo(() => resolvePublicAssetPaths(loadedSiteData), [loadedSiteData]);
   const [selectedMember, setSelectedMember] = useState(null);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [showScoreDetails, setShowScoreDetails] = useState(false);
