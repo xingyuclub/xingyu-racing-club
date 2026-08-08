@@ -417,7 +417,7 @@ export default function DomeGallery({
                   onPointerUp={openTileOnPointerUp}
                 >
                   {it.src ? (
-                    <img src={it.src} draggable={false} alt={it.alt} loading="lazy" decoding="async" />
+                    <img src={it.src} draggable={false} alt={it.alt} loading="eager" decoding="async" />
                   ) : (
                     <span className="item__placeholder" data-initial={it.label ? [...it.label][0] : ''}>
                       <span className="item__placeholder-name">{it.label}</span>

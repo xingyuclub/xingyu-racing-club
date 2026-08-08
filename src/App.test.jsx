@@ -431,7 +431,7 @@ describe('App', () => {
     expect(readRotation()).toBeCloseTo(0, 3);
   });
 
-  it('renders every roster portrait in the dome with native lazy loading', () => {
+  it('loads every roster portrait eagerly so transformed tiles render reliably in mobile webviews', () => {
     const members = Array.from({ length: 30 }, (_, index) => ({
       id: String(index + 1),
       name: `成员 ${index + 1}`,
@@ -449,7 +449,7 @@ describe('App', () => {
 
     expect(loadedSources.size).toBe(30);
     tiles.forEach((tile) => {
-      expect(tile.querySelector('img')).toHaveAttribute('loading', 'lazy');
+      expect(tile.querySelector('img')).toHaveAttribute('loading', 'eager');
     });
   });
 
