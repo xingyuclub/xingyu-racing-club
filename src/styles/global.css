@@ -1439,6 +1439,14 @@ button:focus-visible {
   transform: translate(-50%, -50%) scale(0.3);
 }
 
+.driver-card[aria-disabled='true'] {
+  cursor: default;
+}
+
+.driver-card[aria-disabled='true'] .play-button {
+  opacity: 0.32;
+}
+
 .carousel-viewport.is-dragging .driver-card {
   transition: none;
 }
@@ -1670,6 +1678,86 @@ button:focus-visible {
   background: linear-gradient(0deg, rgba(10, 37, 85, 0.82), rgba(10, 37, 85, 0.08));
 }
 
+.album-folder-lock {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.46);
+  border-radius: 50%;
+  background: rgba(4, 24, 58, 0.82);
+}
+
+.album-password-dialog {
+  position: relative;
+  width: min(100%, 380px);
+  padding: 26px;
+  color: var(--ink);
+  background: #ffffff;
+  box-shadow: 0 24px 72px rgba(4, 24, 58, 0.34);
+}
+
+.album-password-icon {
+  color: var(--signal-strong);
+}
+
+.album-password-dialog h2 {
+  margin: 12px 48px 4px 0;
+  font-size: 1.45rem;
+}
+
+.album-password-dialog > p {
+  margin: 0 0 18px;
+  color: var(--muted);
+}
+
+.album-password-dialog label {
+  display: grid;
+  gap: 7px;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.album-password-dialog input {
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 11px;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #ffffff;
+  font: inherit;
+}
+
+.album-password-dialog input:focus {
+  border-color: var(--signal);
+  outline: 2px solid rgba(41, 106, 202, 0.18);
+  outline-offset: 1px;
+}
+
+.album-password-error {
+  margin: 9px 0 0 !important;
+  color: #b42318 !important;
+  font-size: 0.78rem;
+}
+
+.album-password-submit {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 18px;
+  color: #ffffff;
+  border: 0;
+  border-radius: 4px;
+  background: var(--signal-strong);
+  font-weight: 800;
+}
+
 .album-folder-copy strong {
   color: #ffffff;
   font-family: var(--serif);
@@ -1741,7 +1829,7 @@ button:focus-visible {
   position: relative;
   width: min(100%, 820px);
   max-height: 90vh;
-  padding: 24px;
+  padding: 0;
   overflow: auto;
   border-top: 3px solid var(--signal);
   color: var(--ink);
@@ -1750,14 +1838,110 @@ button:focus-visible {
 }
 
 .photo-modal h2 {
-  margin: 4px 0 16px;
+  margin: 3px 0 0;
   font-size: 1.6rem;
 }
 
-.photo-modal img {
-  width: 100%;
+.photo-viewer-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+  background: #ffffff;
+}
+
+.photo-viewer-toolbar > div:first-child {
+  min-width: 0;
+}
+
+.photo-viewer-toolbar .eyebrow {
+  margin: 0;
+}
+
+.photo-viewer-toolbar h2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photo-viewer-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+
+.photo-viewer-action {
+  position: static;
+  flex: none;
+  text-decoration: none;
+}
+
+.photo-screenshot-frame {
+  margin: 16px 18px 18px;
+  overflow: hidden;
+  border: 1px solid #26354a;
+  border-radius: 6px;
+  background: #0b1220;
+  box-shadow: 0 16px 42px rgba(4, 24, 58, 0.22);
+}
+
+.photo-screenshot-bar {
+  display: grid;
+  grid-template-columns: 8px 8px 8px minmax(0, 1fr);
+  gap: 7px;
+  min-height: 34px;
+  align-items: center;
+  padding: 0 12px;
+  color: #cbd5e1;
+  border-bottom: 1px solid #26354a;
+  background: #172235;
+}
+
+.photo-screenshot-bar > span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #7d8ca1;
+}
+
+.photo-screenshot-bar small {
+  min-width: 0;
+  margin-left: 4px;
+  overflow: hidden;
+  font-size: 0.68rem;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photo-screenshot-canvas {
+  min-height: 220px;
+  max-height: calc(90vh - 150px);
+  display: grid;
+  place-items: center;
+  overflow: auto;
+}
+
+.photo-screenshot-canvas img {
+  width: auto;
+  max-width: 100%;
+  max-height: calc(90vh - 150px);
   display: block;
-  border: 1px solid var(--line);
+  object-fit: contain;
+}
+
+.photo-screenshot-canvas video {
+  width: 100%;
+  max-height: calc(90vh - 150px);
+  aspect-ratio: auto;
+  margin: 0;
+  object-fit: contain;
 }
 
 .photo-fallback {
@@ -1768,6 +1952,38 @@ button:focus-visible {
   color: var(--muted);
   border: 1px dashed var(--line);
   background: #f7fbff;
+}
+
+@media (max-width: 699px) {
+  .album-password-backdrop {
+    padding: 12px;
+  }
+
+  .album-password-dialog {
+    padding: 22px 18px;
+  }
+
+  .photo-viewer-toolbar {
+    padding: 12px;
+  }
+
+  .photo-viewer-toolbar h2 {
+    font-size: 1.2rem;
+  }
+
+  .photo-screenshot-frame {
+    margin: 12px;
+  }
+
+  .photo-screenshot-canvas {
+    min-height: 180px;
+    max-height: calc(90vh - 126px);
+  }
+
+  .photo-screenshot-canvas img,
+  .photo-screenshot-canvas video {
+    max-height: calc(90vh - 126px);
+  }
 }
 
 /* ===== 积分查询弹窗 ===== */

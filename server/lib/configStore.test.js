@@ -671,6 +671,11 @@ describe('config store', () => {
       'albums[0].coverSrc must be a non-empty string',
     ],
     [
+      'a non-string album password',
+      (config) => (config.albums[0].password = 2468),
+      'albums[0].password must be a string',
+    ],
+    [
       'invalid album photos',
       (config) => (config.albums[0].photos = null),
       'albums[0].photos must be an array',

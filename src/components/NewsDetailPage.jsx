@@ -80,7 +80,6 @@ export function NewsDetailPage({ news, newsId }) {
         </div>
       </header>
 
-      <img className="news-cover-image" src={item.imageSrc} alt={item.imageAlt} data-reveal />
       <p className="news-lead" data-reveal>{item.summary}</p>
       {item.bodyHtml ? (
         <div

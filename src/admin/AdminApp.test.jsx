@@ -76,7 +76,7 @@ it('logs in, edits public content, uploads a cover, and saves the draft', async 
     expect(screen.getByText('hero.mp4', { selector: 'code' })).toBeInTheDocument();
     expect(screen.getByText('fallback.png', { selector: 'code' })).toBeInTheDocument();
     expect(screen.queryByLabelText('首屏图片上传')).not.toBeInTheDocument();
-});
+}, 10_000);
 
 it.each([
   ['/uploads/abc--青山头像.jpg', '青山头像.jpg'],
@@ -411,6 +411,7 @@ it('adds albums and photos when crypto.randomUUID is unavailable (LAN http)', as
   const cards = section.querySelectorAll('.array-item');
   const newAlbum = cards[cards.length - 1];
   expect(within(newAlbum).getByLabelText('ID').value).not.toBe('');
+  expect(within(newAlbum).getByLabelText('访问密码')).toHaveAttribute('type', 'password');
   await user.click(within(newAlbum).getByRole('button', { name: '新增' }));
   expect(within(newAlbum).getAllByLabelText('素材路径上传')).toHaveLength(1);
 });

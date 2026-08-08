@@ -10,8 +10,8 @@ const clone = (value) => structuredClone(value);
 const newId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
   ? crypto.randomUUID()
   : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-const labels = { name:'名称', heroLines:'首屏文案', label:'英文标识', motto:'车队口号', heroMedia:'首页主媒体', heroFallbackImage:'视频失败备用图', src:'素材路径', cover:'封面', id:'ID', scoreMemberId:'积分人物', role:'角色', signature:'个性签名', avatar:'头像', videoUrl:'视频地址', title:'标题', category:'分类', date:'日期', imageSrc:'资讯图片', imageAlt:'图片说明', summary:'摘要', body:'正文', coverSrc:'相册封面', photos:'照片', alt:'替代文本', featured:'精选', mediaType:'媒体类型', pinned:'置顶', newsCategories:'分类列表', value:'数值' };
-const empty = { heroLines:'', roster:{ id:'',number:'',name:'',scoreMemberId:'',role:'队员',signature:'',basePoints:0,wins:0,avatar:'',videoUrl:'' }, news:{ id:'',title:'',category:'',date:'',imageSrc:'',imageAlt:'',summary:'',body:'',bodyHtml:'',pinned:false }, albums:{ id:'',name:'',date:'',coverSrc:'',photos:[] }, photos:{ id:'',src:'',title:'',date:'',alt:'',featured:false,mediaType:'image',videoUrl:'' } };
+const labels = { name:'名称', heroLines:'首屏文案', label:'英文标识', motto:'车队口号', heroMedia:'首页主媒体', heroFallbackImage:'视频失败备用图', src:'素材路径', cover:'封面', id:'ID', scoreMemberId:'积分人物', role:'角色', signature:'个性签名', avatar:'头像', videoUrl:'视频地址', title:'标题', category:'分类', date:'日期', imageSrc:'资讯图片', imageAlt:'图片说明', summary:'摘要', body:'正文', coverSrc:'相册封面', password:'访问密码', photos:'照片', alt:'替代文本', featured:'精选', mediaType:'媒体类型', pinned:'置顶', newsCategories:'分类列表', value:'数值' };
+const empty = { heroLines:'', roster:{ id:'',number:'',name:'',scoreMemberId:'',role:'队员',signature:'',basePoints:0,wins:0,avatar:'',videoUrl:'' }, news:{ id:'',title:'',category:'',date:'',imageSrc:'',imageAlt:'',summary:'',body:'',bodyHtml:'',pinned:false }, albums:{ id:'',name:'',date:'',coverSrc:'',password:'',photos:[] }, photos:{ id:'',src:'',title:'',date:'',alt:'',featured:false,mediaType:'image',videoUrl:'' } };
 function createDraft(config) {
   const draft = clone(config);
   draft.newsCategories = Array.isArray(draft.newsCategories) ? draft.newsCategories : [];
@@ -19,6 +19,10 @@ function createDraft(config) {
     ...empty.roster,
     ...member,
     signature: typeof member.signature === 'string' ? member.signature : '',
+  }));
+  draft.albums = draft.albums.map((album) => ({
+    ...album,
+    password: typeof album.password === 'string' ? album.password : '',
   }));
   return draft;
 }
@@ -54,6 +58,7 @@ function Field({ value, path, fieldKey, draft, setDraft, roster, refresh }) {
   const update=(next)=>setDraft((current)=>setAt(current,path,next));
   if (['heroFallbackImage','avatar','videoUrl','imageSrc','coverSrc','src','cover'].includes(fieldKey)) return <UploadField label={`${labels[fieldKey] || fieldKey}上传`} value={value} onChange={update} onUploaded={refresh} />;
   if (typeof value === 'boolean') return <label className="check"><input type="checkbox" checked={value} onChange={(e)=>update(e.target.checked)} />{labels[fieldKey]||fieldKey}</label>;
+  if (fieldKey === 'password') return <label>{labels[fieldKey]}<input type="password" value={value || ''} autoComplete="new-password" onChange={(e)=>update(e.target.value)} /></label>;
   if (fieldKey === 'id' && path.includes('rows')) return <label>{labels[fieldKey]}<select value={value} onChange={(e)=>update(e.target.value)}><option value="">请选择成员</option>{roster.map((member)=><option key={member.id} value={member.id}>{member.name}</option>)}</select></label>;
   if (fieldKey === 'scoreMemberId') {
     const rosterIndex = path[0] === 'roster' ? path[1] : -1;

@@ -81,9 +81,11 @@ export function FeaturedMembers({ members, onSelect, paused = false }) {
                 didSwipe.current = false;
                 return;
               }
+              if (!member.videoUrl) return;
               onSelect(member);
             }}
             aria-label={`查看${member.name} 高光视频`}
+            aria-disabled={!member.videoUrl}
           >
             <span
               className="driver-portrait"
@@ -97,7 +99,7 @@ export function FeaturedMembers({ members, onSelect, paused = false }) {
                 <span>{member.role}</span>
                 <strong>{member.name}</strong>
               </span>
-              <span className="play-button" aria-hidden="true">
+              <span className={`play-button${member.videoUrl ? '' : ' is-unavailable'}`} aria-hidden="true">
                 <Play size={16} />
               </span>
             </span>

@@ -127,6 +127,16 @@ describe('site configuration', () => {
     expect(migrateRawConfig(legacy).news[0].bodyHtml).toBe('<p><strong>富文本</strong></p>');
   });
 
+  it('adds an empty password to legacy albums and preserves configured passwords', () => {
+    const legacy = structuredClone(teamData);
+    legacy.albums.forEach((album) => delete album.password);
+
+    expect(migrateRawConfig(legacy).albums.every((album) => album.password === '')).toBe(true);
+
+    legacy.albums[0].password = '2468';
+    expect(migrateRawConfig(legacy).albums[0].password).toBe('2468');
+  });
+
   it('preserves exact imported score fields during raw migration', () => {
     const input = structuredClone(teamData);
     input.dailyScores[0].rows[0].score = 6;
@@ -421,6 +431,16 @@ describe('site configuration', () => {
       { id: 'tuesday-player', rank: 1, name: '周二队员', points: 5 },
       { id: 'monday-player', rank: 2, name: '周一队员', points: 3 },
     ]);
+  });
+
+  it('keeps protected album photos out of the homepage gallery', () => {
+    const config = createSeedConfig();
+    config.albums[0].password = '2468';
+
+    const data = hydrateSiteData(config);
+    const protectedIds = new Set(config.albums[0].photos.map((photo) => photo.id));
+
+    expect(data.gallery.some((photo) => protectedIds.has(photo.id))).toBe(false);
   });
 
   it('shows no leaderboard before any score date has been imported', () => {

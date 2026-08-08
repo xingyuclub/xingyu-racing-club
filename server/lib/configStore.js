@@ -234,6 +234,9 @@ function validateConfig(config) {
 
       requireUniqueString(album.id, `${path}.id`, seenAlbumIds, details);
       requireStrings(album, ['name', 'date', 'coverSrc'], path, details);
+      if (album.password !== undefined && typeof album.password !== 'string') {
+        details.push(`${path}.password must be a string`);
+      }
       if (!Array.isArray(album.photos)) {
         details.push(`${path}.photos must be an array`);
         continue;

@@ -135,13 +135,17 @@ export function migrateRawConfig(input) {
         };
       })()
     : team;
+  const normalizedAlbums = (Array.isArray(albums) ? albums : []).map((album) => ({
+    ...album,
+    password: typeof album.password === 'string' ? album.password : '',
+  }));
 
   return {
     team: normalizedTeam,
     stats,
     roster: normalizedRoster,
     scoreMembers: normalizedScoreMembers,
-    albums,
+    albums: normalizedAlbums,
     dailyScores: sortedScores.map((round) => ({
       date: round.date,
       rows: round.rows.map(createRawScoreRow),
@@ -208,7 +212,9 @@ export function hydrateSiteData(rawConfig) {
     ...config,
     roster,
     featuredMembers: roster.slice(0, 8),
-    gallery: config.albums.flatMap((album) => album.photos),
+    gallery: config.albums
+      .filter((album) => !album.password)
+      .flatMap((album) => album.photos),
     leaderboard,
     latestScoreDate: latestDate,
     dailyScores,

@@ -20,7 +20,7 @@ export function Roster({ members, onSelect = () => {} }) {
 
   const handleTileSelect = (srcIndex) => {
     const member = members[srcIndex];
-    if (member) onSelect(member);
+    if (member?.videoUrl) onSelect(member);
   };
 
   return (

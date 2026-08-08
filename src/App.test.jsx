@@ -11,6 +11,7 @@ import { VideoModal } from './components/VideoModal.jsx';
 import { PhotoModal } from './components/PhotoModal.jsx';
 import { FeaturedMembers } from './components/FeaturedMembers.jsx';
 import { Roster } from './components/Roster.jsx';
+import { AlbumPage } from './components/AlbumPage.jsx';
 import { NewsFeed } from './components/NewsFeed.jsx';
 import { NewsDetailPage } from './components/NewsDetailPage.jsx';
 
@@ -20,6 +21,15 @@ const domeGalleryStyles = readFileSync('src/components/DomeGallery.css', 'utf8')
 let mediaPlay;
 let mediaPause;
 let mediaLoad;
+
+function renderAppWithMemberVideo() {
+  const config = createSeedConfig();
+  const roster = config.roster.map((member, index) => (
+    index === 0 ? { ...member, videoUrl: '/videos/member-01.mp4' } : member
+  ));
+  window.__XINGYU_SITE_CONFIG__ = hydrateSiteData({ ...config, roster });
+  return render(<App />);
+}
 
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
@@ -34,6 +44,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   window.location.hash = '';
+  delete window.__XINGYU_SITE_CONFIG__;
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -540,7 +551,7 @@ describe('App', () => {
   });
 
   it('opens a roster video after a touch tap with slight finger movement', () => {
-    render(<App />);
+    renderAppWithMemberVideo();
 
     const roster = screen.getByTestId('roster-grid');
     const tile = within(roster).getAllByRole('button', { name: '查看成员 01 卡片详情' })[0];
@@ -559,7 +570,10 @@ describe('App', () => {
     fireEvent(tile, touchPointerEvent('pointerup', 214));
     fireEvent.click(tile);
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('高光视频素材待替换');
+    expect(screen.getByRole('dialog').querySelector('video')).toHaveAttribute(
+      'src',
+      '/videos/member-01.mp4',
+    );
   });
 
   it('keeps the roster sphere static under hover (no auto rotation)', async () => {
@@ -589,13 +603,13 @@ describe('App', () => {
 
   it('opens member details from a full roster tile', async () => {
     const user = userEvent.setup();
-    render(<App />);
+    renderAppWithMemberVideo();
 
     await user.click(screen.getAllByRole('button', { name: '查看成员 01 卡片详情' })[0]);
 
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).queryByText('成员 01')).not.toBeInTheDocument();
-    expect(dialog).toHaveTextContent('高光视频素材待替换');
+    expect(dialog.querySelector('video')).toHaveAttribute('src', '/videos/member-01.mp4');
   });
 
   it('renders an eight-card synced driver carousel', async () => {
@@ -619,7 +633,8 @@ describe('App', () => {
 
     expect(ruleStyle('.driver-portrait::after').opacity).toBe('1');
     expect(ruleStyle('.driver-card.is-next').opacity).toBe('0.72');
-    expect(ruleStyle('.item__image img,\n.item__placeholder').filter).toContain('var(--image-filter');
+    const imageRule = rules.find((rule) => rule.selectorText?.includes('.item__placeholder'));
+    expect(imageRule?.style.filter).toContain('var(--image-filter');
     expect(ruleStyle('.item__image::before')).toBeUndefined();
     expect(ruleStyle('.overlay')).not.toBeUndefined();
 
@@ -663,7 +678,7 @@ describe('App', () => {
 
   it('pauses the featured carousel while the member video dialog is open', () => {
     vi.useFakeTimers();
-    const { container } = render(<App />);
+    const { container } = renderAppWithMemberVideo();
 
     fireEvent.click(screen.getByRole('button', { name: '查看成员 01 高光视频' }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -680,7 +695,7 @@ describe('App', () => {
 
   it('keeps the roster sphere static while the member video dialog is open', async () => {
     vi.useFakeTimers();
-    const { container } = render(<App />);
+    const { container } = renderAppWithMemberVideo();
     const roster = screen.getByTestId('roster-grid');
     const sphere = within(roster).getByTestId('roster-sphere');
     const readRotation = () => {
@@ -730,6 +745,28 @@ describe('App', () => {
     await user.click(screen.getAllByTestId('album-folder')[0]);
     expect(screen.getAllByTestId('album-photo')).toHaveLength(teamData.albums[0].photos.length);
     expect(screen.getAllByTestId('album-photo')[0].querySelector('img')).not.toHaveClass('photo-card-image--contain');
+  });
+
+  it('requires the configured album password before opening a protected folder', async () => {
+    const user = userEvent.setup();
+    const album = { ...teamData.albums[0], password: '2468' };
+
+    render(<AlbumPage albums={[album]} onBack={() => {}} onOpenPhoto={() => {}} />);
+
+    await user.click(screen.getByRole('button', { name: `打开文件夹${album.name}` }));
+    expect(screen.getByRole('dialog', { name: '访问受保护相册' })).toBeInTheDocument();
+    expect(screen.queryAllByTestId('album-photo')).toHaveLength(0);
+
+    await user.type(screen.getByLabelText('相册密码'), '0000');
+    await user.click(screen.getByRole('button', { name: '进入相册' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('密码错误');
+
+    await user.clear(screen.getByLabelText('相册密码'));
+    await user.type(screen.getByLabelText('相册密码'), '2468');
+    await user.click(screen.getByRole('button', { name: '进入相册' }));
+
+    expect(screen.queryByRole('dialog', { name: '访问受保护相册' })).not.toBeInTheDocument();
+    expect(screen.getAllByTestId('album-photo')).toHaveLength(album.photos.length);
   });
 
   it('anchors album covers and photo thumbnails to the top so portraits keep their heads', () => {
@@ -843,6 +880,22 @@ describe('App', () => {
 
     expect(container.querySelector('video')).toHaveAttribute('autoplay');
     expect(container.querySelector('video')).toHaveAttribute('preload', 'metadata');
+    expect(container.querySelector('video')).not.toHaveAttribute('muted');
+  });
+
+  it('does not select members without a video', async () => {
+    const user = userEvent.setup();
+    const member = { ...teamData.roster[0], videoUrl: '' };
+    const onSelect = vi.fn();
+
+    const featured = render(<FeaturedMembers members={[member]} onSelect={onSelect} />);
+    await user.click(screen.getByRole('button', { name: `查看${member.name} 高光视频` }));
+    expect(onSelect).not.toHaveBeenCalled();
+    featured.unmount();
+
+    const roster = render(<Roster members={[member]} onSelect={onSelect} />);
+    fireEvent.click(roster.getAllByTestId('roster-tile')[0]);
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
   it('loads portraits only for the five visible featured cards', () => {
@@ -970,6 +1023,26 @@ describe('App', () => {
     expect(container.querySelector('video')).toHaveAttribute('preload', 'metadata');
   });
 
+  it('presents album media in a screenshot viewer with a download action', () => {
+    const { container } = render(
+      <PhotoModal
+        photo={{
+          title: '训练照',
+          date: '2026-08-08',
+          src: '/images/display.webp',
+          originalSrc: '/originals/photo.jpg',
+          alt: '训练照',
+        }}
+        onClose={() => {}}
+      />,
+    );
+
+    expect(container.querySelector('.photo-screenshot-frame')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '下载训练照' }))
+      .toHaveAttribute('href', '/originals/photo.jpg');
+    expect(screen.getByRole('link', { name: '下载训练照' })).toHaveAttribute('download');
+  });
+
   it('releases an album video when its dialog is removed', () => {
     const { container, unmount } = render(
       <PhotoModal
@@ -986,29 +1059,25 @@ describe('App', () => {
     expect(mediaLoad).toHaveBeenCalled();
   });
 
-  it('opens and closes the member video dialog', async () => {
+  it('does not open the member video dialog when the member has no video', async () => {
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(screen.getByRole('button', { name: '查看成员 01 高光视频' }));
-    const dialog = screen.getByRole('dialog');
-    expect(dialog).toBeInTheDocument();
-    expect(within(dialog).queryByText('成员 01')).not.toBeInTheDocument();
-    expect(screen.getByText('高光视频素材待替换')).toBeInTheDocument();
-
-    await user.click(document.querySelector('.video-modal-backdrop'));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('closes the member dialog with Escape and restores body scrolling', async () => {
     const user = userEvent.setup();
-    render(<App />);
-
-    await user.click(screen.getByRole('button', { name: '查看成员 01 高光视频' }));
+    const onClose = vi.fn();
+    const view = render(
+      <VideoModal member={{ name: '成员 01', videoUrl: '/member.mp4' }} onClose={onClose} />,
+    );
     expect(document.body).toHaveClass('modal-open');
 
     await user.keyboard('{Escape}');
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(onClose).toHaveBeenCalledOnce();
+    view.unmount();
     expect(document.body).not.toHaveClass('modal-open');
   });
 
@@ -1051,9 +1120,11 @@ describe('App', () => {
 
     expect(container.querySelector('.music-player')).toHaveAttribute('data-entrance');
 
-    await user.click(screen.getByRole('button', { name: '查看成员 01 高光视频' }));
-    expect(screen.getByRole('dialog')).toHaveAttribute('data-entrance');
-    await user.keyboard('{Escape}');
+    const memberDialog = render(
+      <VideoModal member={{ name: '成员 01', videoUrl: '/member.mp4' }} onClose={() => {}} />,
+    );
+    expect(memberDialog.getByRole('dialog')).toHaveAttribute('data-entrance');
+    memberDialog.unmount();
 
     await user.click(screen.getByRole('button', { name: '查看赛季全家福' }));
     expect(screen.getByRole('dialog')).toHaveAttribute('data-entrance');
@@ -1408,7 +1479,7 @@ describe('App', () => {
       await user.click(await screen.findByRole('link', { name: '查看资讯 赛季积分榜更新' }));
       expect(window.location.hash).toBe(`#news/${teamData.news[0].id}`);
       expect(await screen.findByRole('heading', { name: '赛季积分榜更新' })).toBeInTheDocument();
-      expect(screen.getByRole('img', { name: '赛季积分榜更新资讯图' })).toBeInTheDocument();
+      expect(screen.queryByRole('img', { name: '赛季积分榜更新资讯图' })).not.toBeInTheDocument();
       expect(screen.getByText(teamData.news[0].summary)).toBeInTheDocument();
 
       await user.click(screen.getByRole('button', { name: '分享' }));
