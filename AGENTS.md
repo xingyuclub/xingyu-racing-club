@@ -264,3 +264,15 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 2. 修改前先运行 `npm test -- --run`；涉及前台布局或媒体时，再运行 `npm run build` 并做 390/768/1280 视口检查。
 3. 需要更新公网内容时，在本机后台保存配置并确认 COS 配置脚本时间戳/内容已更新；不直接编辑 GitHub Pages 产物。
 4. 需要截图识别时，先确认 `127.0.0.1:3000` 和 `127.0.0.1:11434` 可用，并确认 Ollama 模型存在。
+
+## 2026-08-09 媒体流与公网发布交接
+
+- 二级媒体预览统一使用 `src/components/MediaStreamViewer.jsx`：入口包括相册文件夹照片/视频流、首页精选照片预览和队员个人视频流；旧 `PhotoModal.jsx`、`VideoModal.jsx` 已删除。
+- 竖屏图片和视频统一按比例 `contain` 完整显示，不拉伸、不强行铺满；横屏图片提供“全屏查看”，横屏视频提供“横屏播放”，进入全屏时使用原始媒体比例。
+- 媒体流滑到最后一项后继续向下滑会回到第 1 项，形成循环播放；视频切换时必须释放旧资源并保持首项可自动播放，避免 React StrictMode 下误清空 `src`。
+- 队员风采和队员阵容二级页面昵称必须显示为 `@昵称`（例如 `@Q3`、`@稳稳`）；个性签名继续使用持续扫光效果，不得删除或改回静态文本。
+- 相册视频播放地址优先使用 COS 上的 H.264/AAC 720p 版本：`/videos/fdd27e26-cff6-423b-94cf-a5945745475e--网站首页视频--720p.mp4`；原始 H.265 文件仅作为“原视频链接”保留。后台后续上传视频由媒体变体系统自动生成省流版和海报。
+- 本轮验证：`npm test -- --run` 通过 31 个测试文件、506 项测试；`npm run build` 通过；`git diff --check` 通过；390×844 浏览器验证包含竖图完整显示、横图全屏入口、视频可播放、末尾回到首项、昵称 `@` 前缀、签名扫光及无横向溢出。
+- 公网发布继续采用 GitHub Pages 静态前台 + 腾讯 COS/CDN 媒体和公开配置脚本；推送 `main` 后由 `.github/workflows/deploy-pages.yml` 部署，预期地址为 `https://wodelaodashicfer.github.io/xingyu-racing-club/`。公网前台不得依赖本机 `/api/config`。
+- 本机后台仍为 `http://127.0.0.1:3000/admin`，截图识别依赖本机 Ollama 模型 `xingyu-score-recognition`（`127.0.0.1:11434`）；修改服务端或配置加载代码后需重启 Node 服务。
+- 发布和提交前禁止纳入 `.env`、`server/config/admin.local.json`、`server/data/site-config.json`、本地上传媒体、识别原图及运行时索引；配置与媒体应通过后台/COS 发布链路更新。

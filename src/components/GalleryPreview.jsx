@@ -20,10 +20,10 @@ export function GalleryPreview({ photos, onOpenPhoto, onOpenAlbum }) {
                 data-testid="featured-photo"
                 key={photo.id}
                 type="button"
-                onClick={() => onOpenPhoto(photo)}
+                onClick={() => onOpenPhoto(photo, featuredPhotos)}
                 aria-label={`${isVideo ? '查看视频' : '查看'}${photo.title}`}
               >
-                {(photo.cardSrc || photo.src) && <img className="photo-card-image--contain" src={photo.cardSrc || photo.src} alt="" loading="lazy" />}
+                {(photo.cardSrc || photo.src) && <img src={photo.cardSrc || photo.src} alt="" loading="lazy" />}
                 {isVideo && (
                   <span className="photo-video-badge" aria-hidden="true">
                     <PlayCircle size={14} />

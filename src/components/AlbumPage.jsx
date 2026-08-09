@@ -123,7 +123,7 @@ export function AlbumPage({ albums, onBack, onOpenPhoto }) {
                       key={photo.id}
                       type="button"
                       style={{ '--stagger-index': Math.min(index, 5) }}
-                      onClick={() => onOpenPhoto(photo)}
+                      onClick={() => onOpenPhoto(photo, activeAlbum.photos)}
                       aria-label={`${isVideo ? '查看视频' : '查看'}${photo.title}`}
                     >
                       {(photo.thumbSrc || photo.src) && <img src={photo.thumbSrc || photo.src} alt="" loading="lazy" />}

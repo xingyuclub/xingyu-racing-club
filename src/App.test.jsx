@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { StrictMode } from 'react';
 import { readFileSync } from 'node:fs';
 import { vi } from 'vitest';
 import App from './App.jsx';
@@ -7,10 +8,9 @@ import { teamData } from './data/teamData.js';
 import { createSeedConfig, hydrateSiteData } from './data/siteConfig.js';
 import { Hero } from './components/Hero.jsx';
 import { MusicPlayer } from './components/MusicPlayer.jsx';
-import { VideoModal } from './components/VideoModal.jsx';
-import { PhotoModal } from './components/PhotoModal.jsx';
 import { FeaturedMembers } from './components/FeaturedMembers.jsx';
 import { Roster } from './components/Roster.jsx';
+import { MediaStreamViewer } from './components/MediaStreamViewer.jsx';
 import { AlbumPage } from './components/AlbumPage.jsx';
 import { GalleryPreview } from './components/GalleryPreview.jsx';
 import { NewsFeed } from './components/NewsFeed.jsx';
@@ -26,7 +26,13 @@ let mediaLoad;
 function renderAppWithMemberVideo() {
   const config = createSeedConfig();
   const roster = config.roster.map((member, index) => (
-    index === 0 ? { ...member, videoUrl: '/videos/member-01.mp4' } : member
+    index === 0
+      ? {
+          ...member,
+          videoUrl: '/videos/member-01.mp4',
+          videoPosterSrc: '/posters/member-01.webp',
+        }
+      : member
   ));
   window.__XINGYU_SITE_CONFIG__ = hydrateSiteData({
     ...config,
@@ -658,8 +664,9 @@ describe('App', () => {
     await user.click(screen.getAllByRole('button', { name: '查看成员 01 卡片详情' })[0]);
 
     const dialog = screen.getByRole('dialog');
-    expect(within(dialog).queryByText('成员 01')).not.toBeInTheDocument();
+    expect(within(dialog).getByText('@成员 01')).toBeInTheDocument();
     expect(dialog.querySelector('video')).toHaveAttribute('src', '/videos/member-01.mp4');
+    expect(dialog.querySelector('video')).toHaveAttribute('poster', '/posters/member-01.webp');
   });
 
   it('renders an eight-card synced driver carousel', async () => {
@@ -735,11 +742,23 @@ describe('App', () => {
     act(() => vi.advanceTimersByTime(4000));
     expect(container.querySelector('.driver-card.is-active')).toHaveTextContent('成员 01');
 
-    fireEvent.click(container.querySelector('.video-modal-backdrop'));
+    fireEvent.click(screen.getByRole('button', { name: '返回' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
     act(() => vi.advanceTimersByTime(4000));
     expect(container.querySelector('.driver-card.is-active')).toHaveTextContent('成员 02');
+  });
+
+  it('pauses background music while the media viewer is open', () => {
+    const { container } = renderAppWithMemberVideo();
+    fireEvent.play(container.querySelector('audio'));
+    expect(screen.getByRole('button', { name: '音乐播放中，点击暂停，长按关闭' }))
+      .toHaveClass('is-playing');
+
+    fireEvent.click(screen.getByRole('button', { name: '查看成员 01 高光视频' }));
+
+    expect(screen.getByRole('button', { name: '音乐已暂停，点击继续，长按关闭' }))
+      .toHaveClass('is-paused');
   });
 
   it('keeps the roster sphere static while the member video dialog is open', async () => {
@@ -759,7 +778,7 @@ describe('App', () => {
     act(() => vi.advanceTimersByTime(600));
     expect(readRotation()).toBeCloseTo(heldRotation, 3);
 
-    fireEvent.click(container.querySelector('.video-modal-backdrop'));
+    fireEvent.click(screen.getByRole('button', { name: '返回' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
     await act(async () => {
@@ -783,7 +802,8 @@ describe('App', () => {
     render(<App />);
 
     expect(screen.getAllByTestId('featured-photo')).toHaveLength(5);
-    expect(screen.getAllByTestId('featured-photo')[0].querySelector('img')).toHaveClass('photo-card-image--contain');
+    expect(screen.getAllByTestId('featured-photo')[0].querySelector('img')).not.toHaveClass('photo-card-image--contain');
+    expect(globalStyles).toMatch(/\.photo-card img\s*\{[^}]*object-fit:\s*cover;/s);
     expect(screen.getByRole('button', { name: '查看视频车队记录 02' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '查看更多相册' }));
 
@@ -893,6 +913,7 @@ describe('App', () => {
 
     await user.click(screen.getByRole('button', { name: '查看赛季全家福' }));
     expect(screen.getByRole('dialog')).toHaveTextContent('赛季全家福');
+    expect(screen.getByRole('link', { name: '查看原图' })).toBeInTheDocument();
 
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -953,17 +974,333 @@ describe('App', () => {
     expect(dialog).toHaveTextContent('当日暂无积分记录');
   });
 
-  it('auto-plays a configured member video', () => {
+  it('auto-plays the active member video muted and looping in the stream viewer', () => {
     const { container } = render(
-      <VideoModal
-        member={{ name: '成员 01', videoUrl: '/videos/member-01.mp4' }}
+      <MediaStreamViewer
+        items={[{ key: 'm1', kind: 'video', src: '/videos/member-01.mp4', title: '成员 01' }]}
+        onClose={() => {}}
+      />,
+    );
+    const video = container.querySelector('video');
+    expect(video).toHaveAttribute('autoplay');
+    expect(video).toHaveAttribute('preload', 'metadata');
+    expect(video).toHaveAttribute('loop');
+    expect(video).toHaveAttribute('playsinline');
+    expect(video.muted).toBe(true);
+  });
+
+  it('closes the viewer from the top-left back button', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(
+      <MediaStreamViewer
+        items={[{ key: 'm1', kind: 'video', src: '/member.mp4', title: '成员 01' }]}
+        onClose={onClose}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: '返回' }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('opens the stream at the selected item', () => {
+    const { container } = render(
+      <MediaStreamViewer
+        startIndex={1}
+        items={[
+          { key: 'p1', kind: 'photo', src: '/one.jpg', title: '第一张' },
+          { key: 'p2', kind: 'photo', src: '/two.jpg', title: '第二张' },
+          { key: 'p3', kind: 'photo', src: '/three.jpg', title: '第三张' },
+        ]}
         onClose={() => {}}
       />,
     );
 
-    expect(container.querySelector('video')).toHaveAttribute('autoplay');
-    expect(container.querySelector('video')).toHaveAttribute('preload', 'metadata');
-    expect(container.querySelector('video')).not.toHaveAttribute('muted');
+    expect(screen.getByText('2 / 3')).toBeInTheDocument();
+    expect(container.querySelector('.media-stream-track').scrollTop).toBe(window.innerHeight);
+  });
+
+  it('toggles sound by tapping the video or speaker button', () => {
+    const { container } = render(
+      <MediaStreamViewer
+        items={[{ key: 'm1', kind: 'video', src: '/member.mp4', title: '成员 01' }]}
+        onClose={() => {}}
+      />,
+    );
+    const video = container.querySelector('video');
+    expect(screen.getByRole('button', { name: '开启声音' })).toBeInTheDocument();
+    const playCallsBeforeTap = mediaPlay.mock.calls.length;
+    fireEvent.click(video);
+    expect(mediaPlay).toHaveBeenCalledTimes(playCallsBeforeTap + 1);
+    expect(screen.getByRole('button', { name: '关闭声音' })).toBeInTheDocument();
+    expect(video.muted).toBe(false);
+    fireEvent.click(video);
+    expect(video.muted).toBe(true);
+  });
+
+  it('updates the active item from native scroll events without IntersectionObserver', () => {
+    const { container } = render(
+      <MediaStreamViewer
+        items={[
+          { key: 'v1', kind: 'video', src: '/one.mp4', title: '第一条' },
+          { key: 'v2', kind: 'video', src: '/two.mp4', title: '第二条' },
+        ]}
+        onClose={() => {}}
+      />,
+    );
+    const track = container.querySelector('.media-stream-track');
+    Object.defineProperty(track, 'clientHeight', { configurable: true, value: 500 });
+    track.scrollTop = 500;
+
+    fireEvent.scroll(track);
+
+    expect(screen.getByText('2 / 2')).toBeInTheDocument();
+    expect(screen.queryByText('第一条')).not.toBeInTheDocument();
+    expect(screen.getByText('第二条')).toBeInTheDocument();
+  });
+
+  it('loops from the final slide back to the first slide', async () => {
+    const { container } = render(
+      <MediaStreamViewer
+        items={[
+          { key: 'p1', kind: 'photo', src: '/one.jpg', title: '第一张' },
+          { key: 'p2', kind: 'photo', src: '/two.jpg', title: '第二张' },
+        ]}
+        onClose={() => {}}
+      />,
+    );
+    const track = container.querySelector('.media-stream-track');
+    Object.defineProperty(track, 'clientHeight', { configurable: true, value: 500 });
+    expect(container.querySelectorAll('.media-stream-item')).toHaveLength(3);
+
+    track.scrollTop = 1000;
+    fireEvent.scroll(track);
+
+    await waitFor(() => expect(track.scrollTop).toBe(0));
+    expect(screen.getByText('1 / 2')).toBeInTheDocument();
+    expect(screen.getByText('第一张')).toBeInTheDocument();
+  });
+
+  it('moves focus into the viewer, traps Tab, and restores focus on close', async () => {
+    const user = userEvent.setup();
+    const trigger = document.createElement('button');
+    trigger.textContent = '打开预览';
+    document.body.append(trigger);
+    trigger.focus();
+
+    const view = render(
+      <MediaStreamViewer
+        showActions
+        items={[{
+          key: 'p1',
+          kind: 'photo',
+          src: '/photo.jpg',
+          downloadSrc: '/photo.jpg',
+          originalUrl: '/photo.jpg',
+          title: '训练照',
+        }]}
+        onClose={() => {}}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByRole('button', { name: '返回' })).toHaveFocus());
+    await user.tab({ shift: true });
+    expect(screen.getByRole('link', { name: '查看原图' })).toHaveFocus();
+
+    view.unmount();
+    expect(trigger).toHaveFocus();
+    trigger.remove();
+  });
+
+  it('only exposes controls for the active stream item', () => {
+    render(
+      <MediaStreamViewer
+        startIndex={1}
+        items={[
+          { key: 'v1', kind: 'video', src: '/one.mp4', title: '第一条' },
+          { key: 'v2', kind: 'video', src: '/two.mp4', title: '第二条' },
+        ]}
+        onClose={() => {}}
+      />,
+    );
+
+    expect(screen.getAllByRole('button', { name: '开启声音' })).toHaveLength(1);
+    expect(screen.queryByText('第一条')).not.toBeInTheDocument();
+    expect(screen.getByText('第二条')).toBeInTheDocument();
+  });
+
+  it('shows the member nickname and signature scan in the bottom-left caption', () => {
+    const { container } = render(
+      <MediaStreamViewer
+        items={[{ key: 'm1', kind: 'video', src: '/member.mp4', title: '成员 01', signature: '一路向星光' }]}
+        onClose={() => {}}
+      />,
+    );
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('成员 01')).toBeInTheDocument();
+    const signature = container.querySelector('.media-stream-signature .shiny-text');
+    expect(signature).toHaveTextContent('一路向星光');
+    expect(signature).not.toHaveClass('shiny-text--static');
+  });
+
+  it('hides download and original links for the member stream', () => {
+    render(
+      <MediaStreamViewer
+        items={[{ key: 'm1', kind: 'video', src: '/member.mp4', downloadSrc: '/d.mp4', originalUrl: '/o.mp4', title: '成员 01' }]}
+        onClose={() => {}}
+      />,
+    );
+    expect(screen.queryByRole('link', { name: '在线播放原视频' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '下载成员 01' })).not.toBeInTheDocument();
+  });
+
+  it('keeps album download and original links beside the back button', () => {
+    render(
+      <MediaStreamViewer
+        showActions
+        items={[{ key: 'p1', kind: 'photo', src: '/display.webp', downloadSrc: '/originals/photo.jpg', originalUrl: '/originals/photo.jpg', title: '训练照' }]}
+        onClose={() => {}}
+      />,
+    );
+    const download = screen.getByRole('link', { name: '下载训练照' });
+    expect(download).toHaveAttribute('href', '/originals/photo.jpg');
+    expect(download).toHaveAttribute('download');
+    expect(download).toHaveAttribute('target', '_blank');
+    expect(screen.getByRole('link', { name: '查看原图' }))
+      .toHaveAttribute('href', '/originals/photo.jpg');
+  });
+
+  it('exposes the original-video link for album videos', () => {
+    render(
+      <MediaStreamViewer
+        showActions
+        items={[{ key: 'v1', kind: 'video', src: '/videos/video--720p.mp4', poster: '/posters/video.webp', downloadSrc: '/videos/video--720p.mp4', originalUrl: '/originals/video.mp4', title: '训练视频' }]}
+        onClose={() => {}}
+      />,
+    );
+    expect(screen.getByRole('link', { name: '在线播放原视频' })).toHaveAttribute('href', '/originals/video.mp4');
+  });
+
+  it('uses the poster image as the video cover for album videos', () => {
+    const { container } = render(
+      <MediaStreamViewer
+        items={[{ key: 'v1', kind: 'video', src: '/videos/team-preview.mp4', poster: '/images/album/placeholder-01.jpg', title: '训练视频' }]}
+        onClose={() => {}}
+      />,
+    );
+    expect(container.querySelector('video')).toHaveAttribute('src', '/videos/team-preview.mp4');
+    expect(container.querySelector('video')).toHaveAttribute('poster', '/images/album/placeholder-01.jpg');
+  });
+
+  it('offers a landscape button only for landscape videos', () => {
+    const { container, rerender } = render(
+      <MediaStreamViewer
+        items={[{ key: 'v1', kind: 'video', src: '/portrait.mp4', title: '竖屏' }]}
+        onClose={() => {}}
+      />,
+    );
+    const portrait = container.querySelector('video');
+    Object.defineProperty(portrait, 'videoWidth', { value: 720, configurable: true });
+    Object.defineProperty(portrait, 'videoHeight', { value: 1280, configurable: true });
+    fireEvent(portrait, new Event('loadedmetadata', { bubbles: true }));
+    expect(screen.queryByRole('button', { name: '横屏播放' })).not.toBeInTheDocument();
+
+    rerender(
+      <MediaStreamViewer
+        items={[{ key: 'v2', kind: 'video', src: '/landscape.mp4', title: '横屏' }]}
+        onClose={() => {}}
+      />,
+    );
+    const landscape = container.querySelector('video');
+    Object.defineProperty(landscape, 'videoWidth', { value: 1920, configurable: true });
+    Object.defineProperty(landscape, 'videoHeight', { value: 1080, configurable: true });
+    fireEvent(landscape, new Event('loadedmetadata', { bubbles: true }));
+    expect(screen.getByRole('button', { name: '横屏播放' })).toBeInTheDocument();
+  });
+
+  it('uses configured video dimensions before browser metadata is ready', () => {
+    render(
+      <MediaStreamViewer
+        items={[{
+          key: 'v1',
+          kind: 'video',
+          src: '/landscape.mp4',
+          width: 1920,
+          height: 1080,
+          title: '横屏',
+        }]}
+        onClose={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: '横屏播放' })).toBeInTheDocument();
+  });
+
+  it('keeps preview media proportional and offers fullscreen only for landscape photos', () => {
+    expect(globalStyles).toMatch(
+      /\.media-stream-media\s*\{[^}]*object-fit:\s*contain;/s,
+    );
+
+    const portraitView = render(
+      <MediaStreamViewer
+        items={[{ key: 'p1', kind: 'photo', src: '/portrait.jpg', title: '竖图' }]}
+        onClose={() => {}}
+      />,
+    );
+    const portrait = portraitView.container.querySelector('img');
+    Object.defineProperty(portrait, 'naturalWidth', { configurable: true, value: 900 });
+    Object.defineProperty(portrait, 'naturalHeight', { configurable: true, value: 1200 });
+    fireEvent.load(portrait);
+    expect(screen.queryByRole('button', { name: '全屏查看' })).not.toBeInTheDocument();
+    portraitView.unmount();
+
+    const landscapeView = render(
+      <MediaStreamViewer
+        items={[{
+          key: 'p2',
+          kind: 'photo',
+          src: '/landscape.jpg',
+          width: 1920,
+          height: 1080,
+          title: '横图',
+        }]}
+        onClose={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: '全屏查看' }));
+    expect(landscapeView.container.querySelector('.media-stream-stage')).toHaveClass('is-expanded');
+    expect(screen.getByRole('button', { name: '退出全屏' })).toBeInTheDocument();
+  });
+
+  it('renders nothing when the stream is empty', () => {
+    const { container } = render(<MediaStreamViewer items={[]} onClose={() => {}} />);
+    expect(container.querySelector('.media-stream-viewer')).not.toBeInTheDocument();
+  });
+
+  it('keeps the video source during StrictMode effect rehearsal', () => {
+    const { container } = render(
+      <StrictMode>
+        <MediaStreamViewer
+          items={[{ key: 'm1', kind: 'video', src: '/member.mp4', title: '成员 01' }]}
+          onClose={() => {}}
+        />
+      </StrictMode>,
+    );
+
+    expect(container.querySelector('video')).toHaveAttribute('src', '/member.mp4');
+  });
+
+  it('releases the active video when the viewer unmounts', async () => {
+    const { container, unmount } = render(
+      <MediaStreamViewer
+        items={[{ key: 'm1', kind: 'video', src: '/member.mp4', title: '成员 01' }]}
+        onClose={() => {}}
+      />,
+    );
+    const video = container.querySelector('video');
+    unmount();
+    expect(mediaPause).toHaveBeenCalled();
+    await waitFor(() => expect(video).not.toHaveAttribute('src'));
+    expect(mediaLoad).toHaveBeenCalled();
   });
 
   it('does not open member details when the selected member has no video', async () => {
@@ -995,233 +1332,12 @@ describe('App', () => {
     expect(portraits.filter((portrait) => !portrait.style.getPropertyValue('--member-image'))).toHaveLength(3);
   });
 
-  it('releases a member video when its dialog is removed', () => {
-    const { container, unmount } = render(
-      <VideoModal member={{ name: '成员 01', videoUrl: '/videos/member-01.mp4' }} onClose={() => {}} />,
-    );
-    const video = container.querySelector('video');
-
-    unmount();
-
-    expect(mediaPause).toHaveBeenCalled();
-    expect(video).not.toHaveAttribute('src');
-    expect(mediaLoad).toHaveBeenCalled();
-  });
-
-  it('gives member videos a larger edge-to-edge 16:9 viewing area', () => {
-    const { container } = render(
-      <VideoModal
-        member={{ name: '成员 01', signature: '一路向星光', videoUrl: '/videos/member-01.mp4' }}
-        onClose={() => {}}
-      />,
-    );
-
-    expect(container.querySelector('.member-video-signature')).toHaveTextContent('一路向星光');
-    expect(globalStyles).toMatch(
-      /\.member-video-modal\s*\{[^}]*width:\s*min\(100vw,\s*calc\(\(100dvh\s*-\s*34px\)\s*\*\s*16\s*\/\s*9\)\)/s,
-    );
-    expect(globalStyles).toMatch(/\.member-video-modal\s*\{[^}]*max-height:\s*100dvh/s);
-    expect(globalStyles).toMatch(/\.member-video-modal\s*\{[^}]*padding:\s*0/s);
-    expect(globalStyles).toMatch(/\.member-video-modal\s*>\s*video\s*\{[^}]*margin-top:\s*0/s);
-  });
-
-  it('streams the optimized member video by default and exposes the original on demand', () => {
-    const { container } = render(
-      <VideoModal
-        member={{
-          name: '成员 01',
-          videoUrl: '/videos/member--720p.mp4',
-          videoOriginalUrl: '/originals/member.mp4',
-        }}
-        onClose={() => {}}
-      />,
-    );
-
-    expect(container.querySelector('video')).toHaveAttribute('src', '/videos/member--720p.mp4');
-    expect(screen.getByRole('link', { name: '在线播放原视频' }))
-      .toHaveAttribute('href', '/originals/member.mp4');
-  });
-
-  it('shows a non-empty signature below the video without name or close button', () => {
-    const { container } = render(
-      <VideoModal
-        member={{ name: '成员 01', signature: '一路向星光', videoUrl: '/videos/member-01.mp4' }}
-        onClose={() => {}}
-      />,
-    );
-
-    const dialog = screen.getByRole('dialog');
-    const signature = within(dialog).getByText('一路向星光');
-    const video = container.querySelector('video');
-    expect(container.querySelector('.modal-backdrop')).toHaveClass('video-modal-backdrop');
-    expect(video.compareDocumentPosition(signature) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(dialog).queryByText('成员 01')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '关闭视频弹窗' })).not.toBeInTheDocument();
-    expect(globalStyles).toMatch(/\.video-modal-backdrop\s*\{[^}]*padding:\s*0/s);
-    expect(globalStyles).toMatch(/\.member-video-modal\s*\{[^}]*max-height:\s*100dvh/s);
-    expect(globalStyles).toMatch(/\.member-video-signature\s*\{[^}]*align-items:\s*center/s);
-    expect(globalStyles).toMatch(/\.member-video-signature\s*\{[^}]*text-align:\s*left/s);
-    const signatureText = container.querySelector('.member-video-signature .shiny-text');
-    expect(signatureText).toHaveTextContent('一路向星光');
-    expect(signatureText).toHaveStyle({ color: '#7C3AED' });
-  });
-
-  it('keeps the member signature animation running when reduced motion is enabled', () => {
-    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true })));
-    const { container } = render(
-      <VideoModal
-        member={{ name: '成员 01', signature: '一路向星光', videoUrl: '/videos/member-01.mp4' }}
-        onClose={() => {}}
-      />,
-    );
-
-    const signatureText = container.querySelector('.member-video-signature .shiny-text');
-    expect(signatureText).not.toHaveClass('shiny-text--static');
-    expect(signatureText).toHaveStyle({ backgroundImage: expect.stringContaining('linear-gradient') });
-  });
-
-  it('omits a blank member signature', () => {
-    const { container } = render(
-      <VideoModal member={{ name: '成员 01', signature: '  ', videoUrl: '/member.mp4' }} onClose={() => {}} />,
-    );
-
-    expect(container.querySelector('.member-video-signature')).not.toBeInTheDocument();
-  });
-
-  it('closes only from blank backdrop clicks', async () => {
-    const user = userEvent.setup();
-    const onClose = vi.fn();
-    const { container } = render(
-      <VideoModal member={{ signature: '一路向星光', videoUrl: '/member.mp4' }} onClose={onClose} />,
-    );
-
-    await user.click(container.querySelector('video'));
-    await user.click(screen.getByText('一路向星光'));
-    expect(onClose).not.toHaveBeenCalled();
-    await user.click(container.querySelector('.video-modal-backdrop'));
-    expect(onClose).toHaveBeenCalledOnce();
-  });
-
-  it('renders a playable video when an album item has a video URL', () => {
-    const { container } = render(
-      <PhotoModal
-        photo={{
-          title: '训练视频',
-          src: '/images/album/placeholder-01.jpg',
-          videoUrl: '/videos/team-preview.mp4',
-          alt: '训练视频封面',
-        }}
-        onClose={() => {}}
-      />,
-    );
-
-    expect(container.querySelector('video')).toHaveAttribute('src', '/videos/team-preview.mp4');
-    expect(container.querySelector('video')).toHaveAttribute(
-      'poster',
-      '/images/album/placeholder-01.jpg',
-    );
-    expect(container.querySelector('video')).toHaveAttribute('preload', 'metadata');
-  });
-
-  it('keeps album originals behind an explicit link', () => {
-    const { rerender } = render(
-      <PhotoModal
-        photo={{
-          title: '训练照',
-          src: '/images/display.webp',
-          originalSrc: '/originals/photo.jpg',
-          alt: '训练照',
-        }}
-        onClose={() => {}}
-      />,
-    );
-
-    expect(screen.getByRole('img', { name: '训练照' })).toHaveAttribute('src', '/images/display.webp');
-    expect(screen.getByRole('link', { name: '查看原图' }))
-      .toHaveAttribute('href', '/originals/photo.jpg');
-
-    rerender(
-      <PhotoModal
-        photo={{
-          title: '训练视频',
-          src: '/posters/video.webp',
-          videoUrl: '/videos/video--720p.mp4',
-          videoOriginalUrl: '/originals/video.mp4',
-        }}
-        onClose={() => {}}
-      />,
-    );
-    expect(screen.getByRole('link', { name: '在线播放原视频' }))
-      .toHaveAttribute('href', '/originals/video.mp4');
-  });
-
-  it('presents album media in a screenshot viewer with a download action', () => {
-    const { container } = render(
-      <PhotoModal
-        photo={{
-          title: '训练照',
-          date: '2026-08-08',
-          src: '/images/display.webp',
-          originalSrc: '/originals/photo.jpg',
-          alt: '训练照',
-        }}
-        onClose={() => {}}
-      />,
-    );
-
-    expect(container.querySelector('.photo-screenshot-frame')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '下载训练照' }))
-      .toHaveAttribute('href', '/originals/photo.jpg');
-    expect(screen.getByRole('link', { name: '下载训练照' })).toHaveAttribute('download');
-  });
-
-  it('releases an album video when its dialog is removed', () => {
-    const { container, unmount } = render(
-      <PhotoModal
-        photo={{ title: '训练视频', src: '/images/poster.jpg', videoUrl: '/videos/team-preview.mp4' }}
-        onClose={() => {}}
-      />,
-    );
-    const video = container.querySelector('video');
-
-    unmount();
-
-    expect(mediaPause).toHaveBeenCalled();
-    expect(video).not.toHaveAttribute('src');
-    expect(mediaLoad).toHaveBeenCalled();
-  });
-
   it('does not open the member video dialog when the member has no video', async () => {
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(screen.getByRole('button', { name: '查看成员 01 高光视频' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  });
-
-  it('closes the member dialog with Escape and restores body scrolling', async () => {
-    const user = userEvent.setup();
-    const onClose = vi.fn();
-    const view = render(
-      <VideoModal member={{ name: '成员 01', videoUrl: '/member.mp4' }} onClose={onClose} />,
-    );
-    expect(document.body).toHaveClass('modal-open');
-
-    await user.keyboard('{Escape}');
-    expect(onClose).toHaveBeenCalledOnce();
-    view.unmount();
-    expect(document.body).not.toHaveClass('modal-open');
-  });
-
-  it('closes the member dialog when the backdrop is clicked', async () => {
-    const user = userEvent.setup();
-    const onClose = vi.fn();
-    const { container } = render(
-      <VideoModal member={{ name: '成员 01', videoUrl: '/member.mp4' }} onClose={onClose} />,
-    );
-    await user.click(container.querySelector('.modal-backdrop'));
-
-    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('reveals content immediately when IntersectionObserver is unavailable', () => {
@@ -1254,7 +1370,10 @@ describe('App', () => {
     expect(container.querySelector('.music-player')).toHaveAttribute('data-entrance');
 
     const memberDialog = render(
-      <VideoModal member={{ name: '成员 01', videoUrl: '/member.mp4' }} onClose={() => {}} />,
+      <MediaStreamViewer
+        items={[{ key: 'm1', kind: 'video', src: '/member.mp4', title: '成员 01' }]}
+        onClose={() => {}}
+      />,
     );
     expect(memberDialog.getByRole('dialog')).toHaveAttribute('data-entrance');
     memberDialog.unmount();

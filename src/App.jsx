@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSeedConfig, getHomeNews, hydrateSiteData } from './data/siteConfig.js';
 import { Hero } from './components/Hero.jsx';
 import { StatsBar } from './components/StatsBar.jsx';
@@ -8,10 +8,9 @@ import { Leaderboard } from './components/Leaderboard.jsx';
 import { NewsFeed } from './components/NewsFeed.jsx';
 import { NewsPage } from './components/NewsPage.jsx';
 import { NewsDetailPage } from './components/NewsDetailPage.jsx';
-import { VideoModal } from './components/VideoModal.jsx';
+import { MediaStreamViewer } from './components/MediaStreamViewer.jsx';
 import { GalleryPreview } from './components/GalleryPreview.jsx';
 import { AlbumPage } from './components/AlbumPage.jsx';
-import { PhotoModal } from './components/PhotoModal.jsx';
 import { ScoreDetailsModal } from './components/ScoreDetailsModal.jsx';
 import { MusicPlayer } from './components/MusicPlayer.jsx';
 import { useRevealOnScroll } from './hooks/useRevealOnScroll.js';
@@ -19,6 +18,50 @@ import { useSiteConfig } from './hooks/useSiteConfig.js';
 import { resolvePublicAssetPaths } from './utils/publicAsset.js';
 
 const fallbackSiteData = resolvePublicAssetPaths(hydrateSiteData(createSeedConfig()));
+
+const INVISIBLE_CHARS = /[\u200B-\u200F\u202A-\u202E\u2060\uFEFF]/g;
+const TEAM_PREFIX = /^(?:ˣʸ༩)\s*[·._-]\s*/;
+
+const cleanMemberName = (value) =>
+  String(value ?? '')
+    .normalize('NFC')
+    .replace(INVISIBLE_CHARS, '')
+    .trim()
+    .replace(TEAM_PREFIX, '');
+
+const photoToStreamItem = (photo) => {
+  const isVideo = photo.mediaType === 'video' || Boolean(photo.videoUrl);
+  return {
+    key: photo.id,
+    kind: isVideo ? 'video' : 'photo',
+    src: isVideo ? photo.videoUrl : photo.src,
+    poster: isVideo ? photo.videoPosterSrc || photo.src : undefined,
+    downloadSrc: isVideo
+      ? photo.videoOriginalUrl || photo.videoUrl
+      : photo.originalSrc || photo.src,
+    originalUrl: isVideo
+      ? photo.videoOriginalUrl || photo.videoUrl
+      : photo.originalSrc || photo.src,
+    width: isVideo ? photo.videoWidth : photo.width,
+    height: isVideo ? photo.videoHeight : photo.height,
+    title: photo.title,
+    subtitle: photo.date,
+  };
+};
+
+const memberToStreamItem = (member) => {
+  const name = cleanMemberName(member.name);
+  return {
+    key: member.id,
+    kind: 'video',
+    src: member.videoUrl,
+    poster: member.videoPosterSrc || member.avatarCard || member.avatar,
+    width: member.videoWidth,
+    height: member.videoHeight,
+    title: name.startsWith('@') ? name : `@${name}`,
+    signature: member.signature,
+  };
+};
 
 const parseRoute = () => {
   const raw = window.location.hash.replace(/^#\/?/, '');
@@ -33,8 +76,7 @@ const parseRoute = () => {
 export default function App() {
   const loadedSiteData = useSiteConfig(fallbackSiteData);
   const siteData = useMemo(() => resolvePublicAssetPaths(loadedSiteData), [loadedSiteData]);
-  const [selectedMember, setSelectedMember] = useState(null);
-  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [viewer, setViewer] = useState(null);
   const [showScoreDetails, setShowScoreDetails] = useState(false);
   const [heroVideoPlaying, setHeroVideoPlaying] = useState(false);
   const [route, setRoute] = useState(parseRoute);
@@ -67,18 +109,46 @@ export default function App() {
     setRoute({ name: 'album' });
   };
 
+  const openPhotoStream = useCallback((photo, list) => {
+    const safeList = list && list.length ? list : [photo];
+    const startIndex = Math.max(0, safeList.findIndex((candidate) => candidate.id === photo.id));
+    setViewer({
+      items: safeList.map(photoToStreamItem),
+      startIndex,
+      showActions: true,
+    });
+  }, []);
+
+  const openMemberStream = useCallback((member) => {
+    if (!member || !member.videoUrl) return;
+    const withVideo = (siteData.roster || []).filter((candidate) => candidate.videoUrl);
+    const startIndex = Math.max(0, withVideo.findIndex((candidate) => candidate.id === member.id));
+    setViewer({
+      items: withVideo.map(memberToStreamItem),
+      startIndex,
+      showActions: false,
+    });
+  }, [siteData.roster]);
+
   if (route.name === 'album') {
     return (
       <>
         <main className="site-shell album-shell">
           <Hero team={siteData.team} showMedia={false} onVideoPlaybackChange={setHeroVideoPlaying} />
-          <AlbumPage albums={siteData.albums} onBack={goHome} onOpenPhoto={setSelectedPhoto} />
-          <PhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} />
+          <AlbumPage albums={siteData.albums} onBack={goHome} onOpenPhoto={openPhotoStream} />
+          {viewer && (
+            <MediaStreamViewer
+              items={viewer.items}
+              startIndex={viewer.startIndex}
+              showActions={viewer.showActions}
+              onClose={() => setViewer(null)}
+            />
+          )}
         </main>
         <MusicPlayer
           src={siteData.music.src}
           cover={siteData.music.cover}
-          pauseForMedia={heroVideoPlaying}
+          pauseForMedia={heroVideoPlaying || viewer !== null}
         />
       </>
     );
@@ -102,7 +172,7 @@ export default function App() {
         <MusicPlayer
           src={siteData.music.src}
           cover={siteData.music.cover}
-          pauseForMedia={heroVideoPlaying}
+          pauseForMedia={heroVideoPlaying || viewer !== null}
         />
       </>
     );
@@ -115,19 +185,25 @@ export default function App() {
         <StatsBar stats={siteData.stats} />
         <FeaturedMembers
           members={siteData.featuredMembers}
-          onSelect={setSelectedMember}
-          paused={selectedMember !== null}
+          onSelect={openMemberStream}
+          paused={viewer !== null}
         />
-        <Roster members={siteData.roster} onSelect={setSelectedMember} />
+        <Roster members={siteData.roster} onSelect={openMemberStream} />
         <NewsFeed items={getHomeNews(siteData.news)} />
         <GalleryPreview
           photos={siteData.gallery}
-          onOpenPhoto={setSelectedPhoto}
+          onOpenPhoto={openPhotoStream}
           onOpenAlbum={openAlbum}
         />
         <Leaderboard rows={siteData.leaderboard} scoreDate={siteData.latestScoreDate} onOpenDetails={() => setShowScoreDetails(true)} />
-        <VideoModal member={selectedMember} onClose={() => setSelectedMember(null)} />
-        <PhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} />
+        {viewer && (
+          <MediaStreamViewer
+            items={viewer.items}
+            startIndex={viewer.startIndex}
+            showActions={viewer.showActions}
+            onClose={() => setViewer(null)}
+          />
+        )}
         {showScoreDetails && (
           <ScoreDetailsModal
             dailyScores={siteData.dailyScores}
@@ -138,7 +214,7 @@ export default function App() {
       <MusicPlayer
         src={siteData.music.src}
         cover={siteData.music.cover}
-        pauseForMedia={heroVideoPlaying}
+        pauseForMedia={heroVideoPlaying || viewer !== null}
       />
     </>
   );
