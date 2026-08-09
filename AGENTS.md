@@ -274,6 +274,6 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 队员风采和队员阵容二级页面昵称必须显示为 `@昵称`（例如 `@Q3`、`@稳稳`）；个性签名继续使用持续扫光效果，不得删除或改回静态文本。
 - 相册视频播放地址优先使用 COS 上的 H.264/AAC 720p 版本：`/videos/fdd27e26-cff6-423b-94cf-a5945745475e--网站首页视频--720p.mp4`；原始 H.265 文件仅作为“原视频链接”保留。后台后续上传视频由媒体变体系统自动生成省流版和海报。
 - 本轮验证：`npm test -- --run` 通过 31 个测试文件、506 项测试；`npm run build` 通过；`git diff --check` 通过；390×844 浏览器验证包含竖图完整显示、横图全屏入口、视频可播放、末尾回到首项、昵称 `@` 前缀、签名扫光及无横向溢出。
-- 公网发布继续采用 GitHub Pages 静态前台 + 腾讯 COS/CDN 媒体和公开配置脚本；推送 `main` 后由 `.github/workflows/deploy-pages.yml` 部署，预期地址为 `https://wodelaodashicfer.github.io/xingyu-racing-club/`。公网前台不得依赖本机 `/api/config`。
+- 公网发布继续采用 GitHub Pages 静态前台 + 腾讯 COS/CDN 媒体和公开配置脚本；仓库当前归属已重定向为 `xingyuclub/xingyu-racing-club`，推送 `main` 后由 `.github/workflows/deploy-pages.yml` 部署，实际地址为 `https://xingyuclub.github.io/xingyu-racing-club/`。公网前台不得依赖本机 `/api/config`。
 - 本机后台仍为 `http://127.0.0.1:3000/admin`，截图识别依赖本机 Ollama 模型 `xingyu-score-recognition`（`127.0.0.1:11434`）；修改服务端或配置加载代码后需重启 Node 服务。
 - 发布和提交前禁止纳入 `.env`、`server/config/admin.local.json`、`server/data/site-config.json`、本地上传媒体、识别原图及运行时索引；配置与媒体应通过后台/COS 发布链路更新。
