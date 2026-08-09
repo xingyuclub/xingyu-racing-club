@@ -727,16 +727,6 @@ h2 {
   margin: 2px 0 12px;
 }
 
-.news-lead {
-  margin: 0 0 24px;
-  padding-bottom: 20px;
-  color: var(--ink-soft);
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1.8;
-  border-bottom: 1px solid var(--line);
-}
-
 .news-article-content,
 .news-article-legacy {
   max-width: 72ch;
@@ -790,12 +780,6 @@ h2 {
     flex-direction: column;
     gap: 4px;
     padding-right: 48px;
-  }
-
-  .news-lead {
-    margin-bottom: 20px;
-    padding-bottom: 16px;
-    font-size: 0.94rem;
   }
 
   .news-article-content,

@@ -285,3 +285,14 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 本地 `origin` 已更新为 `https://github.com/xingyuclub/xingyu-racing-club.git`；后续提交、Actions 和 Pages 发布均以新组织仓库为准。
 - `.github/workflows/deploy-pages.yml` 通过 `${{ github.event.repository.name }}` 派生项目路径，不依赖旧用户名；迁移后 `4cea092`、`f3b8849` 两次 Pages 工作流均成功，新地址已返回 HTTP 200。
 - COS/CDN 媒体域名与公开配置脚本地址不随 GitHub 组织迁移改变，仍使用 `media.xn--0tr48cxwl51iluvqh7c.xn--fiqs8s`；本机后台、运行时配置和 Ollama 识别链路也不受影响。
+
+## 2026-08-09 二级页面返回位置与新闻详情交接
+
+- 公开前台路由现在只在当前页面实例的内存中保存各页面滚动位置：首页、相册、新闻列表和各新闻详情在网站未关闭时可恢复上次浏览位置；不写入 `sessionStorage` 或 `localStorage`。
+- 站内导航通过当前页面实例专属的 `history.state.xingyuNavigationSession` 标记历史项。新闻详情从首页或新闻列表进入时，“返回”使用浏览器历史并恢复上一页位置；刷新、关闭重开或直接打开别人分享的 `#news/<id>` 时，旧标记无效，“返回”会进入 `#news` 且从顶部开始。
+- `src/components/NewsDetailPage.jsx` 已移除详情页摘要块及其底部分隔线，正文紧接标题信息区显示；正文不再依赖滚动渐显，避免分享直链在部分浏览器首次打开时正文保持透明。
+- `src/components/NewsFeed.jsx` 和 `src/components/NewsPage.jsx` 保留可分享的 hash 链接，同时由 `src/App.jsx` 接管站内点击，以便写入当前页面实例的导航标记并正确恢复滚动位置。
+- 回归测试新增：当前页面实例双向恢复位置、分享直链返回新闻列表顶部、站内新闻详情返回新闻列表原位置、详情页不渲染摘要且正文直接跟随标题区。
+- 最终验证：`npm test -- --run` 通过 31 个测试文件、509 项测试；`npm run build` 通过；浏览器在 `390×844` 和 `1280×800` 下确认摘要节点为 0、正文默认可见、页面级横向溢出为 0、控制台无警告或错误。
+- 公网仍通过 `main` 分支的 `.github/workflows/deploy-pages.yml` 发布到 `https://xingyuclub.github.io/xingyu-racing-club/`，媒体和公开配置脚本继续由 COS/CDN 提供。
+- 本轮发布只提交上述公开前端、测试和交接文件；工作区中原有的 `server/index.js`、`server/index.test.js` 未提交改动保持原样，不纳入本次 GitHub Pages 发布提交。

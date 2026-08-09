@@ -3,7 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useRevealOnScroll } from '../hooks/useRevealOnScroll.js';
 import { sortNewsByDateDesc } from '../data/siteConfig.js';
 
-export function NewsPage({ news, categories, onBack }) {
+export function NewsPage({ news, categories, onBack, onOpenItem }) {
   const [activeTab, setActiveTab] = useState('全部');
   useRevealOnScroll(true, activeTab);
   const list = Array.isArray(news) ? news : [];
@@ -46,6 +46,11 @@ export function NewsPage({ news, categories, onBack }) {
               className="news-item"
               href={`#news/${encodeURIComponent(item.id)}`}
               key={item.id}
+              onClick={(event) => {
+                if (!onOpenItem) return;
+                event.preventDefault();
+                onOpenItem(item);
+              }}
               style={{ '--stagger-index': Math.min(index, 5) }}
               aria-label={`查看资讯 ${item.title}`}
             >

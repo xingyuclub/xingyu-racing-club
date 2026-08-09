@@ -21,7 +21,7 @@ function copyText(value) {
   return Promise.resolve(ok);
 }
 
-export function NewsDetailPage({ news, newsId }) {
+export function NewsDetailPage({ news, newsId, onBack = () => { window.location.hash = 'news'; } }) {
   useRevealOnScroll(true);
   const list = Array.isArray(news) ? news : [];
   const item = list.find((entry) => String(entry.id) === String(newsId));
@@ -33,11 +33,6 @@ export function NewsDetailPage({ news, newsId }) {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const handleBack = () => {
-    if (window.history.length > 1) window.history.back();
-    else window.location.hash = 'news';
-  };
-
   const handleShare = () => {
     copyText(window.location.href).then((ok) => {
       setToast(ok ? '链接已复制，去微信粘贴分享吧' : '复制失败，请长按地址栏手动复制');
@@ -48,7 +43,7 @@ export function NewsDetailPage({ news, newsId }) {
     return (
       <section className="album-page news-page" aria-labelledby="news-detail-title">
         <header className="album-header" data-reveal>
-          <button className="text-action" type="button" onClick={handleBack}>
+          <button className="text-action" type="button" onClick={onBack}>
             <ArrowLeft aria-hidden="true" size={17} />
             返回
           </button>
@@ -64,7 +59,7 @@ export function NewsDetailPage({ news, newsId }) {
     <section className="album-page news-page" aria-labelledby="news-detail-title">
       <header className="album-header" data-reveal>
         <div className="news-detail-nav">
-          <button className="text-action" type="button" onClick={handleBack}>
+          <button className="text-action" type="button" onClick={onBack}>
             <ArrowLeft aria-hidden="true" size={17} />
             返回
           </button>
@@ -80,15 +75,13 @@ export function NewsDetailPage({ news, newsId }) {
         </div>
       </header>
 
-      <p className="news-lead" data-reveal>{item.summary}</p>
       {item.bodyHtml ? (
         <div
           className="news-article-content"
-          data-reveal
           dangerouslySetInnerHTML={{ __html: item.bodyHtml }}
         />
       ) : (
-        <p className="news-article-legacy" data-reveal>{item.body || item.summary}</p>
+        <p className="news-article-legacy">{item.body || item.summary}</p>
       )}
 
       {toast && (

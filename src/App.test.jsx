@@ -119,23 +119,75 @@ describe('teamData', () => {
 });
 
 describe('App', () => {
-  it('starts at the top after refresh and every public route change', async () => {
+  it('starts fresh routes at the top and restores positions from the current page session', async () => {
     const user = userEvent.setup();
     const scrollTo = vi.fn();
     vi.stubGlobal('scrollTo', scrollTo);
+    Object.defineProperty(window, 'scrollY', { value: 0, writable: true, configurable: true });
     window.location.hash = '#album';
 
     render(<App />);
 
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' });
+    window.scrollY = 260;
     scrollTo.mockClear();
 
     await user.click(screen.getByRole('button', { name: '返回首页' }));
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' });
 
+    window.scrollY = 740;
     scrollTo.mockClear();
-    await user.click(await screen.findByRole('link', { name: '查看更多动态' }));
+    await user.click(await screen.findByRole('button', { name: '查看更多相册' }));
+    expect(scrollTo).toHaveBeenCalledWith({ top: 260, left: 0, behavior: 'auto' });
+
+    window.scrollY = 180;
+    scrollTo.mockClear();
+    await user.click(screen.getByRole('button', { name: '返回首页' }));
+    expect(scrollTo).toHaveBeenCalledWith({ top: 740, left: 0, behavior: 'auto' });
+  });
+
+  it('returns a directly opened shared news detail to the news page top', async () => {
+    const user = userEvent.setup();
+    const scrollTo = vi.fn();
+    vi.stubGlobal('scrollTo', scrollTo);
+    Object.defineProperty(window, 'scrollY', { value: 0, writable: true, configurable: true });
+    window.location.hash = `#news/${teamData.news[0].id}`;
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: teamData.news[0].title })).toBeInTheDocument();
+    scrollTo.mockClear();
+    window.scrollY = 520;
+
+    await user.click(screen.getByRole('button', { name: '返回' }));
+
+    expect(await screen.findByRole('heading', { name: '车队动态' })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#news');
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' });
+  });
+
+  it('restores the news list position when returning from an internally opened detail', async () => {
+    const user = userEvent.setup();
+    const scrollTo = vi.fn();
+    vi.stubGlobal('scrollTo', scrollTo);
+    Object.defineProperty(window, 'scrollY', { value: 0, writable: true, configurable: true });
+
+    render(<App />);
+
+    await user.click(await screen.findByRole('link', { name: '查看更多动态' }));
+    window.scrollY = 420;
+    scrollTo.mockClear();
+
+    await user.click(screen.getByRole('link', { name: `查看资讯 ${teamData.news[0].title}` }));
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' });
+
+    window.scrollY = 280;
+    scrollTo.mockClear();
+    await user.click(screen.getByRole('button', { name: '返回' }));
+
+    await waitFor(() => expect(window.location.hash).toBe('#news'));
+    expect(screen.getByRole('heading', { name: '车队动态' })).toBeInTheDocument();
+    expect(scrollTo).toHaveBeenCalledWith({ top: 420, left: 0, behavior: 'auto' });
   });
 
   it('renders the server configuration after it loads', async () => {
@@ -1743,7 +1795,7 @@ describe('App', () => {
       expect(window.location.hash).toBe(`#news/${teamData.news[0].id}`);
       expect(await screen.findByRole('heading', { name: '赛季积分榜更新' })).toBeInTheDocument();
       expect(screen.queryByRole('img', { name: '赛季积分榜更新资讯图' })).not.toBeInTheDocument();
-      expect(screen.getByText(teamData.news[0].summary)).toBeInTheDocument();
+      expect(screen.queryByText(teamData.news[0].summary)).not.toBeInTheDocument();
 
       await user.click(screen.getByRole('button', { name: '分享' }));
       expect(writeText).toHaveBeenCalledWith(expect.stringContaining('#news/'));
@@ -1786,6 +1838,8 @@ describe('App', () => {
     expect(titleIndex).toBeGreaterThan(-1);
     expect(metaIndex).toBeGreaterThan(-1);
     expect(titleIndex).toBeLessThan(metaIndex);
+    expect(container.querySelector('.news-lead')).not.toBeInTheDocument();
+    expect(header.nextElementSibling).toHaveClass('news-article-legacy');
   });
 
   it('shows an empty state for a missing news id', () => {

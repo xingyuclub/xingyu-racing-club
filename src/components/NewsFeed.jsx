@@ -1,4 +1,4 @@
-export function NewsFeed({ items }) {
+export function NewsFeed({ items, onOpenItem, onOpenNews }) {
   return (
     <section className="section-block news-section" aria-labelledby="news-title" data-reveal>
       <div className="section-heading">
@@ -11,6 +11,11 @@ export function NewsFeed({ items }) {
             className="news-item"
             href={`#news/${encodeURIComponent(item.id)}`}
             key={item.id}
+            onClick={(event) => {
+              if (!onOpenItem) return;
+              event.preventDefault();
+              onOpenItem(item);
+            }}
             style={{ '--stagger-index': index }}
             aria-label={`查看资讯 ${item.title}`}
           >
@@ -35,7 +40,15 @@ export function NewsFeed({ items }) {
           </a>
         ))}
       </div>
-      <a className="news-more" href="#news">
+      <a
+        className="news-more"
+        href="#news"
+        onClick={(event) => {
+          if (!onOpenNews) return;
+          event.preventDefault();
+          onOpenNews();
+        }}
+      >
         查看更多动态
       </a>
     </section>

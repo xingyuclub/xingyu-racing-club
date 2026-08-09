@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createSeedConfig, getHomeNews, hydrateSiteData } from './data/siteConfig.js';
 import { Hero } from './components/Hero.jsx';
 import { StatsBar } from './components/StatsBar.jsx';
@@ -73,6 +73,10 @@ const parseRoute = () => {
   return { name: 'home' };
 };
 
+const getRouteKey = (route) => (
+  route.name === 'news-detail' ? `${route.name}:${route.newsId}` : route.name
+);
+
 export default function App() {
   const loadedSiteData = useSiteConfig(fallbackSiteData);
   const siteData = useMemo(() => resolvePublicAssetPaths(loadedSiteData), [loadedSiteData]);
@@ -80,13 +84,46 @@ export default function App() {
   const [showScoreDetails, setShowScoreDetails] = useState(false);
   const [heroVideoPlaying, setHeroVideoPlaying] = useState(false);
   const [route, setRoute] = useState(parseRoute);
+  const routeRef = useRef(route);
+  const scrollPositionsRef = useRef(new Map());
+  const navigationSessionIdRef = useRef(`${Date.now()}-${Math.random()}`);
   useRevealOnScroll(route.name === 'home');
 
-  useEffect(() => {
-    const handleHashChange = () => setRoute(parseRoute());
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+  const commitRoute = useCallback((nextRoute) => {
+    const currentRoute = routeRef.current;
+    if (getRouteKey(nextRoute) === getRouteKey(currentRoute)) return;
+
+    scrollPositionsRef.current.set(getRouteKey(currentRoute), window.scrollY);
+    routeRef.current = nextRoute;
+    setRoute(nextRoute);
   }, []);
+
+  const navigateToHash = useCallback((hash, { replace = false } = {}) => {
+    const currentState = window.history.state && typeof window.history.state === 'object'
+      ? window.history.state
+      : {};
+    const nextUrl = hash
+      ? `#${hash}`
+      : `${window.location.pathname}${window.location.search}`;
+    const method = replace ? 'replaceState' : 'pushState';
+    window.history[method]({
+      ...currentState,
+      xingyuNavigationSession: navigationSessionIdRef.current,
+    }, '', nextUrl);
+    commitRoute(parseRoute());
+  }, [commitRoute]);
+
+  useEffect(() => {
+    const handleHistoryChange = () => {
+      commitRoute(parseRoute());
+    };
+    window.addEventListener('hashchange', handleHistoryChange);
+    window.addEventListener('popstate', handleHistoryChange);
+    return () => {
+      window.removeEventListener('hashchange', handleHistoryChange);
+      window.removeEventListener('popstate', handleHistoryChange);
+    };
+  }, [commitRoute]);
 
   useEffect(() => {
     if (!('scrollRestoration' in window.history)) return undefined;
@@ -95,18 +132,25 @@ export default function App() {
     return () => { window.history.scrollRestoration = previous; };
   }, []);
 
-  useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  useLayoutEffect(() => {
+    const top = scrollPositionsRef.current.get(getRouteKey(route)) ?? 0;
+    window.scrollTo({ top, left: 0, behavior: 'auto' });
   }, [route.name, route.newsId]);
 
   const goHome = () => {
-    window.location.hash = '';
-    setRoute({ name: 'home' });
+    navigateToHash('');
   };
 
   const openAlbum = () => {
-    window.location.hash = 'album';
-    setRoute({ name: 'album' });
+    navigateToHash('album');
+  };
+
+  const goBackFromNewsDetail = () => {
+    if (window.history.state?.xingyuNavigationSession === navigationSessionIdRef.current) {
+      window.history.back();
+      return;
+    }
+    navigateToHash('news', { replace: true });
   };
 
   const openPhotoStream = useCallback((photo, list) => {
@@ -164,9 +208,14 @@ export default function App() {
               news={siteData.news}
               categories={siteData.newsCategories}
               onBack={goHome}
+              onOpenItem={(item) => navigateToHash(`news/${encodeURIComponent(item.id)}`)}
             />
           ) : (
-            <NewsDetailPage news={siteData.news} newsId={route.newsId} />
+            <NewsDetailPage
+              news={siteData.news}
+              newsId={route.newsId}
+              onBack={goBackFromNewsDetail}
+            />
           )}
         </main>
         <MusicPlayer
@@ -189,7 +238,11 @@ export default function App() {
           paused={viewer !== null}
         />
         <Roster members={siteData.roster} onSelect={openMemberStream} />
-        <NewsFeed items={getHomeNews(siteData.news)} />
+        <NewsFeed
+          items={getHomeNews(siteData.news)}
+          onOpenItem={(item) => navigateToHash(`news/${encodeURIComponent(item.id)}`)}
+          onOpenNews={() => navigateToHash('news')}
+        />
         <GalleryPreview
           photos={siteData.gallery}
           onOpenPhoto={openPhotoStream}
