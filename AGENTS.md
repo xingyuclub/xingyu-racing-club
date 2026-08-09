@@ -277,3 +277,11 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 公网发布继续采用 GitHub Pages 静态前台 + 腾讯 COS/CDN 媒体和公开配置脚本；仓库当前归属已重定向为 `xingyuclub/xingyu-racing-club`，推送 `main` 后由 `.github/workflows/deploy-pages.yml` 部署，实际地址为 `https://xingyuclub.github.io/xingyu-racing-club/`。公网前台不得依赖本机 `/api/config`。
 - 本机后台仍为 `http://127.0.0.1:3000/admin`，截图识别依赖本机 Ollama 模型 `xingyu-score-recognition`（`127.0.0.1:11434`）；修改服务端或配置加载代码后需重启 Node 服务。
 - 发布和提交前禁止纳入 `.env`、`server/config/admin.local.json`、`server/data/site-config.json`、本地上传媒体、识别原图及运行时索引；配置与媒体应通过后台/COS 发布链路更新。
+
+## 2026-08-09 GitHub 组织与 Pages 地址迁移交接
+
+- 已创建 GitHub 免费组织 `xingyuclub`，并将仓库从 `wodelaodashicfer/xingyu-racing-club` 迁移到 `xingyuclub/xingyu-racing-club`；默认分支仍为 `main`，仓库名称和 Pages 项目路径不变。
+- 新 GitHub Pages 正式地址为 `https://xingyuclub.github.io/xingyu-racing-club/`；旧仓库地址由 GitHub 重定向到新仓库，但旧 Pages 地址不得继续作为正式分享地址。
+- 本地 `origin` 已更新为 `https://github.com/xingyuclub/xingyu-racing-club.git`；后续提交、Actions 和 Pages 发布均以新组织仓库为准。
+- `.github/workflows/deploy-pages.yml` 通过 `${{ github.event.repository.name }}` 派生项目路径，不依赖旧用户名；迁移后 `4cea092`、`f3b8849` 两次 Pages 工作流均成功，新地址已返回 HTTP 200。
+- COS/CDN 媒体域名与公开配置脚本地址不随 GitHub 组织迁移改变，仍使用 `media.xn--0tr48cxwl51iluvqh7c.xn--fiqs8s`；本机后台、运行时配置和 Ollama 识别链路也不受影响。
