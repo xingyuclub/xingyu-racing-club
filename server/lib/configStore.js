@@ -140,13 +140,6 @@ function validateConfig(config) {
     details.push('stats must contain exactly 4 entries');
   }
   if (Array.isArray(config.stats)) {
-    const singlesStatCount = config.stats.filter(
-      (stat) => isObject(stat) && isNonEmptyString(stat.label) && stat.label.trim() === '单身贵族',
-    ).length;
-    if (singlesStatCount !== 1) {
-      details.push('stats must contain exactly one 单身贵族 item');
-    }
-
     for (let index = 0; index < config.stats.length; index += 1) {
       const stat = config.stats[index];
       const path = `stats[${index}]`;
@@ -158,9 +151,9 @@ function validateConfig(config) {
         details.push(`${path}.label must be a non-empty string`);
       }
 
-      if (isNonEmptyString(stat.label) && stat.label.trim() === '单身贵族') {
+      if (isObject(stat.value)) {
         for (const field of ['male', 'female']) {
-          if (!isObject(stat.value) || !isNonNegativeFinite(stat.value[field])) {
+          if (!isNonNegativeFinite(stat.value[field])) {
             details.push(`${path}.value.${field} must be a non-negative finite number`);
           }
         }
@@ -631,6 +624,12 @@ export async function createConfigStore({ dataDir, fileSystem: providedFileSyste
 
   async function write(config) {
     const rawSnapshot = structuredClone(selectRawConfig(config));
+    const rosterIdSet = new Set((rawSnapshot.roster || []).map((member) => member.id));
+    if (Array.isArray(rawSnapshot.memberAliases)) {
+      rawSnapshot.memberAliases = rawSnapshot.memberAliases.filter(
+        (alias) => rosterIdSet.has(alias.memberId),
+      );
+    }
     validateConfig(rawSnapshot);
     const snapshot = sanitizeNews(rawSnapshot);
     validateConfig(snapshot);

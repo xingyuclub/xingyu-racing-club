@@ -575,32 +575,6 @@ describe('config store', () => {
     });
   });
 
-  it.each([
-    {
-      name: 'missing singles stat',
-      mutate(config) {
-        config.stats[3] = { label: '其他统计', value: '8' };
-      },
-    },
-    {
-      name: 'duplicate singles stat',
-      mutate(config) {
-        config.stats[0] = {
-          label: '单身贵族',
-          value: { male: 1, female: 2 },
-        };
-      },
-    },
-  ])('rejects $name', async ({ mutate }) => {
-    const store = await createConfigStore({ dataDir });
-    const invalid = createSeedConfig();
-    mutate(invalid);
-
-    await expect(store.write(invalid)).rejects.toMatchObject({
-      code: 'INVALID_CONFIG',
-      details: expect.arrayContaining(['stats must contain exactly one 单身贵族 item']),
-    });
-  });
 
   it.each([
     ['a non-object config', () => [], 'config must be an object'],
@@ -864,15 +838,13 @@ describe('config store', () => {
     });
   });
 
-  it('rejects member aliases referencing a non-existent member', async () => {
+  it('drops member aliases that reference a non-existent roster member on write', async () => {
     const store = await createConfigStore({ dataDir });
     const config = await store.read();
-    config.memberAliases = [{ memberId: 'ghost-member', value: 'x' }];
+    config.memberAliases = [{ memberId: config.roster[0].id, value: 'valid' }, { memberId: 'ghost-member', value: 'x' }];
 
-    await expect(store.write(config)).rejects.toMatchObject({
-      code: 'INVALID_CONFIG',
-      details: expect.arrayContaining(['memberAliases[0].memberId must reference an existing roster member']),
-    });
+    const saved = await store.write(config);
+    expect(saved.memberAliases).toEqual([{ memberId: config.roster[0].id, value: 'valid' }]);
   });
 
   it('rejects a negative weekend total', async () => {

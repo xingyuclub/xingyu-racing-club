@@ -97,6 +97,10 @@ function createDraft(config) {
     ...album,
     password: typeof album.password === 'string' ? album.password : '',
   }));
+  const rosterIds = new Set(draft.roster.map((member) => member.id));
+  draft.memberAliases = (Array.isArray(draft.memberAliases) ? draft.memberAliases : []).filter(
+    (alias) => rosterIds.has(alias.memberId),
+  );
   return draft;
 }
 function restoreReferencedScoreMembers(config, latestConfig) {

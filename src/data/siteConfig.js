@@ -151,7 +151,7 @@ export function migrateRawConfig(input) {
       rows: round.rows.map(createRawScoreRow),
     })),
     weekendScores: Array.isArray(weekendScores) ? weekendScores : [],
-    memberAliases: Array.isArray(memberAliases) ? memberAliases : [],
+    memberAliases: (Array.isArray(memberAliases) ? memberAliases : []).filter((alias) => normalizedRoster.some((member) => member.id === alias.memberId)),
     news: normalizedNews,
     newsCategories: normalizedNewsCategories,
     music,
