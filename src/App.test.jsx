@@ -1058,12 +1058,13 @@ describe('App', () => {
     expect(screen.getByText('第二条')).toBeInTheDocument();
   });
 
-  it('loops from the final slide back to the first slide', async () => {
+  it('keeps the first-video loop clone active until scrolling settles', () => {
+    vi.useFakeTimers();
     const { container } = render(
       <MediaStreamViewer
         items={[
-          { key: 'p1', kind: 'photo', src: '/one.jpg', title: '第一张' },
-          { key: 'p2', kind: 'photo', src: '/two.jpg', title: '第二张' },
+          { key: 'v1', kind: 'video', src: '/one.mp4', title: '第一条' },
+          { key: 'v2', kind: 'video', src: '/two.mp4', title: '第二条' },
         ]}
         onClose={() => {}}
       />,
@@ -1071,13 +1072,23 @@ describe('App', () => {
     const track = container.querySelector('.media-stream-track');
     Object.defineProperty(track, 'clientHeight', { configurable: true, value: 500 });
     expect(container.querySelectorAll('.media-stream-item')).toHaveLength(3);
+    const videos = container.querySelectorAll('video');
 
     track.scrollTop = 1000;
     fireEvent.scroll(track);
 
-    await waitFor(() => expect(track.scrollTop).toBe(0));
+    expect(track.scrollTop).toBe(1000);
     expect(screen.getByText('1 / 2')).toBeInTheDocument();
-    expect(screen.getByText('第一张')).toBeInTheDocument();
+    expect(screen.getByText('第一条')).toBeInTheDocument();
+    expect(mediaPlay.mock.instances.at(-1)).toBe(videos[2]);
+
+    act(() => vi.advanceTimersByTime(119));
+    expect(track.scrollTop).toBe(1000);
+    expect(mediaPlay.mock.instances.at(-1)).toBe(videos[2]);
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(track.scrollTop).toBe(0);
+    expect(mediaPlay.mock.instances.at(-1)).toBe(videos[0]);
   });
 
   it('moves focus into the viewer, traps Tab, and restores focus on close', async () => {

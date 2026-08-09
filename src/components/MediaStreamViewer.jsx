@@ -12,7 +12,7 @@ export function MediaStreamViewer({ items, startIndex = 0, onClose, showActions 
   const viewerRef = useRef(null);
   const backButtonRef = useRef(null);
   const previousFocusRef = useRef(null);
-  const loopResetFrameRef = useRef(null);
+  const loopResetTimerRef = useRef(null);
   const containerRef = useRef(null);
   const itemRefList = useRef([]);
   const stageRefList = useRef([]);
@@ -50,14 +50,14 @@ export function MediaStreamViewer({ items, startIndex = 0, onClose, showActions 
       streamItems.length,
     );
     setActiveSlideIndex(nextIndex);
+    window.clearTimeout(loopResetTimerRef.current);
     if (items.length > 1 && nextIndex === items.length) {
-      window.cancelAnimationFrame(loopResetFrameRef.current);
-      loopResetFrameRef.current = window.requestAnimationFrame(() => {
+      loopResetTimerRef.current = window.setTimeout(() => {
         const currentTrack = containerRef.current;
         if (!currentTrack) return;
         currentTrack.scrollTop = 0;
         setActiveSlideIndex(0);
-      });
+      }, 120);
     }
   }, [items.length, streamItems.length]);
 
@@ -92,7 +92,7 @@ export function MediaStreamViewer({ items, startIndex = 0, onClose, showActions 
     const frame = window.requestAnimationFrame(() => backButtonRef.current?.focus());
     return () => {
       window.cancelAnimationFrame(frame);
-      window.cancelAnimationFrame(loopResetFrameRef.current);
+      window.clearTimeout(loopResetTimerRef.current);
       document.body.classList.remove('modal-open');
       previousFocusRef.current?.focus?.();
     };
