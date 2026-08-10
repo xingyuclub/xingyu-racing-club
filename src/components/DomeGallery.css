@@ -124,6 +124,27 @@ main.sphere-main:active {
   filter: var(--image-filter, none);
 }
 
+.item__name {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  overflow: hidden;
+  padding: 3px 4px;
+  background: rgba(5, 12, 30, 0.76);
+  color: #fff;
+  font-size: clamp(0.625rem, 2.55vw, 0.75rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .item__placeholder {
   position: absolute;
   inset: 0;

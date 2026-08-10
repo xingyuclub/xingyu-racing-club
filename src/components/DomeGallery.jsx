@@ -423,6 +423,9 @@ export default function DomeGallery({
                       <span className="item__placeholder-name">{it.label}</span>
                     </span>
                   )}
+                  {it.src && it.label && (
+                    <span className="item__name" aria-hidden="true">{it.label}</span>
+                  )}
                 </div>
               </div>
             ))}

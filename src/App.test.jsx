@@ -316,6 +316,31 @@ describe('App', () => {
       .toContain('/images/card.webp');
   });
 
+  it('shows a compact single-line nickname mask on roster portraits', () => {
+    const member = {
+      id: '1',
+      name: '星河落入梦里',
+      avatar: '/images/member.webp',
+    };
+    const { container } = render(<Roster members={[member]} />);
+    const nameMask = container.querySelector('.item__name');
+
+    expect(nameMask).toHaveTextContent('星河落入梦里');
+
+    const style = document.createElement('style');
+    style.textContent = domeGalleryStyles;
+    document.head.append(style);
+    const rules = Array.from(style.sheet.cssRules);
+    const nameStyle = rules.find((rule) => rule.selectorText === '.item__name')?.style;
+
+    expect(nameStyle?.getPropertyValue('white-space')).toBe('nowrap');
+    expect(nameStyle?.getPropertyValue('line-height')).toBe('1.2');
+    expect(nameStyle?.getPropertyValue('padding')).toBe('3px 4px');
+    expect(nameStyle?.getPropertyValue('background')).toContain('rgba(5, 12, 30');
+
+    style.remove();
+  });
+
   it('shows the original hero image directly without a link', () => {
     const config = hydrateSiteData({
       ...createSeedConfig(),
@@ -1290,6 +1315,26 @@ describe('App', () => {
     Object.defineProperty(landscape, 'videoHeight', { value: 1080, configurable: true });
     fireEvent(landscape, new Event('loadedmetadata', { bubbles: true }));
     expect(screen.getByRole('button', { name: '横屏播放' })).toBeInTheDocument();
+  });
+
+  it('uses the media fullscreen API on mobile browsers', () => {
+    const { container } = render(
+      <MediaStreamViewer
+        items={[{ key: 'v1', kind: 'video', src: '/landscape.mp4', width: 1920, height: 1080, title: '横屏' }]}
+        onClose={() => {}}
+      />,
+    );
+    const video = container.querySelector('video');
+    const enterFullscreen = vi.fn();
+    Object.defineProperty(video, 'webkitEnterFullscreen', {
+      configurable: true,
+      value: enterFullscreen,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '横屏播放' }));
+
+    expect(enterFullscreen).toHaveBeenCalledOnce();
+    expect(container.querySelector('.media-stream-stage')).not.toHaveClass('is-expanded');
   });
 
   it('uses configured video dimensions before browser metadata is ready', () => {

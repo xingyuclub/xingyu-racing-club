@@ -206,9 +206,28 @@ export function MediaStreamViewer({ items, startIndex = 0, onClose, showActions 
   }, []);
 
   const enterLandscape = useCallback((index) => () => {
+    const stage = stageRefList.current[index];
+    const video = videoRefList.current[index];
+
+    if (video) {
+      // iOS/WeChat exposes fullscreen on the media element rather than the stage.
+      const webkitEnter = video.webkitEnterFullscreen || video.webkitEnterFullScreen;
+      if (typeof webkitEnter === 'function') {
+        Promise.resolve(webkitEnter.call(video)).catch(() => {});
+        return;
+      }
+
+      const requestVideoFullscreen = video.requestFullscreen || video.webkitRequestFullscreen;
+      if (typeof requestVideoFullscreen === 'function') {
+        Promise.resolve(requestVideoFullscreen.call(video))
+          .then(() => window.screen?.orientation?.lock?.('landscape'))
+          .catch(() => {});
+        return;
+      }
+    }
+
     setExpandedIndex((current) => {
       if (current === index) return null;
-      const stage = stageRefList.current[index];
       if (stage) {
         const request = stage.requestFullscreen || stage.webkitRequestFullscreen;
         if (typeof request === 'function') {

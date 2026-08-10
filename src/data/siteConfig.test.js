@@ -10,6 +10,21 @@ import {
 import { teamData } from './teamData.js';
 
 describe('site configuration', () => {
+  it('hydrates the public fallback without newer Object and Array helpers', () => {
+    const originalHasOwn = Object.hasOwn;
+    const originalAt = Array.prototype.at;
+
+    try {
+      Object.hasOwn = undefined;
+      Array.prototype.at = undefined;
+
+      expect(() => hydrateSiteData(createSeedConfig())).not.toThrow();
+    } finally {
+      Object.hasOwn = originalHasOwn;
+      Array.prototype.at = originalAt;
+    }
+  });
+
   it('renumbers score identities and every stored reference in current list order', () => {
     const config = createSeedConfig();
     config.scoreMembers = [

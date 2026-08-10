@@ -129,7 +129,7 @@ export function migrateRawConfig(input) {
             ? team.heroLines
             : [team.name],
           heroMedia,
-          heroFallbackImage: Object.hasOwn(team, 'heroFallbackImage')
+          heroFallbackImage: Object.prototype.hasOwnProperty.call(team, 'heroFallbackImage')
             ? team.heroFallbackImage
             : '',
         };
@@ -190,7 +190,7 @@ export function hydrateSiteData(rawConfig) {
     })),
   }));
   const roster = config.roster;
-  const latestRound = dailyScores.at(-1);
+  const latestRound = dailyScores[dailyScores.length - 1];
   const latestDate = latestRound?.date || '';
   const leaderboardIds = new Set((config.scoreMembers || []).map((member) => member.id));
   for (const id of totals.keys()) {

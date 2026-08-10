@@ -15,7 +15,7 @@ const formatDateLabel = (dateKey) => {
   return `${year}年${month}月${day}日`;
 };
 
-const getLatestDate = (dailyScores) => dailyScores.at(-1)?.date || '';
+const getLatestDate = (dailyScores) => dailyScores[dailyScores.length - 1]?.date || '';
 const getInitialMonth = (dailyScores) => {
   const targetDate = getLatestDate(dailyScores) || dailyScores[0]?.date || '2026-07-01';
   const { year, month } = parseDateKey(targetDate);

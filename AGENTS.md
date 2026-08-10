@@ -328,3 +328,11 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 新增回归测试确认未显式传入媒体存储的程序化应用实例，其 `app.locals.mediaStorage` 与 `publishPublicConfig` 均为 `null`；需要验证发布的既有测试继续使用内存假存储。该测试修复前能稳定读到真实 COS 对象并失败，修复后通过。
 - 已用本机正确的 `server/data/site-config.json` 重新发布生产配置；回读为 12 名阵容成员、45 名积分人物、5 个相册、2 条新闻，占位成员计数为 0，ETag 为 `99c8a0e2d6302e6597ad5d426240471b`。完整运行 `server/index.test.js` 44 项及全量 31 个测试文件、517 项测试后，远程 ETag 和最后修改时间均未变化，证明测试不再污染生产。
 - `npm run build` 通过；临时用真实 CLI 在 `127.0.0.1:3002` 启动并读取 `/api/config` 返回 200，启动前后远程 ETag 不变。公网 GitHub Pages 连续刷新后恢复真实 `ˣʸ༩·Q3` 等成员和 COS 媒体，页面观测到 124 张 COS 图片成功加载、0 张失败、占位成员计数为 0，浏览器控制台无页面错误或警告。
+
+## 2026-08-10 球形阵容与移动端媒体兼容交接
+
+- 队员球形画廊的真实头像卡片新增底部单行昵称遮罩：深色半透明背景、自动省略，避免长昵称换行破坏卡片比例；占位卡片保持原有占位名称样式。
+- 移动端视频“横屏播放”优先调用媒体元素的 iOS/微信 `webkitEnterFullscreen` / `webkitEnterFullScreen`，再回退到标准媒体全屏和舞台全屏；原有桌面舞台全屏与横屏锁定逻辑保持不变。
+- `siteConfig` 与积分详情日期读取移除 `Object.hasOwn`、`Array.prototype.at`，改用旧浏览器可用写法；新增兼容性回归测试。
+- 验证结果：`npm test -- --run` 通过 31 个测试文件、520 项测试；`npm run build` 通过；`git diff --check` 通过；浏览器 390×844、1280×800 均确认页面级横向溢出为 0，移动端视频弹窗可见“横屏播放”按钮，昵称遮罩已渲染。IAB 环境仅有 Motion 减少动态效果提示，无应用错误；iOS/微信媒体 API 调用由单测覆盖。
+- 本轮改动随 `main` 分支提交并发布到 GitHub Pages：`https://xingyuclub.github.io/xingyu-racing-club/`。服务端配置、媒体和后台文件未纳入本次公网前端发布。
