@@ -55,6 +55,8 @@ http://127.0.0.1:3000/admin
 
 本机 Node 和 Ollama 必须保持运行，才能使用配置保存、媒体上传和截图识别。保存配置后，后台会自动更新 COS 上的公开配置脚本；公网前端刷新页面即可看到新内容。
 
+Node 启动本身不会发布公开配置。如果公网突然全部显示占位素材，先确认本机 `server/data/site-config.json` 是正确版本，然后在本机后台点击“保存全部配置”重新发布。发布后回读 COS 上的 `config/site-config.js`，确认成员、相册、新闻数量及媒体 URL 与本机一致，再刷新 GitHub Pages。
+
 ## 后续更新
 
 - 修改网站代码：提交并推送到 `main`，GitHub Actions 会重新部署。

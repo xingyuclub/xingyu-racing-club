@@ -21,6 +21,7 @@ async function createFixture({
   mediaStorage = null,
   imageProcessor,
   videoProcessor,
+  publishPublicConfigOnStart,
 } = {}) {
   const rootDir = await mkdtemp(join(tmpdir(), 'config-admin-api-'));
   const dataDir = join(rootDir, 'server', 'data');
@@ -51,6 +52,7 @@ async function createFixture({
     mediaStorage,
     imageProcessor,
     videoProcessor,
+    publishPublicConfigOnStart,
   });
 
   return { app, rootDir, dataDir, uploadDir, credentialsPath, distDir };
@@ -341,6 +343,37 @@ describe('config admin API', () => {
       contentType: 'application/javascript; charset=utf-8',
     });
     expect(calls[0].body.toString('utf8')).toContain('公开配置已同步');
+  });
+
+  it('does not publish public config during a normal server startup', async () => {
+    const calls = [];
+    const mediaStorage = {
+      publicUrl: (key) => `https://media.example.test/${key}`,
+      putObject: async (input) => calls.push(input),
+      deleteObject: async () => {},
+      listObjects: async () => [],
+    };
+
+    const fixture = await createFixture({ mediaStorage });
+    tempRoots.push(fixture.rootDir);
+
+    expect(calls).toEqual([]);
+  });
+
+  it('publishes public config on startup only when explicitly enabled', async () => {
+    const calls = [];
+    const mediaStorage = {
+      publicUrl: (key) => `https://media.example.test/${key}`,
+      putObject: async (input) => calls.push(input),
+      deleteObject: async () => {},
+      listObjects: async () => [],
+    };
+
+    const fixture = await createFixture({ mediaStorage, publishPublicConfigOnStart: true });
+    tempRoots.push(fixture.rootDir);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ key: 'config/site-config.js' });
   });
 
   it('strips path separators and reserved characters from the original filename', async () => {

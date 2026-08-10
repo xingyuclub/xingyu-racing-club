@@ -304,3 +304,10 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 回归测试覆盖首页精选视频和相册文件夹视频：标识不再渲染“视频”文字、包含播放 SVG，并校验右上角定位和固定尺寸；移动端浏览器确认图标位于右上角、三张卡片标题蒙版同高、页面级横向溢出为 0。
 - 最终验证：`npm test -- --run` 通过 31 个测试文件、509 项测试；`npm run build` 通过；浏览器控制台无错误或警告。
 - 本次公网发布只包含 `src/components/AlbumPage.jsx`、`src/components/GalleryPreview.jsx`、`src/styles/global.css`、对应测试和本交接文档；工作区原有的 `server/index.js`、`server/index.test.js`、`src/admin/RichTextEditor.jsx`、`src/admin/RichTextEditor.test.jsx` 未提交改动保持原样。
+
+## 2026-08-10 公网媒体占位符修复交接
+
+- 公网媒体本身未丢失；根因是 Node 启动时默认发布公开配置，如果从缺少 `server/data/site-config.json` 的目录或其他工作树启动，`configStore.read()` 会生成种子配置并覆盖 COS 上的生产 `config/site-config.js`。
+- 已用当前本机 `server/data/site-config.json` 重新发布 COS 公开配置；回读确认为 12 名阵容成员、45 名积分人物、5 个相册、2 条新闻，占位符计数为 0。覆盖前的错误远程脚本已备份到 `output/site-config.remote-broken-20260810-111821.js`。
+- `server/index.js` 已改为默认启动绝不发布公开配置；只有代码显式传入 `publishPublicConfigOnStart: true` 才允许启动发布。后台保存配置和识别提交仍会正常发布。
+- `server/index.test.js` 新增“默认启动零发布”和“显式开启才发布”回归，原有“后台保存后发布”回归保持通过。

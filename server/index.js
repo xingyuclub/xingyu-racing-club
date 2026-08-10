@@ -114,7 +114,7 @@ export async function createApp(options = {}) {
     if (publishPublicConfig) await publishPublicConfig();
     notifyConfigUpdate();
   };
-  if (publishPublicConfig && process.env.NODE_ENV !== 'test' && options.publishPublicConfigOnStart !== false) {
+  if (publishPublicConfig && options.publishPublicConfigOnStart === true) {
     await publishPublicConfig();
   }
   const aiClient = options.aiClient ?? (process.env.OPENAI_API_KEY

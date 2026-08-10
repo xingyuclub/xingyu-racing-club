@@ -121,6 +121,8 @@ Ollama 必须保持运行，修改 `.env` 后需要重启 `npm run dev:api`。�
 
 后台每次保存配置、提交识别批次后，服务端通过 GET /api/config/events 向所有打开的前台发送 config-updated 事件，前台收到后立即重新请求 /api/config 刷新页面。即使浏览器不支持 Server-Sent Events，窗口重新获得焦点时仍会兜底刷新。
 
+配置了 COS 时，普通 Node 启动不会自动上传公开配置。只有后台明确保存配置或提交识别批次才会更新 COS 上的 `config/site-config.js`，避免从缺少 `server/data/site-config.json` 的目录启动时把默认占位配置覆盖到公网。
+
 ## 公网分享与一键启动
 
 前台 H5 默认只在本机/局域网可见。需要把资讯链接（如 `#news/1`）分享到微信群时，用 Cloudflare 快速隧道生成临时公网链接，无需公网 IP、免账号：
