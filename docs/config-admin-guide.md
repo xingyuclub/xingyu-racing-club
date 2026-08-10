@@ -123,6 +123,8 @@ Ollama 必须保持运行，修改 `.env` 后需要重启 `npm run dev:api`。�
 
 配置了 COS 时，普通 Node 启动不会自动上传公开配置。只有后台明确保存配置或提交识别批次才会更新 COS 上的 `config/site-config.js`，避免从缺少 `server/data/site-config.json` 的目录启动时把默认占位配置覆盖到公网。
 
+`createApp()` 作为测试和程序化调用入口，默认不会从 `.env` 自动连接 COS；只有执行 `node server/index.js`、`npm run dev:api` 或 `npm run start` 时，服务端 CLI 才会显式注入真实 COS。测试如需验证发布行为，必须传入内存中的假 `mediaStorage`，不得把本机生产 COS 凭据传给测试实例，否则测试配置可能覆盖公网配置。
+
 ## 公网分享与一键启动
 
 前台 H5 默认只在本机/局域网可见。需要把资讯链接（如 `#news/1`）分享到微信群时，用 Cloudflare 快速隧道生成临时公网链接，无需公网 IP、免账号：

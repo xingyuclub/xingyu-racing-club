@@ -87,7 +87,7 @@ export async function createApp(options = {}) {
   const dev = Boolean(options.dev);
   const mediaStorage = Object.prototype.hasOwnProperty.call(options, 'mediaStorage')
     ? options.mediaStorage
-    : createCosStorageFromEnv();
+    : null;
   const imageProcessor = options.imageProcessor ?? createImageVariants;
   const videoProcessor = options.videoProcessor ?? createVideoVariants;
 
@@ -526,7 +526,10 @@ export async function createApp(options = {}) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === currentFilePath) {
-  const app = await createApp({ dev: process.argv.includes('--dev') });
+  const app = await createApp({
+    dev: process.argv.includes('--dev'),
+    mediaStorage: createCosStorageFromEnv(),
+  });
   const port = Number.parseInt(process.env.PORT ?? '3000', 10);
   const host = process.env.HOST || '127.0.0.1';
 

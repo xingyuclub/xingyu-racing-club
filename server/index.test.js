@@ -360,6 +360,23 @@ describe('config admin API', () => {
     expect(calls).toEqual([]);
   });
 
+  it('does not auto-connect programmatic app instances to the production media store', async () => {
+    const fixture = await createFixture();
+    tempRoots.push(fixture.rootDir);
+
+    const isolatedApp = await createApp({
+      rootDir: fixture.rootDir,
+      dataDir: fixture.dataDir,
+      uploadDir: fixture.uploadDir,
+      credentialsPath: fixture.credentialsPath,
+      distDir: fixture.distDir,
+      dev: true,
+    });
+
+    expect(isolatedApp.locals.mediaStorage).toBeNull();
+    expect(isolatedApp.locals.publishPublicConfig).toBeNull();
+  });
+
   it('publishes public config on startup only when explicitly enabled', async () => {
     const calls = [];
     const mediaStorage = {

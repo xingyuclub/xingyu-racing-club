@@ -320,3 +320,11 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 周末积分基线继承改为记录最近一个有积分值的周末：如果上一周只有周六记录、周日缺行，下一周六仍会继承该周六积分并将上周积分锁定为只读；周日存在有效积分时仍以周日为最新基线。
 - 定向验证：`server/index.test.js` 43 项、`RichTextEditor.test.jsx` 6 项、`scoreLedger.test.js` 与 `WeekendScoreEditor.test.jsx` 合计 23 项全部通过。最终 `npm test -- --run` 通过 31 个测试文件、516 项测试；`npm run build` 通过，ExcelJS 仍为独立动态代码块。
 - 本轮未使用或读取本地管理员凭据，因此没有执行登录后的桌面/移动端人工视觉复验；周末月历的交互与数据行为由 12 项组件测试覆盖。旧 `.worktrees/config-admin/agent.md` 仍是 2026-07-28 的用户遗留未提交草稿，内容已经过时，按既有约定保持原样且不得覆盖当前 `AGENTS.md`。
+
+## 2026-08-10 公网媒体反复回退占位数据根因修复交接
+
+- 公网刷新后媒体再次消失并显示“成员 01”等占位数据，根因不是 COS 媒体失效，也不是 GitHub Pages 缓存：`server/index.test.js` 的截图识别测试通过程序化 `createApp()` 创建应用时漏传 `mediaStorage`，而 `createApp()` 会从本机 `.env` 自动连接真实 COS；测试提交种子配置后触发公开配置发布，恰好在全量测试时间把生产 `config/site-config.js` 覆盖成测试数据。这解释了为何问题多次在运行测试后复发。
+- `server/index.js` 已调整依赖边界：程序化 `createApp()` 默认 `mediaStorage = null`，不会读取或写入真实 COS；只有直接执行 `node server/index.js` 的 CLI 入口才显式调用 `createCosStorageFromEnv()` 注入生产媒体存储。后台保存配置、媒体上传和识别提交在正常 Node 启动方式下保持原功能。
+- 新增回归测试确认未显式传入媒体存储的程序化应用实例，其 `app.locals.mediaStorage` 与 `publishPublicConfig` 均为 `null`；需要验证发布的既有测试继续使用内存假存储。该测试修复前能稳定读到真实 COS 对象并失败，修复后通过。
+- 已用本机正确的 `server/data/site-config.json` 重新发布生产配置；回读为 12 名阵容成员、45 名积分人物、5 个相册、2 条新闻，占位成员计数为 0，ETag 为 `99c8a0e2d6302e6597ad5d426240471b`。完整运行 `server/index.test.js` 44 项及全量 31 个测试文件、517 项测试后，远程 ETag 和最后修改时间均未变化，证明测试不再污染生产。
+- `npm run build` 通过；临时用真实 CLI 在 `127.0.0.1:3002` 启动并读取 `/api/config` 返回 200，启动前后远程 ETag 不变。公网 GitHub Pages 连续刷新后恢复真实 `ˣʸ༩·Q3` 等成员和 COS 媒体，页面观测到 124 张 COS 图片成功加载、0 张失败、占位成员计数为 0，浏览器控制台无页面错误或警告。

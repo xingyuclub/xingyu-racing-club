@@ -57,6 +57,8 @@ http://127.0.0.1:3000/admin
 
 Node 启动本身不会发布公开配置。如果公网突然全部显示占位素材，先确认本机 `server/data/site-config.json` 是正确版本，然后在本机后台点击“保存全部配置”重新发布。发布后回读 COS 上的 `config/site-config.js`，确认成员、相册、新闻数量及媒体 URL 与本机一致，再刷新 GitHub Pages。
 
+测试隔离规则：程序化调用 `createApp()` 默认不连接真实 COS，只有 `node server/index.js` 的 CLI 入口会显式注入 COS。新增服务端测试时不得直接使用本机 `.env` 中的生产媒体存储；发布行为必须注入假 `mediaStorage`。如果 COS 配置的最后修改时间恰好与 `npm test` 一致，并且内容变成“成员 01”等种子数据，应立即检查是否有测试绕过了这条隔离边界。
+
 ## 后续更新
 
 - 修改网站代码：提交并推送到 `main`，GitHub Actions 会重新部署。
