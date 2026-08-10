@@ -39,7 +39,7 @@ export function projectScores({ dailyScores = [], weekendScores = [], roster = [
   let activeWeek = null;
   let weekTotals = new Map();
   let saturdayPoints = new Map();
-  const previousSundayPoints = new Map();
+  const previousWeekendPoints = new Map();
   let weekMembers = new Set();
 
   for (const event of events) {
@@ -65,9 +65,9 @@ export function projectScores({ dailyScores = [], weekendScores = [], roster = [
       const weekendDay = isWeekend ? formatWeekday(event.date) : null;
       const isSaturday = weekendDay === '周六';
       const isSunday = weekendDay === '周日';
-      const inheritedBaseline = isSaturday && previousSundayPoints.has(memberId);
+      const inheritedBaseline = isSaturday && previousWeekendPoints.has(memberId);
       const previousPoints = isSaturday
-        ? (inheritedBaseline ? previousSundayPoints.get(memberId) : numericValue(row.previousPoints))
+        ? (inheritedBaseline ? previousWeekendPoints.get(memberId) : numericValue(row.previousPoints))
         : numericValue(row.previousPoints);
       const weekendBaseline = isSaturday
         ? previousPoints
@@ -83,7 +83,7 @@ export function projectScores({ dailyScores = [], weekendScores = [], roster = [
       weekTotals.set(memberId, weekTotal);
       totals.set(memberId, total);
       if (isSaturday && points != null) saturdayPoints.set(memberId, points);
-      if (isSunday && points != null) previousSundayPoints.set(memberId, points);
+      if (isWeekend && points != null) previousWeekendPoints.set(memberId, points);
       return [{
         id: row.id,
         teamRace,

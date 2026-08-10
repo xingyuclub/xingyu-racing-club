@@ -25,18 +25,39 @@ function StatefulEditor({ initial }) {
   return <WeekendScoreEditor config={config} onChange={setConfig} />;
 }
 
-it('renders a fixed Saturday and Sunday table with every score member', () => {
+const getCurrentSaturday = () => {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(monday.getDate() + diff);
+  monday.setDate(monday.getDate() + 5);
+  return monday.toISOString().slice(0, 10);
+};
+
+it('renders the selected Saturday table with every score member', () => {
   render(<WeekendScoreEditor config={baseConfig} onChange={vi.fn()} />);
 
   expect(screen.getByText(/周六（/)).toBeInTheDocument();
-  expect(screen.getByText(/周日（/)).toBeInTheDocument();
-  expect(screen.getAllByText('青山')).toHaveLength(2);
-  expect(screen.getAllByText(/喵酱/)).toHaveLength(2);
+  expect(screen.getAllByText('青山')).toHaveLength(1);
+  expect(screen.getAllByText(/喵酱/)).toHaveLength(1);
   expect(screen.getByLabelText('周六 青山 积分')).toBeInTheDocument();
   expect(screen.getByLabelText('周六 青山 上周积分')).toBeInTheDocument();
+  expect(screen.getAllByText('Excel历史人物')).toHaveLength(1);
+});
+
+it('disables weekdays and switches the table when a Sunday is selected', async () => {
+  render(<WeekendScoreEditor config={baseConfig} onChange={vi.fn()} />);
+
+  const calendar = screen.getByRole('grid', { name: '周末日期' });
+  expect(within(calendar).getAllByRole('button', { disabled: true }).length).toBeGreaterThanOrEqual(5);
+
+  const sundayButton = within(calendar).getAllByRole('button').find((button) => button.getAttribute('aria-label')?.includes('周日'));
+  expect(sundayButton).toBeEnabled();
+  await userEvent.click(sundayButton);
+
+  expect(screen.getByText(/周日（/)).toBeInTheDocument();
   expect(screen.queryByLabelText('周日 青山 上周积分')).not.toBeInTheDocument();
-  expect(screen.getByLabelText('周日 喵酱 总分')).toBeInTheDocument();
-  expect(screen.getAllByText('Excel历史人物')).toHaveLength(2);
 });
 
 it('writes the edited value into the matching weekendScores row', async () => {
@@ -92,6 +113,27 @@ it('locks an inherited Saturday baseline and derives the weekly total', () => {
   }
 });
 
+it('inherits the previous weekend points when the next Saturday has no saved row yet', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-08-10T12:00:00'));
+  const config = {
+    ...baseConfig,
+    weekendScores: [
+      { date: '2026-08-08', rows: [{ id: '1', previousPoints: 90, points: 112 }] },
+    ],
+  };
+
+  try {
+    render(<WeekendScoreEditor config={config} onChange={vi.fn()} />);
+
+    expect(screen.getByText('周六（2026-08-15）')).toBeInTheDocument();
+    expect(screen.getByLabelText('周六 青山 上周积分')).toHaveValue(112);
+    expect(screen.getByLabelText('周六 青山 上周积分')).toHaveAttribute('readonly');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it('sorts each weekend numeric column from large to small', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-08-08T12:00:00'));
@@ -112,12 +154,8 @@ it('sorts each weekend numeric column from large to small', async () => {
   try {
     render(<WeekendScoreEditor config={config} onChange={vi.fn()} />);
     const saturday = screen.getByText('周六（2026-08-08）').closest('.weekend-score-day');
-    const sunday = screen.getByText('周日（2026-08-09）').closest('.weekend-score-day');
     for (const field of ['上周积分', '积分', '得分', '总分']) {
       expect(within(saturday).getByRole('button', { name: `按周六${field}从大到小排序` })).toBeInTheDocument();
-    }
-    for (const field of ['积分', '得分', '总分']) {
-      expect(within(sunday).getByRole('button', { name: `按周日${field}从大到小排序` })).toBeInTheDocument();
     }
 
     fireEvent.click(within(saturday).getByRole('button', { name: '按周六得分从大到小排序' }));
@@ -135,21 +173,13 @@ it('uses local calendar dates before 08:00 instead of shifting them to UTC', () 
     render(<WeekendScoreEditor config={baseConfig} onChange={vi.fn()} />);
 
     expect(screen.getByText('周六（2026-08-08）')).toBeInTheDocument();
-    expect(screen.getByText('周日（2026-08-09）')).toBeInTheDocument();
   } finally {
     vi.useRealTimers();
   }
 });
 
 it('loads existing weekendScores values into the inputs', () => {
-  const now = new Date();
-  const day = now.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const monday = new Date(now);
-  monday.setDate(monday.getDate() + diff);
-  const sat = new Date(monday);
-  sat.setDate(sat.getDate() + 5);
-  const saturday = sat.toISOString().slice(0, 10);
+  const saturday = getCurrentSaturday();
 
   const config = {
     ...baseConfig,
@@ -160,6 +190,26 @@ it('loads existing weekendScores values into the inputs', () => {
 
   expect(screen.getByLabelText('周六 青山 积分')).toHaveValue(100);
   expect(screen.getByLabelText('周六 青山 上周积分')).toHaveValue(90);
+});
+
+it('opens an older weekend date from a previous calendar month with its existing values', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-08-10T12:00:00'));
+  const config = {
+    ...baseConfig,
+    weekendScores: [{ date: '2026-07-26', rows: [{ id: '1', points: 88 }] }],
+  };
+
+  try {
+    render(<WeekendScoreEditor config={config} onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: '上个月' }));
+    fireEvent.click(screen.getByRole('button', { name: '2026-07-26 周日' }));
+
+    expect(screen.getByText('周日（2026-07-26）')).toBeInTheDocument();
+    expect(screen.getByLabelText('周日 青山 积分')).toHaveValue(88);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it('keeps roster-only members out of the weekend score table', () => {
@@ -188,5 +238,5 @@ it('reflects score member changes from the score member manager immediately', as
 
   expect(screen.queryByText('泉舒')).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: '新增积分队员' }));
-  expect(screen.getAllByText('泉舒')).toHaveLength(2);
+  expect(screen.getAllByText('泉舒')).toHaveLength(1);
 });

@@ -129,6 +129,22 @@ describe('projectScores', () => {
     });
   });
 
+  it('carries Saturday points into next Saturday when the previous Sunday has no entry', () => {
+    const { dailyDetail } = projectScores({
+      roster: [{ id: '1' }],
+      weekendScores: [
+        { date: '2026-08-08', rows: [{ id: '1', previousPoints: 90, points: 112 }] },
+        { date: '2026-08-15', rows: [{ id: '1', points: 120 }] },
+      ],
+    });
+
+    expect(dailyDetail.find(({ date }) => date === '2026-08-15').rows[0]).toMatchObject({
+      previousPoints: 112,
+      previousPointsInherited: true,
+      score: 8,
+    });
+  });
+
   it('falls back to imported weekend score and total when formula inputs are incomplete', () => {
     const { dailyDetail } = projectScores({
       roster: [{ id: '1' }],
