@@ -23,15 +23,6 @@ import {
 } from 'lucide-react';
 import { uploadFile } from './adminApi.js';
 
-const ProjectImage = Image.extend({
-  parseHTML() {
-    return [
-      { tag: 'img[src^="/uploads/"]' },
-      { tag: 'img[src^="/images/"]' },
-    ];
-  },
-});
-
 const escapeHtml = (value) => String(value)
   .replaceAll('&', '&amp;')
   .replaceAll('<', '&lt;')
@@ -83,7 +74,7 @@ export function RichTextEditor({ html, text, onChange, onUploaded }) {
       Underline,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Link.configure({ openOnClick: false, autolink: true, defaultProtocol: 'https' }),
-      ProjectImage.configure({ allowBase64: false }),
+      Image.configure({ allowBase64: false }),
     ],
     content: createContent(html, text),
     editorProps: {

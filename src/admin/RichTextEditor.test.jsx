@@ -87,6 +87,30 @@ describe('RichTextEditor', () => {
     ));
   });
 
+  it('keeps a saved CDN image when the article is reopened and edited', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const imageUrl = 'https://media.example.test/variants/news--display.webp';
+    render(
+      <RichTextEditor
+        html={`<p>已有正文</p><img src="${imageUrl}" alt="规则图">`}
+        text="已有正文"
+        onChange={onChange}
+      />,
+    );
+
+    expect(screen.getByRole('img', { name: '规则图' })).toHaveAttribute('src', imageUrl);
+
+    const editor = screen.getByRole('textbox', { name: '新闻正文' });
+    await user.click(editor);
+    await user.type(editor, '补充');
+
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(
+      expect.stringContaining(imageUrl),
+      expect.stringContaining('补充'),
+    ));
+  });
+
   it('keeps article content when an image upload fails', async () => {
     const user = userEvent.setup();
     uploadFile.mockRejectedValueOnce(new Error('上传失败'));
