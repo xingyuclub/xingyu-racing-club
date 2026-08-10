@@ -1646,7 +1646,7 @@ button:focus-visible {
   display: block;
 }
 
-.album-photo span {
+.album-photo-copy {
   position: absolute;
   right: 0;
   bottom: 0;
@@ -1659,7 +1659,7 @@ button:focus-visible {
   background: linear-gradient(0deg, rgba(10, 37, 85, 0.82), rgba(10, 37, 85, 0.08));
 }
 
-.album-photo span small {
+.album-photo-copy small {
   color: rgba(255, 255, 255, 0.78);
   font-size: 0.66rem;
 }
@@ -1930,20 +1930,18 @@ button:focus-visible {
 
 .photo-video-badge {
   position: absolute;
-  top: 12px;
-  right: auto;
+  top: 10px;
+  right: 10px;
   bottom: auto;
-  left: 12px;
+  left: auto;
   z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  flex-direction: row;
-  gap: 4px;
-  padding: 5px 8px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
   color: #ffffff;
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  border-radius: 50%;
   background: rgba(10, 37, 85, 0.8);
 }
 

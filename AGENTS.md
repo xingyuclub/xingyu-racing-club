@@ -296,3 +296,11 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 最终验证：`npm test -- --run` 通过 31 个测试文件、509 项测试；`npm run build` 通过；浏览器在 `390×844` 和 `1280×800` 下确认摘要节点为 0、正文默认可见、页面级横向溢出为 0、控制台无警告或错误。
 - 公网仍通过 `main` 分支的 `.github/workflows/deploy-pages.yml` 发布到 `https://xingyuclub.github.io/xingyu-racing-club/`，媒体和公开配置脚本继续由 COS/CDN 提供。
 - 本轮发布只提交上述公开前端、测试和交接文件；工作区中原有的 `server/index.js`、`server/index.test.js` 未提交改动保持原样，不纳入本次 GitHub Pages 发布提交。
+
+## 2026-08-10 相册视频标识交接
+
+- 相册页和首页精选照片中的视频标识已从“视频”文字改为右上角播放图标，使用 `PlayCircle`，固定为 `30×30px` 圆形按钮视觉，不再参与底部标题蒙版布局。
+- `AlbumPage` 的标题信息改用独立 `.album-photo-copy` 类，避免通用 `span` 规则把视频标识误套成整宽底部渐变蒙版；视频卡片与普通照片卡片的底部蒙版高度保持一致。
+- 回归测试覆盖首页精选视频和相册文件夹视频：标识不再渲染“视频”文字、包含播放 SVG，并校验右上角定位和固定尺寸；移动端浏览器确认图标位于右上角、三张卡片标题蒙版同高、页面级横向溢出为 0。
+- 最终验证：`npm test -- --run` 通过 31 个测试文件、509 项测试；`npm run build` 通过；浏览器控制台无错误或警告。
+- 本次公网发布只包含 `src/components/AlbumPage.jsx`、`src/components/GalleryPreview.jsx`、`src/styles/global.css`、对应测试和本交接文档；工作区原有的 `server/index.js`、`server/index.test.js`、`src/admin/RichTextEditor.jsx`、`src/admin/RichTextEditor.test.jsx` 未提交改动保持原样。

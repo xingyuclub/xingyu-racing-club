@@ -26,8 +26,7 @@ export function GalleryPreview({ photos, onOpenPhoto, onOpenAlbum }) {
                 {(photo.cardSrc || photo.src) && <img src={photo.cardSrc || photo.src} alt="" loading="lazy" />}
                 {isVideo && (
                   <span className="photo-video-badge" aria-hidden="true">
-                    <PlayCircle size={14} />
-                    视频
+                    <PlayCircle size={16} />
                   </span>
                 )}
                 <span className="photo-card-copy">

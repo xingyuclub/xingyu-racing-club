@@ -856,7 +856,11 @@ describe('App', () => {
     expect(screen.getAllByTestId('featured-photo')).toHaveLength(5);
     expect(screen.getAllByTestId('featured-photo')[0].querySelector('img')).not.toHaveClass('photo-card-image--contain');
     expect(globalStyles).toMatch(/\.photo-card img\s*\{[^}]*object-fit:\s*cover;/s);
-    expect(screen.getByRole('button', { name: '查看视频车队记录 02' })).toBeInTheDocument();
+    const featuredVideo = screen.getByRole('button', { name: '查看视频车队记录 02' });
+    const featuredVideoBadge = featuredVideo.querySelector('.photo-video-badge');
+    expect(featuredVideoBadge).toBeInTheDocument();
+    expect(featuredVideoBadge).not.toHaveTextContent('视频');
+    expect(featuredVideoBadge.querySelector('svg')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '查看更多相册' }));
 
     expect(window.location.hash).toBe('#album');
@@ -866,6 +870,14 @@ describe('App', () => {
     await user.click(screen.getAllByTestId('album-folder')[0]);
     expect(screen.getAllByTestId('album-photo')).toHaveLength(teamData.albums[0].photos.length);
     expect(screen.getAllByTestId('album-photo')[0].querySelector('img')).not.toHaveClass('photo-card-image--contain');
+    const albumVideo = screen.getByRole('button', { name: '查看视频车队记录 02' });
+    const albumVideoBadge = albumVideo.querySelector('.photo-video-badge');
+    expect(albumVideoBadge).toBeInTheDocument();
+    expect(albumVideoBadge).not.toHaveTextContent('视频');
+    expect(albumVideoBadge.querySelector('svg')).toBeInTheDocument();
+    expect(globalStyles).toMatch(
+      /\.photo-video-badge\s*\{[^}]*top:\s*10px;[^}]*right:\s*10px;[^}]*bottom:\s*auto;[^}]*left:\s*auto;[^}]*width:\s*30px;[^}]*height:\s*30px;/s,
+    );
   });
 
   it('uses lightweight album variants for cards and keeps originals out of card requests', () => {

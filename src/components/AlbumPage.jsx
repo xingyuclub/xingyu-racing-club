@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, LockKeyhole, X } from 'lucide-react';
+import { ArrowLeft, LockKeyhole, PlayCircle, X } from 'lucide-react';
 import { useRevealOnScroll } from '../hooks/useRevealOnScroll.js';
 
 function AlbumPasswordDialog({ album, onCancel, onUnlock }) {
@@ -129,10 +129,10 @@ export function AlbumPage({ albums, onBack, onOpenPhoto }) {
                       {(photo.thumbSrc || photo.src) && <img src={photo.thumbSrc || photo.src} alt="" loading="lazy" />}
                       {isVideo && (
                         <span className="photo-video-badge" aria-hidden="true">
-                          视频
+                          <PlayCircle size={16} />
                         </span>
                       )}
-                      <span>
+                      <span className="album-photo-copy">
                         <strong>{photo.title}</strong>
                         <small>{photo.date}</small>
                       </span>
