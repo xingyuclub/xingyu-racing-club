@@ -519,6 +519,19 @@ describe('config admin API', () => {
     await agent.delete('/api/admin/uploads/..%5Csecret.txt').expect(400);
   });
 
+  it('serves local uploads with a long-lived immutable cache policy', async () => {
+    const fixture = await createFixture();
+    tempRoots.push(fixture.rootDir);
+    await writeFile(join(fixture.uploadDir, 'cache-test.mp4'), Buffer.from('video'));
+
+    const response = await request(fixture.app)
+      .get('/uploads/cache-test.mp4')
+      .expect(200);
+
+    expect(response.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+    expect(response.headers['accept-ranges']).toBe('bytes');
+  });
+
   it('fails startup with an actionable missing credential error that names admin.example.json', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'config-admin-api-'));
     tempRoots.push(rootDir);

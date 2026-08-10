@@ -245,7 +245,10 @@ export async function createApp(options = {}) {
   app.locals.publishPublicConfig = publishPublicConfig;
 
   app.use(express.json({ limit: '5mb' }));
-  app.use('/uploads', express.static(uploadDir));
+  app.use('/uploads', express.static(uploadDir, {
+    maxAge: '1y',
+    immutable: true,
+  }));
   app.use('/uploads', (_request, response) => {
     response.sendStatus(404);
   });
