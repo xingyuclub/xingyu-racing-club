@@ -250,6 +250,14 @@ export function sortNewsByDateDesc(news) {
   });
 }
 
+export function sortNewsPinnedFirstByDateDesc(news) {
+  const list = Array.isArray(news) ? news : [];
+  return [
+    ...sortNewsByDateDesc(list.filter((item) => item.pinned)),
+    ...sortNewsByDateDesc(list.filter((item) => !item.pinned)),
+  ];
+}
+
 export function getHomeNews(news, { pinnedLimit = 5, fallbackLimit = 3 } = {}) {
   const list = Array.isArray(news) ? news : [];
   const pinned = list.filter((item) => item.pinned).slice(0, pinnedLimit);

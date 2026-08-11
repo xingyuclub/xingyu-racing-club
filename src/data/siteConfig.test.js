@@ -6,6 +6,7 @@ import {
   migrateRawConfig,
   parseNewsDate,
   renumberScoreMemberIds,
+  sortNewsPinnedFirstByDateDesc,
 } from './siteConfig.js';
 import { teamData } from './teamData.js';
 
@@ -564,6 +565,22 @@ describe('news pinning and categories', () => {
     ];
 
     expect(getHomeNews(news).map((item) => item.id)).toEqual(['b', 'd', 'c']);
+  });
+
+  it('sorts pinned news before newer unpinned news on the news page', () => {
+    const news = [
+      { ...teamData.news[0], id: 'latest', date: '2026-08-10', pinned: false },
+      { ...teamData.news[1], id: 'pinned-old', date: '2026-07-01', pinned: true },
+      { ...teamData.news[2], id: 'pinned-new', date: '2026-08-01', pinned: true },
+      { ...teamData.news[0], id: 'older', date: '2026-07-20', pinned: false },
+    ];
+
+    expect(sortNewsPinnedFirstByDateDesc(news).map((item) => item.id)).toEqual([
+      'pinned-new',
+      'pinned-old',
+      'latest',
+      'older',
+    ]);
   });
 
   it('parses dot, dash, and slash style news dates', () => {

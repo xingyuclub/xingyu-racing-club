@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useRevealOnScroll } from '../hooks/useRevealOnScroll.js';
-import { sortNewsByDateDesc } from '../data/siteConfig.js';
+import { sortNewsPinnedFirstByDateDesc } from '../data/siteConfig.js';
 
 export function NewsPage({ news, categories, onBack, onOpenItem }) {
   const [activeTab, setActiveTab] = useState('全部');
@@ -11,7 +11,7 @@ export function NewsPage({ news, categories, onBack, onOpenItem }) {
   const visible = activeTab === '全部'
     ? list
     : list.filter((item) => item.category === activeTab);
-  const sorted = sortNewsByDateDesc(visible);
+  const sorted = sortNewsPinnedFirstByDateDesc(visible);
 
   return (
     <section className="album-page news-page" aria-labelledby="news-page-title">

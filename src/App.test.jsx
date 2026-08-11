@@ -1839,9 +1839,9 @@ describe('App', () => {
       ...teamData,
       music: { src: '/audio/launch-now.mp3', cover: '/images/music-avatar.png' },
       news: [
-        { ...teamData.news[0], id: 'n1', title: '公告新闻', category: '公告', pinned: false },
-        { ...teamData.news[1], id: 'n2', title: '活动新闻', category: '活动', pinned: false },
-        { ...teamData.news[2], id: 'n3', title: '其他新闻', category: '动态', pinned: false },
+        { ...teamData.news[0], id: 'n1', title: '公告新闻', category: '公告', date: '2026-07-01', pinned: true },
+        { ...teamData.news[1], id: 'n2', title: '活动新闻', category: '活动', date: '2026-08-01', pinned: false },
+        { ...teamData.news[2], id: 'n3', title: '其他新闻', category: '动态', date: '2026-07-20', pinned: false },
       ],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => config }));
@@ -1854,6 +1854,11 @@ describe('App', () => {
     expect(screen.getByRole('tab', { name: '公告' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '活动' })).toBeInTheDocument();
     expect(screen.getAllByTestId('news-image')).toHaveLength(3);
+    expect(screen.getAllByRole('link', { name: /查看资讯/ }).map((link) => link.getAttribute('aria-label'))).toEqual([
+      '查看资讯 公告新闻',
+      '查看资讯 活动新闻',
+      '查看资讯 其他新闻',
+    ]);
 
     await user.click(screen.getByRole('tab', { name: '活动' }));
     expect(screen.getAllByTestId('news-image')).toHaveLength(1);
