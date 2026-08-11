@@ -520,6 +520,7 @@ h2 {
   text-align: center;
   color: var(--signal);
   font-weight: 700;
+  text-decoration: none;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #ffffff;
@@ -532,6 +533,86 @@ h2 {
 .leaderboard-more:hover {
   border-color: var(--signal);
   background: #f4f9ff;
+}
+
+.leaderboard-shell {
+  min-height: 100vh;
+  padding: 24px 0 72px;
+}
+
+.leaderboard-page {
+  width: min(calc(100% - 32px), 760px);
+  margin: 0 auto;
+}
+
+.leaderboard-page-header {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.leaderboard-page-actions {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.leaderboard-page-actions .text-action {
+  margin: 0;
+}
+
+.leaderboard-page-search {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  color: #ffffff;
+  font-weight: 700;
+  border: 0;
+  border-radius: 8px;
+  background: var(--signal-strong);
+  cursor: pointer;
+  transition: background-color 180ms ease;
+}
+
+.leaderboard-page-search:hover {
+  background: var(--signal);
+}
+
+.leaderboard-page-header h1 {
+  margin: 6px 0;
+  font-size: clamp(2rem, 8vw, 3rem);
+  line-height: 1.1;
+}
+
+.leaderboard-page-board {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--panel-shadow);
+}
+
+.leaderboard-page-board .leaderboard-frame {
+  margin: 0;
+}
+
+.leaderboard-page-board .leader-row:last-child {
+  border-bottom: 0;
+}
+
+@media (min-width: 700px) {
+  .leaderboard-shell {
+    padding-top: 40px;
+  }
+
+  .leaderboard-page {
+    width: min(calc(100% - 64px), 760px);
+  }
 }
 
 .leader-row {

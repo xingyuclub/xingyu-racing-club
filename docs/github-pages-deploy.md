@@ -65,6 +65,16 @@ Node 启动本身不会发布公开配置。如果公网突然全部显示占位
 - 修改网站内容：在本机后台保存即可，不需要重新部署 GitHub Pages。
 - 不要把 `.env`、`server/config/admin.local.json` 或任何 SecretId/SecretKey 提交到 GitHub。
 
+## 积分榜直达链接
+
+完整积分榜使用独立的公开前台路由：
+
+```text
+https://xingyuclub.github.io/xingyu-racing-club/#leaderboard
+```
+
+首页的“查看完整榜单”会进入该地址。直接打开时只渲染完整积分榜和日期积分查询入口，不渲染首页视频、成员、相册、资讯或音乐浮窗，适合复制后单独分享。积分榜数据仍来自 COS 上的公开配置脚本；后台保存积分配置后，刷新直达页即可看到最新数据，不需要重新部署 GitHub Pages。
+
 ## 绑定域名
 
 先确认 GitHub Pages 免费地址正常，再在 Pages 设置中添加子域名，并在域名 DNS 中添加 GitHub 要求的 CNAME 记录。绑定域名后，工作流里的 `VITE_BASE_PATH` 需要改为 `/`。

@@ -336,3 +336,11 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - `siteConfig` 与积分详情日期读取移除 `Object.hasOwn`、`Array.prototype.at`，改用旧浏览器可用写法；新增兼容性回归测试。
 - 验证结果：`npm test -- --run` 通过 31 个测试文件、520 项测试；`npm run build` 通过；`git diff --check` 通过；浏览器 390×844、1280×800 均确认页面级横向溢出为 0，移动端视频弹窗可见“横屏播放”按钮，昵称遮罩已渲染。IAB 环境仅有 Motion 减少动态效果提示，无应用错误；iOS/微信媒体 API 调用由单测覆盖。
 - 本轮改动随 `main` 分支提交并发布到 GitHub Pages：`https://xingyuclub.github.io/xingyu-racing-club/`。服务端配置、媒体和后台文件未纳入本次公网前端发布。
+
+## 2026-08-11 积分榜独立分享页交接
+
+- 完整积分榜已从首页原地展开改为独立 hash 二级页面 `#leaderboard`；正式分享地址为 `https://xingyuclub.github.io/xingyu-racing-club/#leaderboard`。首页继续只展示前 10 名，“查看完整榜单”改为真实链接，支持浏览器长按、复制链接和直接分享。
+- 直接打开积分榜页时只渲染完整榜单、截至日期、“按日期查找”和“返回首页”，不渲染 Hero、成员、资讯、相册或音乐浮窗。真实运行时验收中页面包含 46 条排名，图片、视频、音频 DOM 数量均为 0，避免加载首页媒体流量。
+- `src/components/Leaderboard.jsx` 抽出复用的 `LeaderboardList`；新增 `src/components/LeaderboardPage.jsx`；`src/App.jsx` 增加 `leaderboard` 路由。日期查询继续复用原 `ScoreDetailsModal` 和公开配置数据，不新增后台字段或独立数据源。
+- 回归测试覆盖：首页链接指向 `#leaderboard`、站内进入显示完整榜单、分享直链不加载首页、返回首页恢复首页。最终 `npm test -- --run` 通过 31 个测试文件、521 项测试，`npm run build` 通过；浏览器在 `390x844`、`1280x800` 下页面级横向溢出为 0，日期查询弹窗可打开，控制台无警告或错误。
+- 公网发布仍只需推送 `main`，由 `.github/workflows/deploy-pages.yml` 使用 `VITE_PUBLIC_ONLY=true`、仓库子路径和 COS 公开配置脚本完成。后续积分数据变化只需在本机后台保存并刷新直达页，不需要为数据更新重新构建前端。

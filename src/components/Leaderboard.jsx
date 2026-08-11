@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { resolvePublicAssetPath } from '../utils/publicAsset.js';
 
 const formatDate = (dateKey) => {
@@ -7,9 +6,34 @@ const formatDate = (dateKey) => {
   return `${year}年${month}月${day}日`;
 };
 
-export function Leaderboard({ rows, onOpenDetails, scoreDate }) {
-  const [showAll, setShowAll] = useState(false);
-  const visibleRows = showAll ? rows : rows.slice(0, 10);
+export function LeaderboardList({ rows }) {
+  return (
+    <div className="leaderboard-frame">
+      <div className="leaderboard">
+        {rows.map((row, index) => (
+          <article
+            className={`leader-row${index < 3 ? ' is-podium' : ''}`}
+            key={row.id}
+            style={{ '--stagger-index': index }}
+          >
+            <span className="rank">{String(index + 1).padStart(2, '0')}</span>
+            <span className="leader-identity">
+              <small>DRIVER</small>
+              <strong>{row.name}</strong>
+            </span>
+            <span className="leader-score">
+              <strong>{row.points}</strong>
+              <small>分</small>
+            </span>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function Leaderboard({ rows, onOpenDetails, onOpenFull, scoreDate }) {
+  const visibleRows = rows.slice(0, 10);
   return (
     <section className="section-block" aria-labelledby="leaderboard-title" data-reveal>
       <div className="section-heading section-heading--action-right">
@@ -28,31 +52,19 @@ export function Leaderboard({ rows, onOpenDetails, scoreDate }) {
           查找
         </button>
       </div>
-      <div className="leaderboard-frame">
-        <div className="leaderboard">
-          {visibleRows.map((row, index) => (
-            <article
-              className={`leader-row${index < 3 ? ' is-podium' : ''}`}
-              key={row.id}
-              style={{ '--stagger-index': index }}
-            >
-              <span className="rank">{String(index + 1).padStart(2, '0')}</span>
-              <span className="leader-identity">
-                <small>DRIVER</small>
-                <strong>{row.name}</strong>
-              </span>
-              <span className="leader-score">
-                <strong>{row.points}</strong>
-                <small>分</small>
-              </span>
-            </article>
-          ))}
-        </div>
-      </div>
-      {rows.length > 10 && !showAll && (
-        <button className="leaderboard-more" type="button" onClick={() => setShowAll(true)}>
+      <LeaderboardList rows={visibleRows} />
+      {rows.length > 10 && (
+        <a
+          className="leaderboard-more"
+          href="#leaderboard"
+          onClick={(event) => {
+            if (!onOpenFull) return;
+            event.preventDefault();
+            onOpenFull();
+          }}
+        >
           查看完整榜单
-        </button>
+        </a>
       )}
     </section>
   );

@@ -5,6 +5,7 @@ import { StatsBar } from './components/StatsBar.jsx';
 import { FeaturedMembers } from './components/FeaturedMembers.jsx';
 import { Roster } from './components/Roster.jsx';
 import { Leaderboard } from './components/Leaderboard.jsx';
+import { LeaderboardPage } from './components/LeaderboardPage.jsx';
 import { NewsFeed } from './components/NewsFeed.jsx';
 import { NewsPage } from './components/NewsPage.jsx';
 import { NewsDetailPage } from './components/NewsDetailPage.jsx';
@@ -70,6 +71,7 @@ const parseRoute = () => {
     return id ? { name: 'news-detail', newsId: decodeURIComponent(id) } : { name: 'news' };
   }
   if (page === 'album') return { name: 'album' };
+  if (page === 'leaderboard') return { name: 'leaderboard' };
   return { name: 'home' };
 };
 
@@ -145,6 +147,10 @@ export default function App() {
     navigateToHash('album');
   };
 
+  const openLeaderboard = () => {
+    navigateToHash('leaderboard');
+  };
+
   const goBackFromNewsDetail = () => {
     if (window.history.state?.xingyuNavigationSession === navigationSessionIdRef.current) {
       window.history.back();
@@ -173,6 +179,25 @@ export default function App() {
       showActions: false,
     });
   }, [siteData.roster]);
+
+  if (route.name === 'leaderboard') {
+    return (
+      <main className="site-shell leaderboard-shell">
+        <LeaderboardPage
+          rows={siteData.leaderboard}
+          scoreDate={siteData.latestScoreDate}
+          onBack={goHome}
+          onOpenDetails={() => setShowScoreDetails(true)}
+        />
+        {showScoreDetails && (
+          <ScoreDetailsModal
+            dailyScores={siteData.dailyScores}
+            onClose={() => setShowScoreDetails(false)}
+          />
+        )}
+      </main>
+    );
+  }
 
   if (route.name === 'album') {
     return (
@@ -248,7 +273,12 @@ export default function App() {
           onOpenPhoto={openPhotoStream}
           onOpenAlbum={openAlbum}
         />
-        <Leaderboard rows={siteData.leaderboard} scoreDate={siteData.latestScoreDate} onOpenDetails={() => setShowScoreDetails(true)} />
+        <Leaderboard
+          rows={siteData.leaderboard}
+          scoreDate={siteData.latestScoreDate}
+          onOpenDetails={() => setShowScoreDetails(true)}
+          onOpenFull={openLeaderboard}
+        />
         {viewer && (
           <MediaStreamViewer
             items={viewer.items}

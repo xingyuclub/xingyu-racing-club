@@ -1543,19 +1543,42 @@ describe('App', () => {
     expect(container.querySelector('.hero-topline')).not.toBeInTheDocument();
     expect(container.querySelectorAll('.leader-row.is-podium')).toHaveLength(3);
     expect(container.querySelectorAll('.leader-row')).toHaveLength(10);
-    expect(screen.getByRole('button', { name: '查看完整榜单' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '查看完整榜单' })).toBeInTheDocument();
     expect(container.querySelector('.news-image')).toBeInTheDocument();
     expect(screen.queryAllByText(/\d+ 胜/)).toHaveLength(0);
   });
 
-  it('expands the leaderboard to every member on demand', async () => {
+  it('opens the complete leaderboard as a shareable lightweight page', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
 
-    await user.click(screen.getByRole('button', { name: '查看完整榜单' }));
+    const fullLeaderboardLink = screen.getByRole('link', { name: '查看完整榜单' });
+    expect(fullLeaderboardLink).toHaveAttribute('href', '#leaderboard');
+
+    await user.click(fullLeaderboardLink);
+
+    expect(window.location.hash).toBe('#leaderboard');
+    expect(container.querySelectorAll('.leader-row')).toHaveLength(30);
+    expect(screen.getByRole('heading', { name: '星屿积分榜', level: 1 })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '查看完整榜单' })).not.toBeInTheDocument();
+    expect(container.querySelector('.hero-module')).not.toBeInTheDocument();
+    expect(container.querySelector('.featured-section')).not.toBeInTheDocument();
+    expect(container.querySelector('audio')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '返回首页' }));
+    expect(window.location.hash).toBe('');
+    expect(container.querySelector('.hero-module')).toBeInTheDocument();
+  });
+
+  it('renders a directly opened leaderboard link without loading the homepage', () => {
+    window.location.hash = '#leaderboard';
+
+    const { container } = render(<App />);
 
     expect(container.querySelectorAll('.leader-row')).toHaveLength(30);
-    expect(screen.queryByRole('button', { name: '查看完整榜单' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '星屿积分榜', level: 1 })).toBeInTheDocument();
+    expect(container.querySelector('.hero-module')).not.toBeInTheDocument();
+    expect(container.querySelector('audio')).not.toBeInTheDocument();
   });
 
   it('uses the mobile-first site shell', () => {
