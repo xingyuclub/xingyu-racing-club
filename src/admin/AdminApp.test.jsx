@@ -25,6 +25,17 @@ it('starts every top-level admin section collapsed and expands them independentl
   expect(screen.getByRole('button', { name: '展开 新闻管理' })).toHaveAttribute('aria-expanded', 'false');
 });
 
+it('accepts audio files for the music source field', async () => {
+  const user = userEvent.setup();
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
+
+  render(<ConfigEditor initialConfig={createSeedConfig()} onAuthError={() => false} />);
+  await user.click(screen.getByRole('button', { name: '展开 基础信息' }));
+
+  expect(screen.getByLabelText('素材路径上传')).toHaveAttribute('accept', 'audio/*');
+  expect(screen.getByLabelText('封面上传')).toHaveAttribute('accept', 'image/*');
+});
+
 it('logs in, edits public content, uploads a cover, and saves the draft', async () => {
   const user = userEvent.setup();
   const config = createSeedConfig();

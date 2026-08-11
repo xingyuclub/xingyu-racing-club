@@ -344,3 +344,11 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - `src/components/Leaderboard.jsx` 抽出复用的 `LeaderboardList`；新增 `src/components/LeaderboardPage.jsx`；`src/App.jsx` 增加 `leaderboard` 路由。日期查询继续复用原 `ScoreDetailsModal` 和公开配置数据，不新增后台字段或独立数据源。
 - 回归测试覆盖：首页链接指向 `#leaderboard`、站内进入显示完整榜单、分享直链不加载首页、返回首页恢复首页。最终 `npm test -- --run` 通过 31 个测试文件、521 项测试，`npm run build` 通过；浏览器在 `390x844`、`1280x800` 下页面级横向溢出为 0，日期查询弹窗可打开，控制台无警告或错误。
 - 公网发布仍只需推送 `main`，由 `.github/workflows/deploy-pages.yml` 使用 `VITE_PUBLIC_ONLY=true`、仓库子路径和 COS 公开配置脚本完成。后续积分数据变化只需在本机后台保存并刷新直达页，不需要为数据更新重新构建前端。
+
+## 2026-08-11 音乐压缩与后台音频上传修复交接
+
+- 默认音乐 `public/audio/launch-now.mp3` 已从 320 kbps、7,213,226 字节压缩为 128 kbps、2,885,380 字节，时长保持 180.262 秒；本地未被代码引用且被 `.gitignore` 忽略的 `public/audio/full-heart-departure.flac` 已移除。
+- 后台已重新上传压缩成品并保存配置；本机 `server/data/site-config.json`、COS 音乐对象和公开 `config/site-config.js` 均已指向新文件。COS 返回 `Content-Length: 2885380`，本地 MD5 与远程 ETag 同为 `08761e00e8d82bc858a4c81b192483e2`。
+- 修复后台音乐文件选择器错误限制为图片的问题：`ConfigEditor` 现在仅对 `music.src` 使用 `allowedTypes={['audio']}`，生成 `accept="audio/*"`；相册图片 `src` 和音乐封面仍保持 `image/*`。新增回归测试覆盖音乐与封面的文件类型边界。
+- 使用与 GitHub Actions 相同的公开构建环境验证：新公开产物共 48 个文件、7,597,172 字节（7.25 MiB），其中音乐 2.75 MiB，HTML/JS/CSS 核心文件合计约 426.2 KiB；相同文件集使用旧音乐时约为 11.37 MiB。
+- 验证结果：`npm test -- --run` 通过 31 个测试文件、522 项测试；`npm run build` 和公开模式独立构建均通过；真实浏览器确认音乐上传框为 `audio/*`、封面为 `image/*`，控制台无警告或错误。公网仍由推送 `main` 后的 GitHub Pages 工作流发布，COS 运行时配置无需随前端重复提交。

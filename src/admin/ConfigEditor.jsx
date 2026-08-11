@@ -134,7 +134,11 @@ function nextMemberId(members) {
 function Field({ value, path, fieldKey, draft, setDraft, roster, refresh }) {
   const update=(next)=>setDraft((current)=>setAt(current,path,next));
   if (['heroFallbackImage','avatar','videoUrl','imageSrc','coverSrc','src','cover'].includes(fieldKey)) {
-    const allowedTypes = fieldKey === 'videoUrl' ? ['video'] : ['image'];
+    const allowedTypes = fieldKey === 'videoUrl'
+      ? ['video']
+      : fieldKey === 'src' && path[0] === 'music'
+        ? ['audio']
+        : ['image'];
     const parent = getAt(draft, path.slice(0, -1)) || {};
     const displayValue = {
       avatar: parent.avatarOriginalSrc,
