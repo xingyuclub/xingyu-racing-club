@@ -2,7 +2,7 @@
 
 当前项目根目录：`C:\Users\Admin\Documents\H5`
 
-最后更新：2026-08-09
+最后更新：2026-08-17
 
 ## 项目一句话
 这是一个基于 Vite + React 的星屿车队移动端 H5，核心是首页展示、成员阵容、积分榜、资讯、相册和音乐浮窗。
@@ -14,7 +14,7 @@
 - 积分派生与 Excel：`src/data/siteConfig.js`、`src/admin/scoreWorkbook.js`
 - 主要模块：`Hero`、`StatsBar`、`FeaturedMembers`、`GalleryPreview`、`Roster`、`Leaderboard`、`NewsFeed`、`AlbumPage`、`MusicPlayer`
 - 交互弹窗：成员视频、照片预览、资讯详情、积分详情
-- 截图识别管线：`server/lib/scoreRecognitionStore/Ai/Service/Routes.js`、`src/admin/ScoreRecognition.jsx`、`RecognitionHistory.jsx`、`WeekendScoreEditor.jsx`；Ollama 本地模型 `xingyu-score-recognition`（qwen2.5vl:7b）
+- 截图识别管线：`server/lib/scoreRecognitionStore.js`、`scoreRecognitionAi.js`、`scoreRecognitionService.js`、`scoreRecognitionRoutes.js`，后台入口为 `src/admin/ScoreRecognition.jsx`、`RecognitionHistory.jsx`、`WeekendScoreEditor.jsx`；Ollama 本地模型 `xingyu-score-recognition`（qwen2.5vl:7b）
 - 身份与计分纯函数：`src/data/scoreRules.js`（`extractHanCharacters` 汉字提取、`buildMemberMatcher` 汉字兜底、计分/去重/槽位）
 
 - 首屏品牌栏标题使用 `GradientText` 青蓝紫粉循环渐变，不再打字、删除或显示光标
@@ -37,12 +37,8 @@
 - 公网构建通过 `VITE_PUBLIC_ONLY=true` 隐藏后台入口，并在应用启动前加载 `VITE_PUBLIC_CONFIG_SCRIPT_URL` 指向的 COS 配置脚本；公网前台不请求本机 `/api/config` 或 SSE，本地前台仍使用 API + SSE/focus 刷新
 - 普通 Excel 中出现的日期整体覆盖、未出现的日期保留；KW27-KW31 旧周表通过 `scripts/import-legacy-score-workbook.js` 专用脚本导入
 - 旧配置中的成员 `points` 会自动迁移为 `basePoints`，原运行时文件会保存为 `.bak`
-- 公开 H5 的新 UI/UX 方向已确认采用 `Pit Wall / 车队维修区`，完整设计见 `docs/superpowers/specs/2026-07-29-xingyu-pit-wall-ui-redesign-design.md`
-- 新视觉仅覆盖首页、相册页、公开弹窗和音乐浮窗；功能、数据和配置后台不变
-- 产品事实已记录到 `PRODUCT.md`，持久视觉规则已记录到 `DESIGN.md`；UI 实现尚未开始
-- 用户要求原版 UI 完整保留；Pit Wall 新版必须在独立 `codex/pit-wall-ui-redesign` 分支或工作树中实现，完成后提供原版与新版两个 URL 二选一
-- Pit Wall 实施计划已写入 `docs/superpowers/plans/2026-07-29-xingyu-pit-wall-ui-redesign-implementation.md`；计划要求测试先行、独立工作树实施、五档视口验收和双地址交付
-- 2026-07-30 用户已确认保留原版 UI；Pit Wall 新版不好看，不启用、不合并、不作为当前项目上线方案，但代码保留在独立 `codex/pit-wall-ui-redesign` 分支/工作树中
+- `Pit Wall / 车队维修区` 设计与实施记录保留在 `docs/superpowers/`，代码保留在独立 `codex/pit-wall-ui-redesign` 分支/工作树中；用户已于 2026-07-30 否决该新版，当前 `main` 继续使用原版 UI，不启用、不合并，也不加入永久主题切换
+- 产品事实记录在 `PRODUCT.md`，当前原版视觉规则记录在 `DESIGN.md`
 - 2026-07-30 公开前台已改为在运行时把 `队员数量` 从 `roster.length` 派生，后台原始配置仍保留保存值；API 需重启后才会加载这次代码变更
 - 2026-07-30 原版首页已按用户确认的 A 方案把运行时配置的车队名称移入顶部独立黑色品牌栏；Pit Wall 分支未改动
 - 2026-07-30 前台运行时配置已改为首次加载和窗口重新获得焦点时都重新请求 `/api/config`，并使用 `cache: 'no-store'`，后台保存图片后回到前台即可刷新
@@ -60,8 +56,8 @@
 - Pit Wall 设计只能使用现有图片素材，实施时不得新增或生成视觉素材
 - 新视觉实施需要重点消除当前页面大段空白，同时保留内容默认可见和减少动态模式
 - 不得在当前原版分支直接落地 Pit Wall 样式，也不得在产品中加入永久主题切换；Pit Wall 新版已明确不启用，后续除非用户重新指定，否则不合并新版分支
-- 识别运行时索引 `server/data/score-recognition/score-recognition-index.json` 已被 Git 跟踪且持续产生大 diff，建议加入 `.gitignore` 并 `git rm --cached`（需用户确认）
-- 已 `ready` 的识别批次草稿由旧匹配逻辑生成（未匹配虚高），需重新打开/重新处理才会按新匹配器重算
+- 识别运行时目录 `server/data/score-recognition/` 已被 `.gitignore` 忽略，索引和原图均不得提交
+- 截至 2026-08-17，识别队列为 `29 committed`、`10 discarded`、`4 ready`、`4 failed`、`1 processing`；其中 `processing` 批次自 2026-08-07 起未更新。不要直接删除批次或原图，应在后台逐条继续审核、重试或明确废弃
 - 前端一批功能改动（ShinyText 签名扫光、视频资源释放、成员头像懒加载、后台 signature 归一化、首页资讯上移）已提交 `983356d`
 
 ## 验证状态
@@ -256,11 +252,11 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 本机后台：`http://127.0.0.1:3000/admin`；公网前台不能访问本机后台 API。截图识别必须在这台 Windows 电脑上运行 Node 服务和 Ollama 模型 `xingyu-score-recognition`。
 - 微信域名验证：微信要求在公网域名根目录放置指定 TXT 文件并能通过 HTTPS 直接访问；局域网 `192.168.x.x`、`localhost` 或仅 GitHub Actions 构建目录不能完成该验证。
 - 数据安全：`.env`、`server/config/admin.local.json`、运行时 `server/data/site-config.json`、上传媒体和识别原图均不可提交；部署前私有备份位于 `output/deployment-backups/20260807-110721`。
-- 识别队列：已收口为 `10 committed + 10 discarded`，无 `ready/uploaded/failed`；旧批次若需重算，必须在后台重新处理以获得最新地图、去重和人工纠错逻辑。
+- 识别队列：截至 2026-08-17 为 `29 committed`、`10 discarded`、`4 ready`、`4 failed`、`1 processing`；`processing` 批次自 2026-08-07 起未更新。保留批次和原图作为审计证据，在后台逐条继续审核、重试或明确废弃。
 - Pit Wall：仅保留在独立 `codex/pit-wall-ui-redesign` 分支/工作树，当前原版 `main` 不启用，也不添加永久主题切换。
 
 ## 继续工作前的核对顺序
-1. 先查看 `git status --short --branch`；最新提交已包含媒体变体系统（图片三档 WebP + 视频 720p MP4 转码）、截图识别逐张容错（单张失败不拖累全批）、积分榜显示零分成员、首页视频 720p 省流版，工作区应为干净状态。
+1. 先查看 `git status --short --branch`；`main` 已包含 `4381621 fix: keep pinned news first on news page`，以及 2026-08-17 收口的新闻隐藏、审核页显式新增积分人物、上传期间禁止保存、积分表人数显示和本地服务启动脚本，工作区应为干净状态。
 2. 修改前先运行 `npm test -- --run`；涉及前台布局或媒体时，再运行 `npm run build` 并做 390/768/1280 视口检查。
 3. 需要更新公网内容时，在本机后台保存配置并确认 COS 配置脚本时间戳/内容已更新；不直接编辑 GitHub Pages 产物。
 4. 需要截图识别时，先确认 `127.0.0.1:3000` 和 `127.0.0.1:11434` 可用，并确认 Ollama 模型存在。
@@ -352,3 +348,13 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 修复后台音乐文件选择器错误限制为图片的问题：`ConfigEditor` 现在仅对 `music.src` 使用 `allowedTypes={['audio']}`，生成 `accept="audio/*"`；相册图片 `src` 和音乐封面仍保持 `image/*`。新增回归测试覆盖音乐与封面的文件类型边界。
 - 使用与 GitHub Actions 相同的公开构建环境验证：新公开产物共 48 个文件、7,597,172 字节（7.25 MiB），其中音乐 2.75 MiB，HTML/JS/CSS 核心文件合计约 426.2 KiB；相同文件集使用旧音乐时约为 11.37 MiB。
 - 验证结果：`npm test -- --run` 通过 31 个测试文件、522 项测试；`npm run build` 和公开模式独立构建均通过；真实浏览器确认音乐上传框为 `audio/*`、封面为 `image/*`，控制台无警告或错误。公网仍由推送 `main` 后的 GitHub Pages 工作流发布，COS 运行时配置无需随前端重复提交。
+
+## 2026-08-17 新闻隐藏与后台审核收口交接
+
+- 新闻数据新增可选布尔字段 `hidden`，旧数据自动迁移为 `false`。后台新闻卡片提供“隐藏”开关和收起态标记；公开首页、新闻列表、分类页与详情路由统一过滤隐藏新闻，隐藏记录仍保留在后台，可取消隐藏恢复展示。
+- 截图识别继续禁止无人确认时自动创建积分人物；对 `unmatched` 证据，管理员可在审核页明确输入名称并点击“新增积分人物并匹配”。服务端校验名称归一化去重、使用最小未占用正整数 ID、期初积分和胜场均为 0，并重新生成草稿；同批次相同昵称随新人物一起匹配。
+- 后台任一配置素材上传期间，“保存全部配置”会禁用并显示等待提示，避免保存旧地址；文件选择器会在开始上传后清空，因此同一个文件可再次选择重传。积分明细表“队员”表头显示当前可见行数。
+- 新增 `scripts/start-local-services.ps1`，用于一次启动或复用本机 Ollama、Node `3000` 和 Vite `4173`，后台地址为 `http://127.0.0.1:4173/admin`，日志位于 `%TEMP%\xingyu-local-logs`。
+- 识别运行时目录已被 `.gitignore` 忽略，不再跟踪索引大 diff。当前队列不做删除：`29 committed`、`10 discarded`、`4 ready`、`4 failed`、`1 processing`；后续逐条审核、重试或明确废弃。
+- 根目录 `agent.md` 已标记为 2026-07-28 历史废弃文档，当前开发和交接只以 `AGENTS.md` 为准。
+- 最终验证：`npm test -- --run` 通过 31 个测试文件、534 项测试；`npm run build` 通过；`git diff --check` 和 `scripts/start-local-services.ps1` PowerShell 语法检查通过。构建仅保留 ExcelJS 动态块超过 500 kB 的既有提示。
