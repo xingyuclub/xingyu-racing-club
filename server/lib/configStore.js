@@ -344,6 +344,9 @@ function validateConfig(config) {
       if (item.pinned !== undefined && typeof item.pinned !== 'boolean') {
         details.push(`${path}.pinned must be a boolean`);
       }
+      if (item.hidden !== undefined && typeof item.hidden !== 'boolean') {
+        details.push(`${path}.hidden must be a boolean`);
+      }
     }
   }
 

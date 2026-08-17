@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AlertTriangle, Camera, CheckCircle2, Loader2, RefreshCw, ScanSearch, Upload, XCircle } from 'lucide-react';
 import {
   commitRecognitionBatch,
+  createRecognitionScoreMember,
   addManualRecognitionParticipant,
   getRecognitionBatch,
   processRecognitionBatch,
@@ -23,7 +24,7 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
   const [draft, setDraft] = useState(null);
   const [batchId, setBatchId] = useState(null);
   const [error, setError] = useState('');
-  const controlsDisabled = ['loading', 'uploading', 'processing', 'reprocessing-image', 'rematching', 'reviewing', 'adding-manual', 'removing-manual', 'committing'].includes(status);
+  const controlsDisabled = ['loading', 'uploading', 'processing', 'reprocessing-image', 'rematching', 'reviewing', 'creating-member', 'adding-manual', 'removing-manual', 'committing'].includes(status);
 
   useEffect(() => {
     if (!initialBatchId) return undefined;
@@ -87,6 +88,22 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
     setError('');
     try {
       setDraft(await reviewRecognitionEvidence(batchId, change));
+      setStatus('ready');
+      return true;
+    } catch (next) {
+      setError(next.message);
+      setStatus('ready');
+      return false;
+    }
+  };
+  const createScoreMember = async (evidenceId, name) => {
+    if (!batchId) return false;
+    setStatus('creating-member');
+    setError('');
+    try {
+      const result = await createRecognitionScoreMember(batchId, evidenceId, name);
+      setDraft(result.draft);
+      onCommitted?.(result.config);
       setStatus('ready');
       return true;
     } catch (next) {
@@ -238,10 +255,10 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
         </div>
       )}
 
-      {(status === 'loading' || status === 'uploading' || status === 'processing' || status === 'reprocessing-image' || status === 'rematching' || status === 'adding-manual' || status === 'removing-manual' || status === 'committing') && (
+      {(status === 'loading' || status === 'uploading' || status === 'processing' || status === 'reprocessing-image' || status === 'rematching' || status === 'creating-member' || status === 'adding-manual' || status === 'removing-manual' || status === 'committing') && (
         <div className="score-recognition-loading">
           <Loader2 aria-hidden="true" size={16} className="spin" />
-          {status === 'loading' ? '读取批次中…' : status === 'processing' ? '识别中…' : status === 'reprocessing-image' ? '重新识别当前截图中…' : status === 'rematching' ? '重新匹配中…' : status === 'adding-manual' ? '保存人工补录中…' : status === 'removing-manual' ? '删除人工补录中…' : status === 'committing' ? '提交中…' : '上传中…'}
+          {status === 'loading' ? '读取批次中…' : status === 'processing' ? '识别中…' : status === 'reprocessing-image' ? '重新识别当前截图中…' : status === 'rematching' ? '重新匹配中…' : status === 'creating-member' ? '新增积分人物中…' : status === 'adding-manual' ? '保存人工补录中…' : status === 'removing-manual' ? '删除人工补录中…' : status === 'committing' ? '提交中…' : '上传中…'}
         </div>
       )}
 
@@ -260,6 +277,7 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
             draft={draft}
             busy={status !== 'ready'}
             onReview={review}
+            onCreateScoreMember={createScoreMember}
             onReprocessImage={reprocessImage}
             onAddManual={addManual}
             onRemoveManual={removeManual}

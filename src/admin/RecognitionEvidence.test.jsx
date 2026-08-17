@@ -132,6 +132,32 @@ describe('RecognitionEvidence', () => {
     expect(screen.getByRole('option', { name: '赴约·太困' })).toBeInTheDocument();
   });
 
+  it('creates a new score identity from the normalized unmatched nickname', async () => {
+    const onCreateScoreMember = vi.fn().mockResolvedValue(true);
+    render(
+      <RecognitionEvidence
+        batchId="b1"
+        config={config}
+        draft={{
+          ...draft,
+          summary: [],
+          evidence: [{
+            id: 'i0-m0-p0', imageIndex: 0, matchIndex: 0,
+            nickname: 'xy²·澜', rank: 1,
+          }],
+          issues: [{ evidenceId: 'i0-m0-p0', code: 'unmatched' }],
+        }}
+        busy={false}
+        onReview={vi.fn()}
+        onCreateScoreMember={onCreateScoreMember}
+      />,
+    );
+
+    expect(screen.getByLabelText('xy²·澜新积分人物名称')).toHaveValue('澜');
+    await userEvent.click(screen.getByRole('button', { name: '新增积分人物并匹配' }));
+    expect(onCreateScoreMember).toHaveBeenCalledWith('i0-m0-p0', '澜');
+  });
+
   it('labels the team name as an OCR mistake instead of a member nickname', () => {
     render(
       <RecognitionEvidence

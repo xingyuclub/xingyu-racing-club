@@ -357,6 +357,39 @@ describe('score recognition service', () => {
     });
   });
 
+  it('creates one explicit score identity and rematches the same nickname across the batch', async () => {
+    const { service, store, configStore } = setupService({
+      aiResponses: [[
+        { mapName: '星屿', participants: [{ nickname: 'xy²·澜', rank: 3 }] },
+        { mapName: '幻音城假日', participants: [{ nickname: 'xy²·澜', rank: 4 }] },
+      ]],
+      config: baseConfig({ roster: [], scoreMembers: [] }),
+    });
+    await createBatch(store);
+    const first = await service.previewBatch('b1');
+
+    const created = await service.createScoreMember('b1', first.issues[0].evidenceId, '澜');
+
+    expect(created.scoreMember).toMatchObject({ id: '1', name: '澜', basePoints: 0, wins: 0 });
+    expect(created.draft).toMatchObject({ issues: [], canCommit: true });
+    expect(created.draft.evidence.map((item) => item.scoreMemberId)).toEqual(['1', '1']);
+    expect((await configStore.read()).scoreMembers).toEqual([
+      { id: '1', name: '澜', basePoints: 0, wins: 0 },
+    ]);
+  });
+
+  it('does not create a duplicate normalized score identity', async () => {
+    const { service, store } = setupService({
+      aiResponses: [[{ participants: [{ nickname: 'xy²·澜', rank: 1 }] }]],
+      config: baseConfig({ roster: [], scoreMembers: [{ id: '8', name: '澜', basePoints: 0, wins: 0 }] }),
+    });
+    await createBatch(store);
+    await service.previewBatch('b1');
+
+    await expect(service.createScoreMember('b1', 'i0-m0-p0', 'xy²·澜'))
+      .rejects.toThrow(/已存在/);
+  });
+
   it('blocks commit on suspected duplicates and resolves them by review', async () => {
     const { service, store } = setupService({
       aiResponses: [

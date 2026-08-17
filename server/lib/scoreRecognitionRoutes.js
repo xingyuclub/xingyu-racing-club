@@ -173,6 +173,28 @@ export function createScoreRecognitionRouter({
     } catch (error) { next(error); }
   });
 
+  router.post('/batches/:id/score-members', async (request, response, next) => {
+    try {
+      const { evidenceId, name } = request.body || {};
+      if (typeof evidenceId !== 'string' || !evidenceId) {
+        return response.status(400).json({ error: '缺少证据 ID' });
+      }
+      if (typeof name !== 'string' || !name.trim()) {
+        return response.status(400).json({ error: '积分人物名称不能为空' });
+      }
+      const result = await getService().createScoreMember(
+        request.params.id,
+        evidenceId,
+        name.trim(),
+      );
+      if (onConfigUpdate) await onConfigUpdate();
+      response.status(201).json(result);
+    } catch (error) {
+      if (error.statusCode) return response.status(error.statusCode).json({ error: error.message });
+      next(error);
+    }
+  });
+
   router.post('/batches/:id/manual-participants', async (request, response, next) => {
     try {
       const { imageIndex, matchIndex, nickname, rank, scoreMemberId } = request.body || {};

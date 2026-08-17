@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { invalidateFollowingWeekTotals } from '../../src/data/scoreRules.js';
+import { invalidateFollowingWeekTotals, normalizeNickname } from '../../src/data/scoreRules.js';
 import { buildRecognitionDraft } from './scoreRecognitionDraft.js';
 import {
   buildImageFingerprint,
@@ -10,6 +10,13 @@ const EMPTY_RACES = () => ({ teamRace: [null, null, null], openRace: [null, null
 
 function badRequest(message) {
   return Object.assign(new Error(message), { statusCode: 400 });
+}
+
+function nextScoreMemberId(scoreMembers = []) {
+  const used = new Set(scoreMembers.map((member) => String(member.id || '').trim()));
+  let id = 1;
+  while (used.has(String(id))) id += 1;
+  return String(id);
 }
 
 function evidenceIds(observations = []) {
@@ -275,6 +282,36 @@ export function createScoreRecognitionService({
     return draft;
   }
 
+  async function createScoreMember(batchId, evidenceId, name) {
+    const batch = await store.readBatch(batchId);
+    if (!evidenceIds(batch.observations).has(evidenceId)) throw badRequest('证据 ID 不存在');
+
+    const normalizedName = normalizeNickname(name);
+    if (!normalizedName) throw badRequest('积分人物名称不能为空');
+    const config = await configStore.read();
+    if ((config.scoreMembers || []).some((member) => normalizeNickname(member.name) === normalizedName)) {
+      throw badRequest('该积分人物已存在，请直接从“对应成员”中选择');
+    }
+
+    const scoreMember = {
+      id: nextScoreMemberId(config.scoreMembers || []),
+      name: String(name).trim(),
+      basePoints: 0,
+      wins: 0,
+    };
+    const nextConfig = structuredClone(config);
+    nextConfig.scoreMembers = [...(nextConfig.scoreMembers || []), scoreMember];
+    const draft = buildDraft({ batch, config: nextConfig });
+    const target = draft.evidence.find((item) => item.id === evidenceId);
+    if (target?.scoreMemberId !== scoreMember.id) {
+      throw badRequest('新积分人物与当前识别昵称不一致，请修改名称后重试');
+    }
+
+    await configStore.write(nextConfig);
+    await store.updateBatch(batchId, { status: 'ready', draft, error: undefined });
+    return { draft, config: nextConfig, scoreMember };
+  }
+
   async function rematchBatch(batchId) {
     const batch = await store.readBatch(batchId);
     if (!batch.observations || batch.observations.length === 0) {
@@ -380,6 +417,7 @@ export function createScoreRecognitionService({
     previewBatch,
     reprocessImage,
     reviewBatch,
+    createScoreMember,
     rematchBatch,
     addManualParticipant,
     removeManualParticipant,

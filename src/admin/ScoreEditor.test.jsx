@@ -170,6 +170,25 @@ describe('ScoreEditor', () => {
     })).toBeInTheDocument();
   });
 
+  it('shows the number of members with score rows for the selected date', () => {
+    const config = createConfig();
+    config.scoreMembers = Array.from({ length: 27 }, (_, index) => ({
+      id: String(index + 1),
+      name: `积分人物${index + 1}`,
+      basePoints: 0,
+      wins: 0,
+    }));
+    config.dailyScores[0].rows = config.scoreMembers.map((member) => ({
+      id: member.id,
+      teamRace: [1, null, null],
+      openRace: [null, null, null],
+    }));
+
+    render(<ScoreEditor config={config} onChange={() => {}} />);
+
+    expect(screen.getByRole('columnheader', { name: '队员（27人）' })).toBeInTheDocument();
+  });
+
   it('includes weekend dates in the date union and renders projected weekend fields read-only', async () => {
     const user = userEvent.setup();
     const config = createConfig();

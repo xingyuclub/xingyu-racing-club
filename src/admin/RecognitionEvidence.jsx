@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Ban, Check, Image, Plus, ScanSearch, Trash2, UserCheck } from 'lucide-react';
+import { Ban, Check, Image, Plus, ScanSearch, Trash2, UserCheck, UserPlus } from 'lucide-react';
+import { normalizeNickname } from '../data/scoreRules.js';
 
 const ISSUE_LABELS = {
   unmatched: '未匹配成员',
@@ -36,15 +37,19 @@ function EvidenceRow({ batchId, item }) {
   );
 }
 
-function IssueEditor({ batchId, issue, evidence, scoreMembers, busy, onReview }) {
+function IssueEditor({ batchId, issue, evidence, scoreMembers, busy, onReview, onCreateScoreMember }) {
   const [rank, setRank] = useState(String(evidence?.rank ?? ''));
   const [selectedScoreMemberId, setSelectedScoreMemberId] = useState(
     evidence?.scoreMemberId || '',
   );
+  const [newMemberName, setNewMemberName] = useState(normalizeNickname(evidence?.nickname));
   useEffect(() => { setRank(String(evidence?.rank ?? '')); }, [evidence?.rank]);
   useEffect(() => {
     setSelectedScoreMemberId(evidence?.scoreMemberId || '');
   }, [evidence?.id, evidence?.scoreMemberId]);
+  useEffect(() => {
+    setNewMemberName(normalizeNickname(evidence?.nickname));
+  }, [evidence?.id, evidence?.nickname]);
   if (!evidence) return null;
 
   const submitRank = () => {
@@ -131,6 +136,28 @@ function IssueEditor({ batchId, issue, evidence, scoreMembers, busy, onReview })
           标记为非积分成员
         </button>
       </div>
+      {issue.code === 'unmatched' && onCreateScoreMember && (
+        <div className="recognition-create-member">
+          <label>
+            <span>新积分人物名称</span>
+            <input
+              value={newMemberName}
+              disabled={busy}
+              aria-label={`${evidence.nickname}新积分人物名称`}
+              onChange={(event) => setNewMemberName(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={busy || !newMemberName.trim()}
+            onClick={() => onCreateScoreMember(evidence.id, newMemberName.trim())}
+          >
+            <UserPlus aria-hidden="true" size={15} />
+            新增积分人物并匹配
+          </button>
+          <small>同批次相同昵称会一起匹配；新人物期初积分为 0。</small>
+        </div>
+      )}
     </div>
   );
 }
@@ -361,7 +388,7 @@ function ManualEntries({ batchId, evidence, busy, onRemoveManual }) {
   );
 }
 
-export function RecognitionEvidence({ batchId, config, draft, busy, onReview, onReprocessImage, onAddManual, onRemoveManual }) {
+export function RecognitionEvidence({ batchId, config, draft, busy, onReview, onCreateScoreMember, onReprocessImage, onAddManual, onRemoveManual }) {
   const evidenceById = new Map(draft.evidence.map((item) => [item.id, item]));
   const warnings = draft.evidence.filter((item) => item.warning === 'member-limit');
 
@@ -467,6 +494,7 @@ export function RecognitionEvidence({ batchId, config, draft, busy, onReview, on
                 scoreMembers={config.scoreMembers || []}
                 busy={busy}
                 onReview={onReview}
+                onCreateScoreMember={onCreateScoreMember}
               />
             )
           ))}

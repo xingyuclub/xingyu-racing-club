@@ -13,11 +13,13 @@ function displayUploadName(value) {
     : decoded;
 }
 
-export function UploadField({ label, value, displayValue, onChange, onUploaded, allowedTypes }) {
+export function UploadField({ label, value, displayValue, onChange, onUploaded, onUploadingChange, allowedTypes }) {
   const [error, setError] = useState('');
   const upload = async (event) => {
     const file = event.target.files?.[0]; if (!file) return;
+    event.target.value = '';
     setError('');
+    onUploadingChange?.(true);
     try {
       const result = await uploadFile(file);
       if (allowedTypes && !allowedTypes.includes(result.type)) {
@@ -27,6 +29,7 @@ export function UploadField({ label, value, displayValue, onChange, onUploaded, 
       onUploaded?.(result);
     }
     catch (next) { setError(next.message); }
+    finally { onUploadingChange?.(false); }
   };
   const accept = allowedTypes?.map((type) => `${type}/*`).join(',') || 'image/*,video/*,audio/*';
   return <div className="upload-field"><label><span><Upload size={15} />{label}</span><input type="file" accept={accept} onChange={upload} /></label>{(displayValue || value) && <code>{displayUploadName(displayValue || value)}</code>}{error && <small className="admin-error">{error}</small>}</div>;

@@ -357,7 +357,7 @@ export function ScoreEditor({ config, onChange }) {
           <thead>
             <tr>
               <th>日期</th>
-              <th>队员</th>
+              <th>队员（{visibleRows.length}人）</th>
               {selectedIsWeekend ? <>
                 {dateWeekday(selectedDate) === 6 && <th><span className="score-table-header">上周积分{sortButton(`${weekendLabel(selectedDate)}上周积分`, 'previousPoints')}</span></th>}
                 <th><span className="score-table-header">积分{sortButton(`${weekendLabel(selectedDate)}积分`, 'points')}</span></th>

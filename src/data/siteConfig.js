@@ -83,6 +83,7 @@ export function migrateRawConfig(input) {
   const sortedScores = [...dailyScores].sort((left, right) => left.date.localeCompare(right.date));
   const normalizedNews = (Array.isArray(news) ? news : []).map((item) => ({
     pinned: false,
+    hidden: false,
     ...item,
   }));
   const derivedCategories = [
@@ -215,6 +216,7 @@ export function hydrateSiteData(rawConfig) {
   return {
     ...config,
     roster,
+    news: (Array.isArray(config.news) ? config.news : []).filter((item) => !item.hidden),
     featuredMembers: roster.slice(0, 8),
     gallery: config.albums
       .filter((album) => !album.password)
@@ -259,7 +261,7 @@ export function sortNewsPinnedFirstByDateDesc(news) {
 }
 
 export function getHomeNews(news, { pinnedLimit = 5, fallbackLimit = 3 } = {}) {
-  const list = Array.isArray(news) ? news : [];
+  const list = (Array.isArray(news) ? news : []).filter((item) => !item.hidden);
   const pinned = list.filter((item) => item.pinned).slice(0, pinnedLimit);
   if (pinned.length > 0) return pinned;
   return sortNewsByDateDesc(list).slice(0, fallbackLimit);

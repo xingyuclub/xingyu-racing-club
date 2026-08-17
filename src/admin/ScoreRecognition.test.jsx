@@ -81,6 +81,38 @@ it('sends evidence reviews as JSON', async () => {
   );
 });
 
+it('creates a score identity and returns the updated config to the editor', async () => {
+  const onCommitted = vi.fn();
+  const unresolvedDraft = {
+    ...validDraft,
+    canCommit: false,
+    summary: [],
+    evidence: [{ id: 'i0-m0-p0', imageIndex: 0, matchIndex: 0, nickname: 'xy²·澜', rank: 1 }],
+    issues: [{ evidenceId: 'i0-m0-p0', code: 'unmatched' }],
+  };
+  const nextConfig = { ...config, scoreMembers: [...config.scoreMembers, { id: '2', name: '澜' }] };
+  vi.stubGlobal('fetch', vi.fn()
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'batch-1' }) })
+    .mockResolvedValueOnce({ ok: true, json: async () => unresolvedDraft })
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        draft: { ...validDraft, summary: [{ id: '2', name: '澜', score: 1, evidenceIds: ['i0-m0-p0'] }] },
+        config: nextConfig,
+        scoreMember: { id: '2', name: '澜' },
+      }),
+    }));
+  render(<ScoreRecognition config={config} onCommitted={onCommitted} />);
+
+  await userEvent.upload(
+    screen.getByLabelText('上传截图'),
+    new File(['img'], 'shot.jpg', { type: 'image/jpeg' }),
+  );
+  await userEvent.click(await screen.findByRole('button', { name: '新增积分人物并匹配' }));
+
+  await waitFor(() => expect(onCommitted).toHaveBeenCalledWith(nextConfig));
+});
+
 it('shows an error when upload fails', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: '无效日期' }) }));
 

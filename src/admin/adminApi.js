@@ -69,6 +69,12 @@ export function reviewRecognitionEvidence(id, change) {
     json('PUT', change),
   );
 }
+export function createRecognitionScoreMember(id, evidenceId, name) {
+  return call(
+    '/api/admin/score-recognition/batches/' + encodeURIComponent(id) + '/score-members',
+    json('POST', { evidenceId, name }),
+  );
+}
 export function retryRecognitionBatch(id) {
   return call('/api/admin/score-recognition/batches/' + encodeURIComponent(id) + '/retry', { method: 'POST' });
 }

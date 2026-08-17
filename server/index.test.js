@@ -828,6 +828,33 @@ describe('score recognition API', () => {
       .expect(200);
   });
 
+  it('creates a score identity from unmatched evidence and rematches the batch', async () => {
+    const matches = [
+      { mapName: '星屿', participants: [{ nickname: 'xy²·澜', rank: 1 }] },
+      { mapName: '幻音城假日', participants: [{ nickname: 'xy²·澜', rank: 2 }] },
+    ];
+    const { app } = await createRecognitionFixture({ aiClient: createFakeAiClient(matches) });
+    const { agent } = await loginAsAdmin(app);
+    const upload = await agent
+      .post('/api/admin/score-recognition/batches')
+      .field('date', '2026-08-01')
+      .field('raceType', 'team')
+      .attach('files', jpgBytes, { filename: 'shot.jpg', contentType: 'image/jpeg' })
+      .expect(201);
+    const url = '/api/admin/score-recognition/batches/' + upload.body.id;
+    const draft = await agent.post(url + '/process').expect(200);
+
+    const created = await agent.post(url + '/score-members')
+      .send({ evidenceId: draft.body.issues[0].evidenceId, name: '澜' })
+      .expect(201);
+
+    expect(created.body.scoreMember).toMatchObject({ name: '澜', basePoints: 0, wins: 0 });
+    expect(created.body.draft).toMatchObject({ issues: [], canCommit: true });
+    expect(created.body.draft.evidence.map((item) => item.scoreMemberId))
+      .toEqual([created.body.scoreMember.id, created.body.scoreMember.id]);
+    expect(created.body.config.scoreMembers).toContainEqual(created.body.scoreMember);
+  });
+
   it('saves partial results when a later image fails during processing', async () => {
     const secondJpgBytes = await sharp({
       create: { width: 4, height: 4, channels: 3, background: '#f6d365' },

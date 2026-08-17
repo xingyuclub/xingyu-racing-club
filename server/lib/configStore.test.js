@@ -208,12 +208,12 @@ describe('config store', () => {
     await expect(readFile(join(dataDir, backupFile), 'utf8')).resolves.toBe(legacyJson);
   });
 
-  it('migrates legacy news with pinned defaults and derived categories on read', async () => {
+  it('migrates legacy news with visibility and pin defaults plus derived categories on read', async () => {
     const store = await createConfigStore({ dataDir });
     const config = await store.read();
     const legacy = structuredClone(config);
     delete legacy.newsCategories;
-    legacy.news = legacy.news.map(({ pinned, ...item }) => item);
+    legacy.news = legacy.news.map(({ pinned, hidden, ...item }) => item);
     const legacyJson = `${JSON.stringify(legacy, null, 2)}\n`;
     await writeFile(join(dataDir, activeFile), legacyJson);
 
@@ -221,6 +221,7 @@ describe('config store', () => {
     const migrated = await migratedStore.read();
 
     expect(migrated.news.map((item) => item.pinned)).toEqual(legacy.news.map(() => false));
+    expect(migrated.news.map((item) => item.hidden)).toEqual(legacy.news.map(() => false));
     expect(migrated.newsCategories).toEqual(['公告', '动态', '战报']);
     await expect(readFile(join(dataDir, backupFile), 'utf8')).resolves.toBe(legacyJson);
   });
@@ -693,6 +694,11 @@ describe('config store', () => {
       'a non-boolean news pinned flag',
       (config) => (config.news[0].pinned = 'yes'),
       'news[0].pinned must be a boolean',
+    ],
+    [
+      'a non-boolean news hidden flag',
+      (config) => (config.news[0].hidden = 'yes'),
+      'news[0].hidden must be a boolean',
     ],
     [
       'a non-array news category list',

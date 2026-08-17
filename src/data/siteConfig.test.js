@@ -514,13 +514,24 @@ describe('site configuration', () => {
 });
 
 describe('news pinning and categories', () => {
-  it('defaults legacy news to unpinned and preserves explicit pinning', () => {
+  it('defaults legacy news to visible and unpinned while preserving explicit flags', () => {
     const legacy = structuredClone(teamData);
-    legacy.news = legacy.news.map(({ pinned, ...item }) => item);
+    legacy.news = legacy.news.map(({ pinned, hidden, ...item }) => item);
     expect(migrateRawConfig(legacy).news.map((item) => item.pinned)).toEqual([false, false, false]);
+    expect(migrateRawConfig(legacy).news.map((item) => item.hidden)).toEqual([false, false, false]);
 
     legacy.news[1].pinned = true;
+    legacy.news[1].hidden = true;
     expect(migrateRawConfig(legacy).news[1].pinned).toBe(true);
+    expect(migrateRawConfig(legacy).news[1].hidden).toBe(true);
+  });
+
+  it('keeps hidden news in raw config but removes it from public data', () => {
+    const config = createSeedConfig();
+    config.news[1].hidden = true;
+
+    expect(config.news[1].hidden).toBe(true);
+    expect(hydrateSiteData(config).news.map((item) => item.id)).not.toContain(config.news[1].id);
   });
 
   it('derives news categories from existing news when missing', () => {
@@ -554,6 +565,15 @@ describe('news pinning and categories', () => {
     }));
 
     expect(getHomeNews(news).map((item) => item.id)).toEqual(['n1', 'n2', 'n3', 'n4', 'n5']);
+  });
+
+  it('does not show hidden pinned news on the home page', () => {
+    const news = [
+      { ...teamData.news[0], id: 'hidden', pinned: true, hidden: true },
+      { ...teamData.news[1], id: 'visible', pinned: true, hidden: false },
+    ];
+
+    expect(getHomeNews(news).map((item) => item.id)).toEqual(['visible']);
   });
 
   it('falls back to the latest three news when nothing is pinned', () => {

@@ -116,6 +116,69 @@ it.each([
   expect(screen.queryByText(value, { selector: 'code' })).not.toBeInTheDocument();
 });
 
+it('uploads the same filename again and applies the latest result', async () => {
+  const user = userEvent.setup();
+  const onChange = vi.fn();
+  vi.stubGlobal('fetch', vi.fn()
+    .mockResolvedValueOnce({ ok: true, status: 201, json: async () => ({
+      path: '/videos/first--720p.mp4',
+      type: 'video',
+    }) })
+    .mockResolvedValueOnce({ ok: true, status: 201, json: async () => ({
+      path: '/videos/second--720p.mp4',
+      type: 'video',
+    }) }));
+
+  render(<UploadField
+    label="视频地址上传"
+    value="/videos/old--720p.mp4"
+    onChange={onChange}
+    allowedTypes={['video']}
+  />);
+
+  const input = screen.getByLabelText('视频地址上传');
+  await user.upload(input, new File(['first'], '十二.mp4', { type: 'video/mp4' }));
+  await user.upload(input, new File(['second'], '十二.mp4', { type: 'video/mp4' }));
+
+  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(onChange).toHaveBeenLastCalledWith(
+    '/videos/second--720p.mp4',
+    expect.objectContaining({ path: '/videos/second--720p.mp4' }),
+  );
+});
+
+it('keeps saving disabled until an upload finishes', async () => {
+  const user = userEvent.setup();
+  const config = createSeedConfig();
+  let finishUpload;
+  const uploadResponse = new Promise((resolve) => { finishUpload = resolve; });
+  vi.stubGlobal('fetch', vi.fn((path) => {
+    if (path === '/api/admin/uploads') {
+      return Promise.resolve({ ok: true, status: 200, json: async () => [] });
+    }
+    if (path === '/api/admin/upload') return uploadResponse;
+    return Promise.resolve({ ok: true, status: 200, json: async () => config });
+  }));
+
+  render(<ConfigEditor initialConfig={config} onAuthError={() => false} />);
+  await user.click(screen.getByRole('button', { name: '展开 成员管理' }));
+  const input = screen.getAllByLabelText('视频地址上传')[0];
+  const upload = user.upload(input, new File(['video'], '十二.mp4', { type: 'video/mp4' }));
+
+  expect(await screen.findByText('素材上传中，请稍候')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '保存全部配置' })).toBeDisabled();
+
+  finishUpload({
+    ok: true,
+    status: 201,
+    json: async () => ({ path: '/videos/new--720p.mp4', type: 'video' }),
+  });
+  await upload;
+
+  expect(screen.queryByText('素材上传中，请稍候')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '保存全部配置' })).toBeEnabled();
+});
+
 it('lets each member card collapse and expand without losing its values', async () => {
   const user = userEvent.setup();
   const config = createSeedConfig();
@@ -430,10 +493,11 @@ it('clears remembered credentials when the checkbox is unchecked', async () => {
   expect(localStorage.getItem('xingyu-admin-remember')).toBeNull();
 });
 
-it('toggles a news pinned flag and edits the category list', async () => {
+it('toggles news pinned and hidden flags and edits the category list', async () => {
   const user = userEvent.setup();
   const config = createSeedConfig();
   config.news[0].pinned = false;
+  config.news[0].hidden = false;
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
 
   render(<ConfigEditor initialConfig={config} onAuthError={() => false} />);
@@ -452,11 +516,16 @@ it('toggles a news pinned flag and edits the category list', async () => {
   expect(pin).not.toBeChecked();
   await user.click(pin);
   expect(pin).toBeChecked();
+  const hidden = within(newsSection).getByLabelText('隐藏');
+  expect(hidden).not.toBeChecked();
+  await user.click(hidden);
+  expect(hidden).toBeChecked();
 
   await user.click(screen.getByRole('button', { name: '保存全部配置' }));
 
   const savedConfig = JSON.parse(fetch.mock.calls.at(-1)[1].body);
   expect(savedConfig.news[0].pinned).toBe(true);
+  expect(savedConfig.news[0].hidden).toBe(true);
   expect(savedConfig.newsCategories).toEqual(['公告', '活动', '赛事']);
 });
 it('adds albums and photos when crypto.randomUUID is unavailable (LAN http)', async () => {
