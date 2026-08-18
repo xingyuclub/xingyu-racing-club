@@ -502,6 +502,17 @@ h2 {
   color: var(--muted);
 }
 
+.leaderboard-season-label {
+  display: inline-block;
+  margin-left: 8px;
+  color: var(--signal-strong);
+  font-size: 0.42em;
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 .leaderboard-frame {
   margin: 6px;
   overflow: hidden;
@@ -510,6 +521,60 @@ h2 {
 
 .leaderboard-frame .leaderboard {
   border-top: 0;
+}
+
+.leaderboard-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px 72px;
+  gap: 14px;
+  align-items: center;
+  min-height: 46px;
+  padding: 0 12px 0 58px;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.leaderboard-nickname-header {
+  text-align: left;
+}
+
+.leaderboard-sort-button {
+  width: 100%;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  transition: color 180ms ease, background-color 180ms ease;
+}
+
+.leaderboard-sort-button svg {
+  flex: 0 0 auto;
+  opacity: 0.32;
+}
+
+.leaderboard-sort-button.is-active {
+  color: var(--signal-strong);
+}
+
+.leaderboard-sort-button.is-active svg {
+  opacity: 1;
+}
+
+.leaderboard-sort-button:hover {
+  color: var(--signal-strong);
+  background: #f4f9ff;
 }
 
 .leaderboard-more {
@@ -619,7 +684,7 @@ h2 {
   position: relative;
   min-height: 72px;
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
+  grid-template-columns: 44px minmax(0, 1fr) 72px 72px;
   gap: 14px;
   align-items: center;
   padding: 10px 12px 10px 0;
@@ -678,7 +743,8 @@ h2 {
   grid-template-columns: auto auto;
   gap: 5px;
   align-items: baseline;
-  text-align: right;
+  justify-content: center;
+  text-align: center;
 }
 
 .leader-score strong {
@@ -1139,7 +1205,7 @@ button:focus-visible {
   }
 
   .leader-row {
-    grid-template-columns: 70px minmax(0, 1fr) auto;
+    grid-template-columns: 70px minmax(0, 1fr) 72px 72px;
     min-height: 78px;
     padding-right: 22px;
   }
@@ -1748,6 +1814,10 @@ button:focus-visible {
 @media (max-width: 699px) {
   .album-password-backdrop {
     padding: 12px;
+  }
+
+  .leaderboard-header {
+    padding-left: 58px;
   }
 
   .album-password-dialog {

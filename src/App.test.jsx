@@ -15,6 +15,7 @@ import { AlbumPage } from './components/AlbumPage.jsx';
 import { GalleryPreview } from './components/GalleryPreview.jsx';
 import { NewsFeed } from './components/NewsFeed.jsx';
 import { NewsDetailPage } from './components/NewsDetailPage.jsx';
+import { LeaderboardList } from './components/Leaderboard.jsx';
 
 const globalStyles = readFileSync('src/styles/global.css', 'utf8');
 const domeGalleryStyles = readFileSync('src/components/DomeGallery.css', 'utf8');
@@ -272,7 +273,7 @@ describe('App', () => {
 
     expect(featuredHeading).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '队员阵容' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '星屿积分榜' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '星屿积分榜 S53赛季' })).toBeInTheDocument();
     expect(newsHeading).toBeInTheDocument();
     expect(featuredHeading.compareDocumentPosition(newsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(newsHeading.compareDocumentPosition(galleryHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -1025,7 +1026,7 @@ describe('App', () => {
   it('renders the score lookup entry with the supplied icon and Chinese score unit', () => {
     const { container } = render(<App />);
 
-    expect(screen.getByRole('heading', { name: '星屿积分榜' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '星屿积分榜 S53赛季' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '查找' })).toBeInTheDocument();
     expect(container.querySelector('.section-heading--action-right')).toBeInTheDocument();
     expect(container.querySelector('.text-action--stacked')).toBeInTheDocument();
@@ -1033,9 +1034,31 @@ describe('App', () => {
       'src',
       '/images/icons/search.png',
     );
-    // 排行榜显示最新日期所在周的“总分”。
-    expect(container.querySelector('.leader-score')).toHaveTextContent('98分');
+    // 排行榜同时显示最新日期所在周的积分和赛季总分。
+    expect(container.querySelector('.leader-week-score')).toHaveTextContent(/\d+分/);
+    expect(container.querySelector('.leaderboard-header')).toHaveTextContent('昵称本周积分赛季总分');
+    expect(container.querySelector('.leader-season-score')).toHaveTextContent(/\d+分/);
     expect(screen.queryByText('PTS')).not.toBeInTheDocument();
+  });
+
+  it('sorts the leaderboard from high to low and defaults to season points', async () => {
+    const user = userEvent.setup();
+    const rows = [
+      { id: 'weekly', name: '本周第一', points: 30, seasonPoints: 40 },
+      { id: 'season', name: '赛季第一', points: 10, seasonPoints: 100 },
+      { id: 'second', name: '综合第二', points: 20, seasonPoints: 80 },
+    ];
+    const { container } = render(<LeaderboardList rows={rows} limit={2} />);
+    const visibleNames = () => [...container.querySelectorAll('.leader-identity strong')]
+      .map((element) => element.textContent);
+
+    expect(visibleNames()).toEqual(['赛季第一', '综合第二']);
+    expect(screen.getByRole('button', { name: '按赛季总分从高到低排序' })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: '按本周积分从高到低排序' }));
+
+    expect(visibleNames()).toEqual(['本周第一', '综合第二']);
+    expect(screen.getByRole('button', { name: '按本周积分从高到低排序' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('opens the daily score calendar and shows points for a selected date', async () => {
@@ -1559,7 +1582,7 @@ describe('App', () => {
 
     expect(window.location.hash).toBe('#leaderboard');
     expect(container.querySelectorAll('.leader-row')).toHaveLength(30);
-    expect(screen.getByRole('heading', { name: '星屿积分榜', level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '星屿积分榜 S53赛季', level: 1 })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: '查看完整榜单' })).not.toBeInTheDocument();
     expect(container.querySelector('.hero-module')).not.toBeInTheDocument();
     expect(container.querySelector('.featured-section')).not.toBeInTheDocument();
@@ -1576,7 +1599,7 @@ describe('App', () => {
     const { container } = render(<App />);
 
     expect(container.querySelectorAll('.leader-row')).toHaveLength(30);
-    expect(screen.getByRole('heading', { name: '星屿积分榜', level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '星屿积分榜 S53赛季', level: 1 })).toBeInTheDocument();
     expect(container.querySelector('.hero-module')).not.toBeInTheDocument();
     expect(container.querySelector('audio')).not.toBeInTheDocument();
   });

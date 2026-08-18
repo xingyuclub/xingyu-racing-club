@@ -202,4 +202,20 @@ describe('projectScores', () => {
     expect(totals.size).toBe(0);
     expect(dailyDetail).toEqual([]);
   });
+
+  it('accumulates season totals only within the requested inclusive range', () => {
+    const { seasonTotals } = projectScores({
+      roster: [{ id: '1' }],
+      dailyScores: [
+        { date: '2026-06-24', rows: [{ id: '1', teamRace: [10, 0, 0], openRace: [0, 0, 0], score: 10, total: 10 }] },
+        { date: '2026-06-25', rows: [{ id: '1', teamRace: [2, 0, 0], openRace: [0, 0, 0], score: 2, total: 2 }] },
+        { date: '2026-08-20', rows: [{ id: '1', teamRace: [3, 0, 0], openRace: [0, 0, 0], score: 3, total: 3 }] },
+        { date: '2026-08-21', rows: [{ id: '1', teamRace: [20, 0, 0], openRace: [0, 0, 0], score: 20, total: 20 }] },
+      ],
+      seasonStartDate: '2026-06-25',
+      seasonEndDate: '2026-08-20',
+    });
+
+    expect(seasonTotals.get('1')).toBe(5);
+  });
 });

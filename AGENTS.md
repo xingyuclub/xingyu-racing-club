@@ -358,3 +358,13 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 识别运行时目录已被 `.gitignore` 忽略，不再跟踪索引大 diff。当前队列不做删除：`29 committed`、`10 discarded`、`4 ready`、`4 failed`、`1 processing`；后续逐条审核、重试或明确废弃。
 - 根目录 `agent.md` 已标记为 2026-07-28 历史废弃文档，当前开发和交接只以 `AGENTS.md` 为准。
 - 最终验证：`npm test -- --run` 通过 31 个测试文件、534 项测试；`npm run build` 通过；`git diff --check` 和 `scripts/start-local-services.ps1` PowerShell 语法检查通过。构建仅保留 ExcelJS 动态块超过 500 kB 的既有提示。
+
+## 2026-08-18 积分榜 S53 赛季与公网发布交接
+
+- 星屿积分榜已增加 `2026-06-25` 至 `2026-08-20`（含首尾）的赛季总分，按每日实际得分累计；榜单只展示当前 `scoreMembers`，不展示已离队但仍保留在历史明细中的积分人物。
+- 榜单标题统一显示“星屿积分榜 S53赛季”；表头改为“昵称 / 本周积分 / 赛季总分”，昵称表头与数据列左边线对齐，积分列固定宽度并居中显示。
+- “本周积分”和“赛季总分”支持点击后从高到低排序，默认按赛季总分从高到低；首页 Top 10 会先对完整榜单排序再截取，完整榜单页使用相同排序逻辑。
+- 本轮代码涉及 `server/lib/scoreLedger.js`、`src/data/siteConfig.js`、`src/components/Leaderboard.jsx`、`src/components/LeaderboardPage.jsx`、`src/styles/global.css` 及对应测试；用户已有的 `src/admin/WeekendScoreEditor.jsx` 和测试改动未纳入本轮公网提交。
+- 验证结果：全量 `npm test -- --run` 通过 31 个测试文件、538 项测试；普通构建和 GitHub Pages 公网参数构建均通过；公网参数为 `VITE_PUBLIC_ONLY=true`、仓库子路径 `/xingyu-racing-club/` 和 COS 配置脚本 URL。
+- 部署前私有备份位于 `output/deployment-backups/20260818-181300`，不会进入 Git；公网正式地址仍为 `https://xingyuclub.github.io/xingyu-racing-club/`，完整榜单直达地址为 `https://xingyuclub.github.io/xingyu-racing-club/#leaderboard`。
+- 后续赛季切换：当前赛季统计终点固定为 `2026-08-20`；8 月 21 日起用户提供新的时间段后，再更新 `src/data/siteConfig.js` 的赛季起止日期并重新发布。

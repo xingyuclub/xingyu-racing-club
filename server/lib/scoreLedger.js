@@ -24,10 +24,18 @@ const weekKey = (dateKey) => {
 const hasWeekendValues = (row) =>
   ['previousPoints', 'points', 'score', 'total'].some((field) => numericValue(row[field]) != null);
 
-export function projectScores({ dailyScores = [], weekendScores = [], roster = [] }) {
+export function projectScores({
+  dailyScores = [],
+  weekendScores = [],
+  roster = [],
+  seasonStartDate = '',
+  seasonEndDate = '',
+}) {
   const totals = new Map();
+  const seasonTotals = new Map();
   for (const member of roster) {
     totals.set(String(member.id), 0);
+    seasonTotals.set(String(member.id), 0);
   }
 
   const events = [
@@ -77,11 +85,18 @@ export function projectScores({ dailyScores = [], weekendScores = [], roster = [
         ? points - weekendBaseline
         : (importedScore ?? (isWeekend ? null : sum([...teamRace, ...openRace])));
       const importedWeekTotal = numericValue(row.total);
-      const calculatedWeekTotal = (weekTotals.get(memberId) || 0) + (score || 0);
+      const previousWeekTotal = weekTotals.get(memberId) || 0;
+      const calculatedWeekTotal = previousWeekTotal + (score || 0);
       const weekTotal = hasWeekendFormula ? calculatedWeekTotal : (importedWeekTotal ?? calculatedWeekTotal);
       const total = weekTotal;
+      const earnedScore = score != null
+        ? score
+        : (importedWeekTotal != null ? Math.max(0, importedWeekTotal - previousWeekTotal) : 0);
       weekTotals.set(memberId, weekTotal);
       totals.set(memberId, total);
+      if ((!seasonStartDate || event.date >= seasonStartDate) && (!seasonEndDate || event.date <= seasonEndDate)) {
+        seasonTotals.set(memberId, (seasonTotals.get(memberId) || 0) + earnedScore);
+      }
       if (isSaturday && points != null) saturdayPoints.set(memberId, points);
       if (isWeekend && points != null) previousWeekendPoints.set(memberId, points);
       return [{
@@ -104,5 +119,5 @@ export function projectScores({ dailyScores = [], weekendScores = [], roster = [
     }
   }
 
-  return { totals, dailyDetail, weekMembers };
+  return { totals, seasonTotals, dailyDetail, weekMembers };
 }

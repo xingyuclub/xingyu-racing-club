@@ -270,7 +270,7 @@ describe('site configuration', () => {
 
     expect(hydrated.roster[0].name).toBe('后台名称');
     expect(hydrated.leaderboard).toEqual([
-      { id: 'score-1', rank: 1, name: 'Excel名称', points: 1 },
+      { id: 'score-1', rank: 1, name: 'Excel名称', points: 1, seasonPoints: 1 },
     ]);
     expect(hydrated.dailyScores[0].rows[0].name).toBe('Excel名称');
   });
@@ -424,7 +424,7 @@ describe('site configuration', () => {
 
     const data = hydrateSiteData(config);
 
-    expect(data.leaderboard.map((member) => member.id)).toEqual(['departed-member', config.scoreMembers[0].id]);
+    expect(data.leaderboard.map((member) => member.id)).toEqual([config.scoreMembers[0].id]);
     expect(data.dailyScores[0].rows).toHaveLength(2);
     expect(data.dailyScores[0].rows.find((row) => row.id === 'departed-member').total).toBe(5);
   });
@@ -445,8 +445,8 @@ describe('site configuration', () => {
 
     expect(data.latestScoreDate).toBe('2026-08-04');
     expect(data.leaderboard).toEqual([
-      { id: 'tuesday-player', rank: 1, name: '周二队员', points: 5 },
-      { id: 'monday-player', rank: 2, name: '周一队员', points: 3 },
+      { id: 'tuesday-player', rank: 1, name: '周二队员', points: 5, seasonPoints: 5 },
+      { id: 'monday-player', rank: 2, name: '周一队员', points: 3, seasonPoints: 3 },
     ]);
   });
 
@@ -505,11 +505,25 @@ describe('site configuration', () => {
 
     // The weekend source total is the week's exact final score.
     expect(data.leaderboard).toEqual([
-      { id: 'history-only', rank: 1, name: 'Excel历史人物', points: 999 },
-      { id: 'score-b', rank: 2, name: '白榆', points: 70 },
-      { id: 'score-a', rank: 3, name: 'ˣʸ༩·青山', points: 50 },
+      { id: 'history-only', rank: 1, name: 'Excel历史人物', points: 999, seasonPoints: 999 },
+      { id: 'score-b', rank: 2, name: '白榆', points: 70, seasonPoints: 26 },
+      { id: 'score-a', rank: 3, name: 'ˣʸ༩·青山', points: 50, seasonPoints: 14 },
     ]);
     expect(data.latestScoreDate).toBe('2026-08-02');
+  });
+
+  it('calculates season points with inclusive date boundaries', () => {
+    const config = createSeedConfig();
+    const member = { ...config.scoreMembers[0], basePoints: 0 };
+    config.scoreMembers = [member];
+    config.dailyScores = [
+      { date: '2026-06-24', rows: [{ id: member.id, teamRace: [10, 0, 0], openRace: [0, 0, 0], score: 10, total: 10 }] },
+      { date: '2026-06-25', rows: [{ id: member.id, teamRace: [2, 0, 0], openRace: [0, 0, 0], score: 2, total: 2 }] },
+      { date: '2026-08-20', rows: [{ id: member.id, teamRace: [3, 0, 0], openRace: [0, 0, 0], score: 3, total: 3 }] },
+      { date: '2026-08-21', rows: [{ id: member.id, teamRace: [20, 0, 0], openRace: [0, 0, 0], score: 20, total: 20 }] },
+    ];
+
+    expect(hydrateSiteData(config).leaderboard[0].seasonPoints).toBe(5);
   });
 });
 

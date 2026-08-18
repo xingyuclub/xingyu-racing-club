@@ -159,12 +159,12 @@ describe('config admin API', () => {
 
     const publicResponse = await request(fixture.app).get('/api/config').expect(200);
     expect(publicResponse.body.team.motto).toBe('已保存');
-    expect(publicResponse.body.leaderboard[0]).toMatchObject({
+    expect(publicResponse.body.leaderboard).toContainEqual(expect.objectContaining({
       id: nextConfig.scoreMembers[0].id,
-      rank: 1,
-      // 排行榜显示最新日期所在周的“总分”，每周从零开始。
+      // 排行榜仍保留最新日期所在周的“总分”，并新增赛季总分。
       points: 98,
-    });
+      seasonPoints: expect.any(Number),
+    }));
   });
 
   it('returns validation details when the admin config payload is invalid', async () => {

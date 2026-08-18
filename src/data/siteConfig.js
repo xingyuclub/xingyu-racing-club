@@ -4,6 +4,8 @@ import { buildScoreMemberMatcher } from './scoreRules.js';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const sum = (values) => values.reduce((total, value) => total + Number(value || 0), 0);
+const SEASON_START_DATE = '2026-06-25';
+const SEASON_END_DATE = '2026-08-20';
 
 export function nextScoreMemberId(scoreMembers = []) {
   const used = new Set(scoreMembers.map((member) => String(member.id || '').trim()));
@@ -168,10 +170,12 @@ export function createSeedConfig() {
 export function hydrateSiteData(rawConfig) {
   const config = clone(rawConfig);
   const scoreMembersById = new Map(config.scoreMembers.map((member) => [member.id, member]));
-  const { totals, dailyDetail, weekMembers } = projectScores({
+  const { totals, seasonTotals, dailyDetail, weekMembers } = projectScores({
     dailyScores: config.dailyScores,
     weekendScores: config.weekendScores,
     roster: config.scoreMembers,
+    seasonStartDate: SEASON_START_DATE,
+    seasonEndDate: SEASON_END_DATE,
   });
 
   const dailyScores = dailyDetail.map((round) => ({
@@ -193,25 +197,26 @@ export function hydrateSiteData(rawConfig) {
   const roster = config.roster;
   const latestRound = dailyScores[dailyScores.length - 1];
   const latestDate = latestRound?.date || '';
-  const leaderboardIds = new Set((config.scoreMembers || []).map((member) => member.id));
-  for (const id of totals.keys()) {
-    if (!leaderboardIds.has(id)) leaderboardIds.add(id);
-  }
-  const leaderboard = [...leaderboardIds]
+  const leaderboard = (config.scoreMembers || [])
+    .map((member) => member.id)
     .map((id) => ({
       id,
       name: scoreMembersById.get(id)?.name || '',
       points: totals.get(id) ?? 0,
+      seasonPoints: seasonTotals.get(id) ?? 0,
     }))
     .sort(
       (left, right) =>
-        right.points - left.points || left.name.localeCompare(right.name),
+        right.seasonPoints - left.seasonPoints
+        || right.points - left.points
+        || left.name.localeCompare(right.name),
     )
     .map((row, index) => ({
       id: row.id,
       rank: index + 1,
       name: row.name,
       points: row.points,
+      seasonPoints: row.seasonPoints,
     }));
   return {
     ...config,
