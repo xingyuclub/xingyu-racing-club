@@ -26,7 +26,7 @@ export function LeaderboardPage({ rows, scoreDate, onBack, onOpenDetails }) {
         </div>
         <p className="eyebrow">SEASON POINTS / {String(rows.length).padStart(2, '0')}</p>
         <h1 id="leaderboard-page-title">
-          星屿积分榜 <span className="leaderboard-season-label">S53赛季</span>
+          星屿积分榜 <span className="leaderboard-season-label">S54赛季</span>
         </h1>
         {scoreDate && <p className="leaderboard-date">截至 {formatDate(scoreDate)}</p>}
       </header>

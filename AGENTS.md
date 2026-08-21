@@ -2,7 +2,7 @@
 
 当前项目根目录：`C:\Users\Admin\Documents\H5`
 
-最后更新：2026-08-17
+最后更新：2026-08-21
 
 ## 项目一句话
 这是一个基于 Vite + React 的星屿车队移动端 H5，核心是首页展示、成员阵容、积分榜、资讯、相册和音乐浮窗。
@@ -368,3 +368,12 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 验证结果：全量 `npm test -- --run` 通过 31 个测试文件、538 项测试；普通构建和 GitHub Pages 公网参数构建均通过；公网参数为 `VITE_PUBLIC_ONLY=true`、仓库子路径 `/xingyu-racing-club/` 和 COS 配置脚本 URL。
 - 部署前私有备份位于 `output/deployment-backups/20260818-181300`，不会进入 Git；公网正式地址仍为 `https://xingyuclub.github.io/xingyu-racing-club/`，完整榜单直达地址为 `https://xingyuclub.github.io/xingyu-racing-club/#leaderboard`。
 - 后续赛季切换：当前赛季统计终点固定为 `2026-08-20`；8 月 21 日起用户提供新的时间段后，再更新 `src/data/siteConfig.js` 的赛季起止日期并重新发布。
+
+## 2026-08-21 积分榜 S54 赛季与公网发布交接
+
+- 按用户确认，S54 赛季从 `2026-08-20` 重新起算；赛季总分只累计 `2026-08-20` 及之后的每日得分/周末得分，之前 S53 的分数不再进入当前赛季总分。
+- S54 结束日期暂未提供，`src/data/siteConfig.js` 的 `SEASON_START_DATE` 为 `2026-08-20`、`SEASON_END_DATE` 为空字符串；后续识别/手动数据会持续自动累计，用户给出结束时间后再补截止日并切换下一赛季。
+- 榜单标题统一显示“星屿积分榜 S54赛季”（首页与完整榜单直达页），表头、排序逻辑和队员过滤保持不变。
+- 已重新发布 COS 公开配置 `config/site-config.js`：`latestScoreDate=2026-08-20`，51 名积分队员，赛季总分最高为 8/20 当日 18 分，29 人当前 0 分。
+- 验证结果：全量 `npm test -- --run` 通过 31 个测试文件、538 项测试；普通构建与 GitHub Pages 公网参数构建均通过。
+- 部署前私有备份位于 `output/deployment-backups/20260821-181651`，不会进入 Git；用户已有的 `src/admin/WeekendScoreEditor.jsx` 和对应测试改动未纳入本次提交。

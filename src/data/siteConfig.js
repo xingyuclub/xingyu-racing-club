@@ -4,8 +4,8 @@ import { buildScoreMemberMatcher } from './scoreRules.js';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const sum = (values) => values.reduce((total, value) => total + Number(value || 0), 0);
-const SEASON_START_DATE = '2026-06-25';
-const SEASON_END_DATE = '2026-08-20';
+const SEASON_START_DATE = '2026-08-20';
+const SEASON_END_DATE = '';
 
 export function nextScoreMemberId(scoreMembers = []) {
   const used = new Set(scoreMembers.map((member) => String(member.id || '').trim()));

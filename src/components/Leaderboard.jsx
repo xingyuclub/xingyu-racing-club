@@ -78,7 +78,7 @@ export function Leaderboard({ rows, onOpenDetails, onOpenFull, scoreDate }) {
         <div className="section-heading-copy">
           <p className="eyebrow">SEASON POINTS</p>
           <h2 id="leaderboard-title">
-            星屿积分榜 <span className="leaderboard-season-label">S53赛季</span>
+            星屿积分榜 <span className="leaderboard-season-label">S54赛季</span>
           </h2>
           {scoreDate && <p className="leaderboard-date">截至 {formatDate(scoreDate)}</p>}
         </div>

@@ -273,7 +273,7 @@ describe('App', () => {
 
     expect(featuredHeading).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '队员阵容' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '星屿积分榜 S53赛季' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '星屿积分榜 S54赛季' })).toBeInTheDocument();
     expect(newsHeading).toBeInTheDocument();
     expect(featuredHeading.compareDocumentPosition(newsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(newsHeading.compareDocumentPosition(galleryHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -1026,7 +1026,7 @@ describe('App', () => {
   it('renders the score lookup entry with the supplied icon and Chinese score unit', () => {
     const { container } = render(<App />);
 
-    expect(screen.getByRole('heading', { name: '星屿积分榜 S53赛季' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '星屿积分榜 S54赛季' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '查找' })).toBeInTheDocument();
     expect(container.querySelector('.section-heading--action-right')).toBeInTheDocument();
     expect(container.querySelector('.text-action--stacked')).toBeInTheDocument();
@@ -1582,7 +1582,7 @@ describe('App', () => {
 
     expect(window.location.hash).toBe('#leaderboard');
     expect(container.querySelectorAll('.leader-row')).toHaveLength(30);
-    expect(screen.getByRole('heading', { name: '星屿积分榜 S53赛季', level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '星屿积分榜 S54赛季', level: 1 })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: '查看完整榜单' })).not.toBeInTheDocument();
     expect(container.querySelector('.hero-module')).not.toBeInTheDocument();
     expect(container.querySelector('.featured-section')).not.toBeInTheDocument();
@@ -1599,7 +1599,7 @@ describe('App', () => {
     const { container } = render(<App />);
 
     expect(container.querySelectorAll('.leader-row')).toHaveLength(30);
-    expect(screen.getByRole('heading', { name: '星屿积分榜 S53赛季', level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '星屿积分榜 S54赛季', level: 1 })).toBeInTheDocument();
     expect(container.querySelector('.hero-module')).not.toBeInTheDocument();
     expect(container.querySelector('audio')).not.toBeInTheDocument();
   });
