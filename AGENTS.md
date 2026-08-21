@@ -377,3 +377,4 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 已重新发布 COS 公开配置 `config/site-config.js`：`latestScoreDate=2026-08-20`，51 名积分队员，赛季总分最高为 8/20 当日 18 分，29 人当前 0 分。
 - 验证结果：全量 `npm test -- --run` 通过 31 个测试文件、538 项测试；普通构建与 GitHub Pages 公网参数构建均通过。
 - 部署前私有备份位于 `output/deployment-backups/20260821-181651`，不会进入 Git；用户已有的 `src/admin/WeekendScoreEditor.jsx` 和对应测试改动未纳入本次提交。
+- 修复记录：`2026-08-21` 曾因 3000 端口 API 仍是 S53 旧进程，后台删除积分成员后把旧赛季配置发布到 COS；已重启 `server/index.js` 并用当前 S54 代码重新发布公网配置。后续切换赛季代码后必须重启本机 API，否则后台保存会再次用旧赛季覆盖公网配置。
