@@ -218,4 +218,37 @@ describe('projectScores', () => {
 
     expect(seasonTotals.get('1')).toBe(5);
   });
+
+  it('restarts the weekend baseline at the season start', () => {
+    const { dailyDetail, seasonTotals } = projectScores({
+      roster: [{ id: '1' }],
+      weekendScores: [
+        { date: '2026-08-16', rows: [{ id: '1', points: 571 }] },
+        { date: '2026-08-22', rows: [{ id: '1', points: 30 }] },
+      ],
+      seasonStartDate: '2026-08-20',
+    });
+
+    expect(dailyDetail.find(({ date }) => date === '2026-08-16').rows[0]).toMatchObject({
+      previousPoints: null,
+      score: null,
+    });
+    expect(dailyDetail.find(({ date }) => date === '2026-08-22').rows[0]).toMatchObject({
+      previousPoints: 0,
+      score: 30,
+    });
+    expect(seasonTotals.get('1')).toBe(30);
+  });
+
+  it('keeps a blank Saturday baseline when no previous season weekend exists', () => {
+    const { dailyDetail } = projectScores({
+      roster: [{ id: '1' }],
+      weekendScores: [
+        { date: '2026-08-22', rows: [{ id: '1', points: 30 }] },
+      ],
+      seasonStartDate: '2026-08-20',
+    });
+
+    expect(dailyDetail[0].rows[0]).toMatchObject({ previousPoints: null, score: null });
+  });
 });

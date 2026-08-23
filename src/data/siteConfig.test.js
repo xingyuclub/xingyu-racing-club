@@ -288,7 +288,7 @@ describe('site configuration', () => {
     expect(config.stats.find((item) => item.label === '队员数量').value).toBe('30');
   });
 
-  it('sorts tied leaderboard totals by name', () => {
+  it('sorts tied leaderboard totals by the admin score member order', () => {
     const config = createSeedConfig();
     config.dailyScores = [];
     config.scoreMembers = config.scoreMembers.slice(0, 3).map((member) => ({
@@ -306,13 +306,12 @@ describe('site configuration', () => {
 
     const data = hydrateSiteData(config);
 
-    const sortedByName = [...config.scoreMembers]
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((member) => member.id);
-    expect(data.leaderboard.map((member) => member.id)).toEqual(sortedByName);
+    expect(data.leaderboard.map((member) => member.id)).toEqual(
+      config.scoreMembers.map((member) => member.id),
+    );
   });
 
-  it('sorts tied leaderboard members by name', () => {
+  it('sorts tied leaderboard members by the admin score member order', () => {
     const config = createSeedConfig();
     config.dailyScores = [];
     config.scoreMembers = config.scoreMembers.slice(0, 2).map((member, index) => ({
@@ -337,8 +336,8 @@ describe('site configuration', () => {
     const data = hydrateSiteData(config);
 
     expect(data.leaderboard.map((member) => member.id)).toEqual([
-      config.scoreMembers[1].id,
       config.scoreMembers[0].id,
+      config.scoreMembers[1].id,
     ]);
   });
 

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ArrowDownWideNarrow, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
-import { hydrateSiteData } from '../data/siteConfig.js';
+import { hydrateSiteData, SEASON_START_DATE } from '../data/siteConfig.js';
 
 const clone = (value) => structuredClone(value);
 
@@ -81,17 +81,30 @@ export function WeekendScoreEditor({ config, onChange }) {
     return map;
   }, [hydrated.dailyScores]);
 
+  const isNewSeasonWeekend = Boolean(SEASON_START_DATE) && selectedDate >= SEASON_START_DATE;
+
   const inheritedPreviousPointsById = useMemo(() => {
     const map = new Map();
     if (!selectedWeekend.hasPreviousPoints) return map;
     for (const round of hydrated.dailyScores || []) {
       if (round.date >= selectedDate || !['周六', '周日'].includes(round.weekday)) continue;
+      if (isNewSeasonWeekend && round.date < SEASON_START_DATE) continue;
       for (const row of round.rows || []) {
         if (row.points != null) map.set(row.id, row.points);
       }
     }
     return map;
-  }, [hydrated.dailyScores, selectedDate, selectedWeekend.hasPreviousPoints]);
+  }, [hydrated.dailyScores, selectedDate, selectedWeekend.hasPreviousPoints, isNewSeasonWeekend]);
+
+  // 上一赛季是否存在周末累计积分，用于判断“新赛季第一个周末”应从 0 起算。
+  const hasPriorSeasonWeekendPoints = useMemo(() => {
+    if (!SEASON_START_DATE) return false;
+    for (const round of hydrated.dailyScores || []) {
+      if (round.date >= SEASON_START_DATE || !['周六', '周日'].includes(round.weekday)) continue;
+      if ((round.rows || []).some((row) => row.points != null)) return true;
+    }
+    return false;
+  }, [hydrated.dailyScores]);
 
   const getRow = (date, member) => {
     const id = member.scoreId;
@@ -99,15 +112,25 @@ export function WeekendScoreEditor({ config, onChange }) {
     const source = round?.rows?.find((row) => row.id === id) || { id };
     const projected = projectedRowsByKey.get(`${date}|${id}`);
     const inheritedPreviousPoints = inheritedPreviousPointsById.get(id);
+    const firstNewSeasonWeekend = selectedWeekend.hasPreviousPoints
+      && Boolean(SEASON_START_DATE)
+      && selectedDate >= SEASON_START_DATE
+      && hasPriorSeasonWeekendPoints
+      && inheritedPreviousPointsById.size === 0;
     return {
       id,
-      previousPoints: projected?.previousPoints ?? inheritedPreviousPoints ?? source.previousPoints ?? null,
+      previousPoints: projected?.previousPoints ?? inheritedPreviousPoints ?? source.previousPoints ?? (firstNewSeasonWeekend ? 0 : null),
       points: source.points ?? projected?.points ?? null,
       score: projected?.score ?? source.score ?? null,
       total: projected?.total ?? source.total ?? null,
       previousPointsInherited: projected?.previousPointsInherited === true || inheritedPreviousPoints != null,
     };
   };
+
+  const positiveScoreCount = memberRows.reduce(
+    (count, member) => count + (Number(getRow(selectedWeekend.date, member).score) > 0 ? 1 : 0),
+    0,
+  );
 
   const updateField = (date, member, field, value) => {
     const next = clone(config);
@@ -201,7 +224,7 @@ export function WeekendScoreEditor({ config, onChange }) {
                 <th>队员</th>
                 {selectedWeekend.hasPreviousPoints && <th><span className="weekend-score-header">上周积分{sortButton(selectedWeekend, 'previousPoints', '上周积分')}</span></th>}
                 <th><span className="weekend-score-header">积分{sortButton(selectedWeekend, 'points', '积分')}</span></th>
-                <th><span className="weekend-score-header">得分{sortButton(selectedWeekend, 'score', '得分')}</span></th>
+                <th><span className="weekend-score-header">得分（{positiveScoreCount}人）{sortButton(selectedWeekend, 'score', '得分')}</span></th>
                 <th><span className="weekend-score-header">总分{sortButton(selectedWeekend, 'total', '总分')}</span></th>
               </tr>
             </thead>

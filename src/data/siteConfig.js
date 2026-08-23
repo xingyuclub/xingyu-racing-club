@@ -4,7 +4,7 @@ import { buildScoreMemberMatcher } from './scoreRules.js';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const sum = (values) => values.reduce((total, value) => total + Number(value || 0), 0);
-const SEASON_START_DATE = '2026-08-20';
+export const SEASON_START_DATE = '2026-08-20';
 const SEASON_END_DATE = '';
 
 export function nextScoreMemberId(scoreMembers = []) {
@@ -198,26 +198,23 @@ export function hydrateSiteData(rawConfig) {
   const latestRound = dailyScores[dailyScores.length - 1];
   const latestDate = latestRound?.date || '';
   const leaderboard = (config.scoreMembers || [])
-    .map((member) => member.id)
-    .map((id) => ({
-      id,
-      name: scoreMembersById.get(id)?.name || '',
-      points: totals.get(id) ?? 0,
-      seasonPoints: seasonTotals.get(id) ?? 0,
+    .map((member, index) => ({
+      id: member.id,
+      name: scoreMembersById.get(member.id)?.name || '',
+      points: totals.get(member.id) ?? 0,
+      seasonPoints: seasonTotals.get(member.id) ?? 0,
+      order: index,
     }))
     .sort(
       (left, right) =>
         right.seasonPoints - left.seasonPoints
         || right.points - left.points
-        || left.name.localeCompare(right.name),
+        || left.order - right.order,
     )
-    .map((row, index) => ({
-      id: row.id,
-      rank: index + 1,
-      name: row.name,
-      points: row.points,
-      seasonPoints: row.seasonPoints,
-    }));
+    .map((row, index) => {
+      const { order, ...rest } = row;
+      return { ...rest, rank: index + 1 };
+    });
   return {
     ...config,
     roster,

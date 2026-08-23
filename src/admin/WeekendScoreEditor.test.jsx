@@ -89,6 +89,30 @@ it('calculates weekend fields and keeps formula outputs read-only', async () => 
   expect(screen.getByLabelText('周六 青山 总分')).toHaveAttribute('readonly');
 });
 
+it('shows only members with a positive score in the score header count', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-08-15T12:00:00'));
+  const config = {
+    ...baseConfig,
+    weekendScores: [{
+      date: '2026-08-15',
+      rows: [
+        { id: '1', previousPoints: 90, points: 100 },
+        { id: '2', previousPoints: 80, points: 80 },
+        { id: '3', previousPoints: 60, points: 50 },
+      ],
+    }],
+  };
+
+  try {
+    render(<WeekendScoreEditor config={config} onChange={vi.fn()} />);
+
+    expect(screen.getByRole('columnheader', { name: /得分/ })).toHaveTextContent('得分（1人）');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it('locks an inherited Saturday baseline and derives the weekly total', () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-08-15T12:00:00'));
@@ -129,6 +153,37 @@ it('inherits the previous weekend points when the next Saturday has no saved row
     expect(screen.getByText('周六（2026-08-15）')).toBeInTheDocument();
     expect(screen.getByLabelText('周六 青山 上周积分')).toHaveValue(112);
     expect(screen.getByLabelText('周六 青山 上周积分')).toHaveAttribute('readonly');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('pre-fills zero previous points for the first Saturday of the new season', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-08-22T12:00:00'));
+  const config = {
+    ...baseConfig,
+    weekendScores: [
+      { date: '2026-08-16', rows: [{ id: '1', points: 571 }] },
+    ],
+  };
+
+  try {
+    function StatefulNewSeason() {
+      const [current, setCurrent] = useState(config);
+      return <WeekendScoreEditor config={current} onChange={setCurrent} />;
+    }
+    render(<StatefulNewSeason />);
+
+    expect(screen.getByText('周六（2026-08-22）')).toBeInTheDocument();
+    const previousPoints = screen.getByLabelText('周六 青山 上周积分');
+    expect(previousPoints).toHaveValue(0);
+    expect(previousPoints).not.toHaveAttribute('readonly');
+
+    fireEvent.change(screen.getByLabelText('周六 青山 积分'), { target: { value: '30' } });
+
+    expect(screen.getByLabelText('周六 青山 得分')).toHaveValue(30);
+    expect(screen.getByLabelText('周六 青山 总分')).toHaveValue(30);
   } finally {
     vi.useRealTimers();
   }

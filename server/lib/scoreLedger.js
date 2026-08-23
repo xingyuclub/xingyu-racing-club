@@ -47,11 +47,25 @@ export function projectScores({
   let activeWeek = null;
   let weekTotals = new Map();
   let saturdayPoints = new Map();
-  const previousWeekendPoints = new Map();
+  let previousWeekendPoints = new Map();
   let weekMembers = new Set();
+  let seasonStarted = false;
+  let firstSeasonWeekend = false;
 
   for (const event of events) {
     const isWeekend = event.kind === 'weekend';
+    const isInSeason = (!seasonStartDate || event.date >= seasonStartDate)
+      && (!seasonEndDate || event.date <= seasonEndDate);
+    if (isInSeason && !seasonStarted) {
+      seasonStarted = true;
+      // 新赛季重新起算周末积分基线，不再继承上一赛季的周末累计积分。
+      if (previousWeekendPoints.size > 0) {
+        firstSeasonWeekend = true;
+        previousWeekendPoints = new Map();
+      }
+    }
+    const isFirstSeasonWeekend = isWeekend && isInSeason && firstSeasonWeekend;
+    if (isFirstSeasonWeekend) firstSeasonWeekend = false;
     const eventWeek = weekKey(event.date);
     if (activeWeek !== null && eventWeek !== activeWeek) {
       weekTotals = new Map();
@@ -74,9 +88,12 @@ export function projectScores({
       const isSaturday = weekendDay === '周六';
       const isSunday = weekendDay === '周日';
       const inheritedBaseline = isSaturday && previousWeekendPoints.has(memberId);
+      const storedPreviousPoints = numericValue(row.previousPoints);
       const previousPoints = isSaturday
-        ? (inheritedBaseline ? previousWeekendPoints.get(memberId) : numericValue(row.previousPoints))
-        : numericValue(row.previousPoints);
+        ? (inheritedBaseline
+          ? previousWeekendPoints.get(memberId)
+          : (isFirstSeasonWeekend && storedPreviousPoints == null ? 0 : storedPreviousPoints))
+        : storedPreviousPoints;
       const weekendBaseline = isSaturday
         ? previousPoints
         : (isSunday ? saturdayPoints.get(memberId) ?? null : null);
