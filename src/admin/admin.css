@@ -38,3 +38,9 @@
 .recognition-race-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.recognition-race-label{display:block;margin-bottom:6px;color:#7f1d1d;font-size:12px;font-weight:700}.recognition-race-member{display:block;padding:2px 0;color:#7f1d1d;font-size:13px}.score-recognition-panel.is-hidden{display:none}
 .recognition-create-member{display:grid;grid-template-columns:minmax(180px,1fr) auto;gap:8px 10px;align-items:end;margin-top:10px;padding-top:10px;border-top:1px solid #fecaca}.recognition-create-member label{display:flex;min-width:0;flex-direction:column;gap:4px;color:#7f1d1d;font-size:12px;font-weight:600}.recognition-create-member input{width:100%;min-width:0;height:38px;padding:6px 8px;border:1px solid #fca5a5;border-radius:4px;background:#fff;color:#17202a}.recognition-create-member button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:38px;background:#1d4ed8}.recognition-create-member small{grid-column:1/-1;color:#7f1d1d;line-height:1.5}
 @media(max-width:720px){.recognition-create-member{grid-template-columns:1fr}.recognition-create-member button{width:100%}.recognition-create-member small{grid-column:auto}}
+
+.score-roster-table th:last-child{width:150px}
+.score-roster-seq{display:inline-grid;min-width:26px;height:26px;place-items:center;background:#dbeafe;color:#1e40af;border-radius:5px;font-weight:700;font-size:13px}
+.score-roster-actions{display:flex;align-items:center;gap:6px}
+.score-roster-move{display:grid!important;width:30px;height:30px;place-items:center;padding:0!important;background:#e2e8f0!important;color:#17202a!important}
+.score-roster-move:disabled{opacity:.35;cursor:not-allowed}

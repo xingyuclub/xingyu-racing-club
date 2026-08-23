@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowDownWideNarrow, Download, FileDown, Plus, Trash2, Upload, X } from 'lucide-react';
+import { ArrowDown, ArrowDownWideNarrow, ArrowUp, Download, FileDown, Plus, Trash2, Upload, X } from 'lucide-react';
 import {
   hydrateSiteData,
   nextScoreMemberId,
@@ -57,6 +57,11 @@ export function ScoreEditor({ config, onChange }) {
     ...rows.map((row) => row.date),
     ...weekendRows.map((row) => row.date),
   ])].sort(), [rows, weekendRows]);
+  const memberOrder = useMemo(() => {
+    const order = new Map();
+    (config.scoreMembers || []).forEach((member, index) => order.set(String(member.id), index));
+    return order;
+  }, [config.scoreMembers]);
   const [selectedDate, setSelectedDate] = useState(() => availableDates.at(-1) || '');
   const selectedIsWeekend = selectedDate && [0, 6].includes(dateWeekday(selectedDate));
   const totals = useMemo(() => {
@@ -81,7 +86,13 @@ export function ScoreEditor({ config, onChange }) {
         .map((row, index) => ({ row, index, weekend: false }))
         .filter(({ row }) => row.date === selectedDate);
     const field = sortKeys[selectedDate];
-    if (!field) return source;
+    const byAdminOrder = (left, right) => {
+      const leftIndex = memberOrder.get(String(left.row.id)) ?? Number.MAX_SAFE_INTEGER;
+      const rightIndex = memberOrder.get(String(right.row.id)) ?? Number.MAX_SAFE_INTEGER;
+      return leftIndex - rightIndex
+        || String(left.row.name || '').localeCompare(String(right.row.name || ''));
+    };
+    if (!field) return source.slice().sort(byAdminOrder);
     return source.slice().sort((left, right) => {
       const leftValue = left.weekend
         ? totals.get(totalKey(selectedDate, left.row.id))?.[field]
@@ -99,7 +110,7 @@ export function ScoreEditor({ config, onChange }) {
       const rightName = config.scoreMembers.find((member) => member.id === right.row.id)?.name || right.row.name || '';
       return rightNumber - leftNumber || String(leftName).localeCompare(String(rightName));
     });
-  }, [rows, weekendRows, selectedDate, selectedIsWeekend, sortKeys, totals]);
+  }, [rows, weekendRows, selectedDate, selectedIsWeekend, sortKeys, totals, memberOrder]);
 
   const setDate = (date) => {
     setSelectedDate(date);
@@ -175,6 +186,14 @@ export function ScoreEditor({ config, onChange }) {
   const removeScoreMember = (index) => {
     onChange(removeScoreMemberFromConfig(config, config.scoreMembers[index].id));
   };
+  const moveScoreMember = (index, direction) => {
+    const next = clone(config);
+    const target = index + direction;
+    if (target < 0 || target >= next.scoreMembers.length) return;
+    const [member] = next.scoreMembers.splice(index, 1);
+    next.scoreMembers.splice(target, 0, member);
+    onChange(next);
+  };
 
   const download = async (template) => {
     setErrors([]);
@@ -241,11 +260,12 @@ export function ScoreEditor({ config, onChange }) {
           <div className="score-roster-table-wrap">
           <table className="score-roster-table">
             <thead>
-              <tr><th>姓名</th><th>ID</th><th><span className="sr-only">操作</span></th></tr>
+              <tr><th>序号</th><th>姓名</th><th>ID</th><th><span className="sr-only">操作</span></th></tr>
             </thead>
             <tbody>
               {(config.scoreMembers || []).map((member, index) => (
                 <tr key={member.id}>
+                  <td><span className="score-roster-seq">{index + 1}</span></td>
                   <td>
                     <input
                       type="text"
@@ -255,7 +275,27 @@ export function ScoreEditor({ config, onChange }) {
                     />
                   </td>
                   <td>{member.id}</td>
-                  <td>
+                  <td className="score-roster-actions">
+                    <button
+                      className="score-roster-move"
+                      type="button"
+                      title={`上移积分队员 ${index + 1}`}
+                      aria-label={`上移积分队员 ${index + 1}`}
+                      disabled={index === 0}
+                      onClick={() => moveScoreMember(index, -1)}
+                    >
+                      <ArrowUp aria-hidden="true" size={16} />
+                    </button>
+                    <button
+                      className="score-roster-move"
+                      type="button"
+                      title={`下移积分队员 ${index + 1}`}
+                      aria-label={`下移积分队员 ${index + 1}`}
+                      disabled={index === config.scoreMembers.length - 1}
+                      onClick={() => moveScoreMember(index, 1)}
+                    >
+                      <ArrowDown aria-hidden="true" size={16} />
+                    </button>
                     <button
                       className="score-delete"
                       type="button"

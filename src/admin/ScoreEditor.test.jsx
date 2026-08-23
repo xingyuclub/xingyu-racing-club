@@ -299,6 +299,56 @@ describe('ScoreEditor', () => {
     expect(next.roster[0].scoreMemberId).toBe('');
   });
 
+  it('shows the admin sequence number for every score member', async () => {
+    const user = userEvent.setup();
+    const config = createConfig();
+    const { container } = render(<ScoreEditor config={config} onChange={() => {}} />);
+    await user.click(screen.getByRole('tab', { name: '积分队员' }));
+
+    const seqs = [...container.querySelectorAll('.score-roster-table tbody .score-roster-seq')]
+      .map((el) => el.textContent);
+    expect(seqs).toEqual(['1', '2']);
+  });
+
+  it('moves score members up and down and disables the edge buttons', async () => {
+    const user = userEvent.setup();
+    const config = createConfig();
+    const onChange = vi.fn();
+
+    render(<ScoreEditorHarness initialConfig={config} onChange={onChange} />);
+    await user.click(screen.getByRole('tab', { name: '积分队员' }));
+
+    expect(screen.getByRole('button', { name: '上移积分队员 1' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '下移积分队员 2' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: '下移积分队员 1' }));
+    expect(onChange.mock.calls.at(-1)[0].scoreMembers.map((member) => member.name)).toEqual([
+      config.scoreMembers[1].name,
+      config.scoreMembers[0].name,
+    ]);
+
+    await user.click(screen.getByRole('button', { name: '上移积分队员 2' }));
+    expect(onChange.mock.calls.at(-1)[0].scoreMembers.map((member) => member.name)).toEqual([
+      config.scoreMembers[0].name,
+      config.scoreMembers[1].name,
+    ]);
+  });
+
+  it('orders the score table by the admin member order by default', () => {
+    const config = createConfig();
+    config.dailyScores[0].rows = [
+      { id: config.scoreMembers[1].id, teamRace: [1, 0, 0], openRace: [0, 0, 0] },
+      { id: config.scoreMembers[0].id, teamRace: [2, 0, 0], openRace: [0, 0, 0] },
+    ];
+
+    const { container } = render(<ScoreEditor config={config} onChange={() => {}} />);
+
+    const rows = [...container.querySelectorAll('[data-testid="score-editor-row"]')];
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]).getByRole('option', { name: config.scoreMembers[0].name, selected: true })).toBeInTheDocument();
+    expect(within(rows[1]).getByRole('option', { name: config.scoreMembers[1].name, selected: true })).toBeInTheDocument();
+  });
+
   it('downloads a blank template and the current score data', async () => {
     const user = userEvent.setup();
     const config = createConfig();
