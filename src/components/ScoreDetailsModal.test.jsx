@@ -19,6 +19,7 @@ it('shows the exact Saturday team-race fields and weekly total without a cross-w
         score: 52,
         weekTotal: 136,
         total: 136,
+        seasonPoints: 207,
       }],
     }]}
   />);
@@ -28,9 +29,10 @@ it('shows the exact Saturday team-race fields and weekly total without a cross-w
   expect(within(dialog).getByText('上周积分')).toBeInTheDocument();
   expect(within(dialog).getByText('积分')).toBeInTheDocument();
   expect(within(dialog).getByRole('columnheader', { name: '总分', exact: true })).toBeInTheDocument();
+  expect(within(dialog).getByRole('columnheader', { name: '赛季总分', exact: true })).toBeInTheDocument();
   expect(within(dialog).queryByText('累计总分')).not.toBeInTheDocument();
   const row = within(dialog).getByTestId('daily-score-row');
-  for (const value of ['90', '142', '52', '136']) {
+  for (const value of ['90', '142', '52', '136', '207']) {
     expect(within(row).getByText(value)).toBeInTheDocument();
   }
 });
@@ -43,9 +45,9 @@ it('sorts weekday rows by score and total in both directions', async () => {
       date: '2026-07-31',
       weekday: '周五',
       rows: [
-        { id: 'a', name: '甲', teamRace: [1, 0, 0], openRace: [], score: 2, total: 10 },
-        { id: 'b', name: '乙', teamRace: [2, 0, 0], openRace: [], score: 8, total: 5 },
-        { id: 'c', name: '丙', teamRace: [3, 0, 0], openRace: [], score: 4, total: 12 },
+        { id: 'a', name: '甲', teamRace: [1, 0, 0], openRace: [], score: 2, total: 10, seasonPoints: 30 },
+        { id: 'b', name: '乙', teamRace: [2, 0, 0], openRace: [], score: 8, total: 5, seasonPoints: 20 },
+        { id: 'c', name: '丙', teamRace: [3, 0, 0], openRace: [], score: 4, total: 12, seasonPoints: 10 },
       ],
     }]}
   />);
@@ -69,6 +71,11 @@ it('sorts weekday rows by score and total in both directions', async () => {
   await user.click(within(totalHeader).getByRole('button', { name: /总分/ }));
   expect(getNames()).toEqual(['丙', '甲', '乙']);
   expect(totalHeader).toHaveAttribute('aria-sort', 'descending');
+
+  const seasonHeader = within(screen.getByRole('dialog')).getByRole('columnheader', { name: '赛季总分', exact: true });
+  await user.click(within(seasonHeader).getByRole('button', { name: /赛季总分/ }));
+  expect(getNames()).toEqual(['甲', '乙', '丙']);
+  expect(seasonHeader).toHaveAttribute('aria-sort', 'descending');
 });
 
 it('sorts weekend rows by points in both directions', async () => {

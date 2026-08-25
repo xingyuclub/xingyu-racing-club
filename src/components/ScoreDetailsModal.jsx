@@ -40,7 +40,7 @@ export function ScoreDetailsModal({ dailyScores = [], onClose }) {
   const selectedScore = selectedDate ? scoreByDate.get(selectedDate) : null;
   const isSaturday = selectedScore?.weekday === '周六';
   const isWeekend = isSaturday || selectedScore?.weekday === '周日';
-  const sortOptions = isWeekend ? ['points', 'score', 'total'] : ['score', 'total'];
+  const sortOptions = isWeekend ? ['points', 'score', 'total', 'seasonPoints'] : ['score', 'total', 'seasonPoints'];
   const activeSortKey = sortOptions.includes(sortKey) ? sortKey : 'total';
   const activeSortDirection = sortOptions.includes(sortKey) ? sortDirection : 'desc';
   const sortedRows = useMemo(() => {
@@ -103,6 +103,7 @@ export function ScoreDetailsModal({ dailyScores = [], onClose }) {
 
     return (
       <th
+        className={key === 'seasonPoints' ? 'daily-score-season-column' : undefined}
         scope="col"
         rowSpan={rowSpan}
         aria-sort={isActive ? (activeSortDirection === 'desc' ? 'descending' : 'ascending') : 'none'}
@@ -213,13 +214,14 @@ export function ScoreDetailsModal({ dailyScores = [], onClose }) {
                   <thead>
                     <tr>
                       <th scope="col" rowSpan="2">队员</th>
-                      <th scope="colgroup" colSpan={isSaturday ? 4 : 3}>车队赛</th>
+                      <th scope="colgroup" colSpan={isSaturday ? 5 : 4}>车队赛</th>
                     </tr>
                     <tr>
                       {isSaturday && <th scope="col">上周积分</th>}
                       {renderSortableHeader('积分', 'points')}
                       {renderSortableHeader('得分', 'score')}
                       {renderSortableHeader('总分', 'total')}
+                      {renderSortableHeader('赛季总分', 'seasonPoints')}
                     </tr>
                   </thead>
                   <tbody>
@@ -230,6 +232,7 @@ export function ScoreDetailsModal({ dailyScores = [], onClose }) {
                         <td>{displayScore(row.points)}</td>
                         <td>{displayScore(row.score)}</td>
                         <td>{displayScore(row.total)}</td>
+                        <td className="daily-score-season-cell">{displayScore(row.seasonPoints)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -243,6 +246,7 @@ export function ScoreDetailsModal({ dailyScores = [], onClose }) {
                     <th scope="colgroup" colSpan="3">开黑赛</th>
                     {renderSortableHeader('得分', 'score', 2)}
                     {renderSortableHeader('总分', 'total', 2)}
+                    {renderSortableHeader('赛季总分', 'seasonPoints', 2)}
                   </tr>
                   <tr>
                     <th scope="col">第一局</th>
@@ -265,6 +269,7 @@ export function ScoreDetailsModal({ dailyScores = [], onClose }) {
                       ))}
                       <td>{displayScore(row.score)}</td>
                       <td>{displayScore(row.total)}</td>
+                      <td className="daily-score-season-cell">{displayScore(row.seasonPoints)}</td>
                     </tr>
                   ))}
                 </tbody>

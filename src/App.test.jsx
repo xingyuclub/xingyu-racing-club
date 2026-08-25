@@ -1078,6 +1078,7 @@ describe('App', () => {
     expect(dialog).toHaveTextContent('开黑赛');
     expect(dialog).toHaveTextContent('得分');
     expect(dialog).toHaveTextContent('总分');
+    expect(dialog).toHaveTextContent('赛季总分');
     expect(within(dialog).getAllByTestId('daily-score-row')).toHaveLength(30);
 
     await user.click(

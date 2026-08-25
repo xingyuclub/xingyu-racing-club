@@ -30,12 +30,16 @@ export function projectScores({
   roster = [],
   seasonStartDate = '',
   seasonEndDate = '',
+  previousSeasonStartDate = '',
+  previousSeasonEndDate = '',
 }) {
   const totals = new Map();
   const seasonTotals = new Map();
+  const previousSeasonTotals = new Map();
   for (const member of roster) {
     totals.set(String(member.id), 0);
     seasonTotals.set(String(member.id), 0);
+    previousSeasonTotals.set(String(member.id), 0);
   }
 
   const events = [
@@ -56,6 +60,9 @@ export function projectScores({
     const isWeekend = event.kind === 'weekend';
     const isInSeason = (!seasonStartDate || event.date >= seasonStartDate)
       && (!seasonEndDate || event.date <= seasonEndDate);
+    const isInPreviousSeason = Boolean(previousSeasonStartDate || previousSeasonEndDate)
+      && (!previousSeasonStartDate || event.date >= previousSeasonStartDate)
+      && (!previousSeasonEndDate || event.date <= previousSeasonEndDate);
     if (isInSeason && !seasonStarted) {
       seasonStarted = true;
       // 新赛季重新起算周末积分基线，不再继承上一赛季的周末累计积分。
@@ -114,6 +121,9 @@ export function projectScores({
       if ((!seasonStartDate || event.date >= seasonStartDate) && (!seasonEndDate || event.date <= seasonEndDate)) {
         seasonTotals.set(memberId, (seasonTotals.get(memberId) || 0) + earnedScore);
       }
+      if (isInPreviousSeason) {
+        previousSeasonTotals.set(memberId, (previousSeasonTotals.get(memberId) || 0) + earnedScore);
+      }
       if (isSaturday && points != null) saturdayPoints.set(memberId, points);
       if (isWeekend && points != null) previousWeekendPoints.set(memberId, points);
       return [{
@@ -128,6 +138,9 @@ export function projectScores({
         score,
         weekTotal,
         total,
+        seasonPoints: isInSeason
+          ? (seasonTotals.get(memberId) || 0)
+          : (isInPreviousSeason ? (previousSeasonTotals.get(memberId) || 0) : 0),
       }];
     });
 
@@ -136,5 +149,5 @@ export function projectScores({
     }
   }
 
-  return { totals, seasonTotals, dailyDetail, weekMembers };
+  return { totals, seasonTotals, previousSeasonTotals, dailyDetail, weekMembers };
 }

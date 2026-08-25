@@ -6,6 +6,8 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 const sum = (values) => values.reduce((total, value) => total + Number(value || 0), 0);
 export const SEASON_START_DATE = '2026-08-20';
 const SEASON_END_DATE = '';
+export const PREVIOUS_SEASON_START_DATE = '2026-06-25';
+export const PREVIOUS_SEASON_END_DATE = '2026-08-19';
 
 export function nextScoreMemberId(scoreMembers = []) {
   const used = new Set(scoreMembers.map((member) => String(member.id || '').trim()));
@@ -176,6 +178,8 @@ export function hydrateSiteData(rawConfig) {
     roster: config.scoreMembers,
     seasonStartDate: SEASON_START_DATE,
     seasonEndDate: SEASON_END_DATE,
+    previousSeasonStartDate: PREVIOUS_SEASON_START_DATE,
+    previousSeasonEndDate: PREVIOUS_SEASON_END_DATE,
   });
 
   const dailyScores = dailyDetail.map((round) => ({
@@ -192,6 +196,7 @@ export function hydrateSiteData(rawConfig) {
       score: row.score,
       weekTotal: row.weekTotal,
       total: row.total,
+      seasonPoints: row.seasonPoints,
     })),
   }));
   const roster = config.roster;

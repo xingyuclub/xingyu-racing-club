@@ -24,6 +24,7 @@ describe('projectScores', () => {
     expect(dailyDetail[0].rows[0].total).toBe(4);
     expect(dailyDetail[1].rows[0].total).toBe(6);
     expect(dailyDetail[2].rows[0].total).toBe(3);
+    expect(dailyDetail.map((round) => round.rows[0].seasonPoints)).toEqual([4, 6, 9]);
   });
 
   it('uses the exact weekend week total instead of rebuilding it from the score field', () => {
@@ -49,6 +50,7 @@ describe('projectScores', () => {
       score: 12,
       weekTotal: 100,
       total: 100,
+      seasonPoints: 16,
     });
   });
 
@@ -204,7 +206,7 @@ describe('projectScores', () => {
   });
 
   it('accumulates season totals only within the requested inclusive range', () => {
-    const { seasonTotals } = projectScores({
+    const { dailyDetail, seasonTotals } = projectScores({
       roster: [{ id: '1' }],
       dailyScores: [
         { date: '2026-06-24', rows: [{ id: '1', teamRace: [10, 0, 0], openRace: [0, 0, 0], score: 10, total: 10 }] },
@@ -217,6 +219,24 @@ describe('projectScores', () => {
     });
 
     expect(seasonTotals.get('1')).toBe(5);
+    expect(dailyDetail.map((round) => round.rows[0].seasonPoints)).toEqual([0, 2, 5, 0]);
+  });
+
+  it('shows the matching previous-season cumulative points in historical rows', () => {
+    const { dailyDetail, seasonTotals, previousSeasonTotals } = projectScores({
+      roster: [{ id: '1' }],
+      dailyScores: [
+        { date: '2026-08-18', rows: [{ id: '1', teamRace: [4, 0, 0], openRace: [0, 0, 0] }] },
+        { date: '2026-08-20', rows: [{ id: '1', teamRace: [6, 0, 0], openRace: [0, 0, 0] }] },
+      ],
+      seasonStartDate: '2026-08-20',
+      previousSeasonStartDate: '2026-06-25',
+      previousSeasonEndDate: '2026-08-19',
+    });
+
+    expect(dailyDetail.map((round) => round.rows[0].seasonPoints)).toEqual([4, 6]);
+    expect(previousSeasonTotals.get('1')).toBe(4);
+    expect(seasonTotals.get('1')).toBe(6);
   });
 
   it('restarts the weekend baseline at the season start', () => {

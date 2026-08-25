@@ -1965,7 +1965,7 @@ button:focus-visible {
 
 .daily-score-table {
   width: 100%;
-  min-width: 720px;
+  min-width: 790px;
   border-collapse: collapse;
   font-size: 0.7rem;
 }
@@ -1975,8 +1975,22 @@ button:focus-visible {
   padding: 8px 9px;
   white-space: nowrap;
   text-align: center;
+  vertical-align: middle;
   border-right: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
+}
+
+.daily-score-season-column,
+.daily-score-season-cell {
+  width: 78px;
+  min-width: 78px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.daily-score-season-column .daily-score-sort-button {
+  width: 100%;
+  white-space: nowrap;
 }
 
 .daily-score-table thead th {

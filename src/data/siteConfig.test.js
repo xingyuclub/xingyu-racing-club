@@ -524,6 +524,22 @@ describe('site configuration', () => {
 
     expect(hydrateSiteData(config).leaderboard[0].seasonPoints).toBe(25);
   });
+
+  it('shows the previous season total for historical date queries', () => {
+    const config = createSeedConfig();
+    const member = { ...config.scoreMembers[0], basePoints: 0 };
+    config.scoreMembers = [member];
+    config.dailyScores = [
+      { date: '2026-08-18', rows: [{ id: member.id, teamRace: [4, 0, 0], openRace: [0, 0, 0] }] },
+      { date: '2026-08-20', rows: [{ id: member.id, teamRace: [6, 0, 0], openRace: [0, 0, 0] }] },
+    ];
+
+    const rowsByDate = new Map(
+      hydrateSiteData(config).dailyScores.map((round) => [round.date, round.rows[0]]),
+    );
+    expect(rowsByDate.get('2026-08-18').seasonPoints).toBe(4);
+    expect(rowsByDate.get('2026-08-20').seasonPoints).toBe(6);
+  });
 });
 
 describe('news pinning and categories', () => {

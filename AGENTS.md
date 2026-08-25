@@ -378,3 +378,21 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 验证结果：全量 `npm test -- --run` 通过 31 个测试文件、538 项测试；普通构建与 GitHub Pages 公网参数构建均通过。
 - 部署前私有备份位于 `output/deployment-backups/20260821-181651`，不会进入 Git；用户已有的 `src/admin/WeekendScoreEditor.jsx` 和对应测试改动未纳入本次提交。
 - 修复记录：`2026-08-21` 曾因 3000 端口 API 仍是 S53 旧进程，后台删除积分成员后把旧赛季配置发布到 COS；已重启 `server/index.js` 并用当前 S54 代码重新发布公网配置。后续切换赛季代码后必须重启本机 API，否则后台保存会再次用旧赛季覆盖公网配置。
+
+## 2026-08-23 新赛季周末基线修复与公网重发布交接
+
+- S54 新赛季首个周末（2026-08-22）不再继承上一赛季“上周积分”：`server/lib/scoreLedger.js` 跨过赛季开始日 `2026-08-20` 时重置周末基线，周六无手填值时按 0 起算（`previousPoints=0`、得分=积分）；`src/admin/WeekendScoreEditor.jsx` 新赛季首个周末预填 0 可编辑。新增回归测试 3 项。
+- 后台“积分队员”新增“序号”列与上移/下移排序按钮（`src/admin/ScoreEditor.jsx` + `admin.css`），只重排 `scoreMembers` 不改成员 ID；积分明细默认按后台顺序展示，榜单同分时按后台顺序兜底（`src/data/siteConfig.js`）。
+- 根因：公网 GitHub Pages 前端 bundle 已含新代码，但 COS 公开配置 `config/site-config.js` 里的榜单是旧 API 进程（未加载基线修复）发布的错误赛季总分，公网直接读取该存储榜单。修复动作：重启 3000 API（`node server/index.js`，PID 23980，绑定 127.0.0.1:3000）后重新发布 COS 配置，`git push origin main`（commit `6cefe8c`、`98def6c`）触发 GitHub Actions 自动部署成功。
+- 公网已用无头 Chrome 验证 `https://xingyuclub.github.io/xingyu-racing-club/#leaderboard`：截至 2026年8月22日，李知恩 58、美人书 53、知行 45、曾美丽 45、砚舟 45、敏敏 44、白榆 43、黑岩 43，不再显示上赛季继承值（砚舟 5、曾美丽 7 等）。
+- 注意：`github.com` 443 被墙但 `140.82.112.3` 可达，已在本机 hosts 添加 `140.82.112.3 github.com` 映射（备份 `C:\Windows\System32\drivers\etc\hosts.bak-codex`）以便 git push。
+
+## 2026-08-25 日期积分查询兼容 S53/S54 与公网发布交接
+
+- 日期积分查询的“赛季总分”现在按所选日期所属赛季显示：S53 历史范围为 `2026-06-25` 至 `2026-08-19`，S54 从 `2026-08-20` 重新起算；首页和完整榜单仍只使用当前 S54 的 `seasonTotals`。
+- `server/lib/scoreLedger.js` 新增上一赛季累计投影，`src/data/siteConfig.js` 传入 `PREVIOUS_SEASON_START_DATE` / `PREVIOUS_SEASON_END_DATE`；工作日、周末日期明细均可显示对应赛季累计值。
+- 日期积分表的“赛季总分”列增加固定宽度、水平/垂直居中和不换行规则，移动端继续只在表格区域横向滚动。
+- 本机 API `3000` 已重启后通过后台原样保存配置触发 COS 发布；COS `config/site-config.js` 回读 HTTP 200，`latestScoreDate=2026-08-24`。真实核验：积分人物 `36` 在 `2026-08-18` 为 S53 累计 `239`，`2026-08-20` 为 S54 累计 `18`，`2026-08-24` 为 S54 累计 `83`。
+- 验证结果：全量 `npm test -- --run` 通过 31 个测试文件、546 项测试；`npm run build` 通过；`git diff --check` 通过。
+- 本轮代码和交接文档提交到 `main` 后由 `.github/workflows/deploy-pages.yml` 自动部署 GitHub Pages；正式地址仍为 `https://xingyuclub.github.io/xingyu-racing-club/`，完整榜单为 `https://xingyuclub.github.io/xingyu-racing-club/#leaderboard`。
+- 后续如果再次修改赛季投影或发布逻辑，必须先重启本机 `server/index.js` / `3000`，再保存配置发布 COS，避免旧 API 进程覆盖公网配置。
