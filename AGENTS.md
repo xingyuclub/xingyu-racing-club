@@ -396,3 +396,11 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 验证结果：全量 `npm test -- --run` 通过 31 个测试文件、546 项测试；`npm run build` 通过；`git diff --check` 通过。
 - 本轮代码和交接文档提交到 `main` 后由 `.github/workflows/deploy-pages.yml` 自动部署 GitHub Pages；正式地址仍为 `https://xingyuclub.github.io/xingyu-racing-club/`，完整榜单为 `https://xingyuclub.github.io/xingyu-racing-club/#leaderboard`。
 - 后续如果再次修改赛季投影或发布逻辑，必须先重启本机 `server/index.js` / `3000`，再保存配置发布 COS，避免旧 API 进程覆盖公网配置。
+
+## 2026-08-25 日期积分查询补齐 0 分队员与公网发布交接
+
+- 修复日期积分查询只显示当天有原始记录队员的问题：`server/lib/scoreLedger.js` 在派生每个有效工作日/周末日期时补齐全部 `scoreMembers`，缺失记录显示当天得分 `0`，并保留截至该日的周总分与对应赛季累计积分；周末完全没有有效数据的日期仍不凭空生成。
+- 工作日缺失队员的比赛局次显示为空位，周末缺失队员的“上周积分/积分”保持空值，避免把未录入误显示成真实比赛数据；日期表仍可按“赛季总分”排序。
+- 新增 `server/lib/scoreLedger.test.js` 回归测试，验证缺失队员在后续日期显示 0 分并携带已累计赛季积分。
+- 验证结果：全量 `npm test -- --run` 通过 31 个测试文件、547 项测试；`npm run build` 通过；2026-08-19 实际派生 50 位积分人物，其中 27 位当天 0 分但仍显示赛季累计。
+- 已提交并推送到 `main`，GitHub Pages 会自动部署；公网地址仍为 `https://xingyuclub.github.io/xingyu-racing-club/`。本轮未修改原始积分配置，因此无需重新发布 COS 配置脚本；若后续修改赛季投影代码，仍需先重启本机 API，再保存配置发布 COS。

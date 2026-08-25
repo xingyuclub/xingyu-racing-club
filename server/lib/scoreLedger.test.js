@@ -239,6 +239,22 @@ describe('projectScores', () => {
     expect(seasonTotals.get('1')).toBe(6);
   });
 
+  it('fills missing roster members with zero score and carried season points', () => {
+    const { dailyDetail } = projectScores({
+      roster: [{ id: '1' }, { id: '2' }],
+      dailyScores: [
+        { date: '2026-08-18', rows: [{ id: '2', teamRace: [4, 0, 0], openRace: [0, 0, 0] }] },
+        { date: '2026-08-19', rows: [{ id: '1', teamRace: [2, 0, 0], openRace: [0, 0, 0] }] },
+      ],
+      seasonStartDate: '2026-08-18',
+    });
+
+    expect(dailyDetail[1].rows).toEqual([
+      expect.objectContaining({ id: '1', score: 2, seasonPoints: 2 }),
+      expect.objectContaining({ id: '2', score: 0, total: 4, seasonPoints: 4 }),
+    ]);
+  });
+
   it('restarts the weekend baseline at the season start', () => {
     const { dailyDetail, seasonTotals } = projectScores({
       roster: [{ id: '1' }],

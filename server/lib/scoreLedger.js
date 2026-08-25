@@ -144,7 +144,26 @@ export function projectScores({
       }];
     });
 
-    if (rows.length) {
+    // 日期查询需要保留当天没有录入、但仍属于积分名单的人，才能查看他们
+    // 当天的 0 分和截至当天的赛季累计积分。周末完全没有有效数据的日期仍跳过。
+    if (rows.length || !isWeekend) {
+      const displayedIds = new Set(rows.map((row) => String(row.id)));
+      for (const memberId of totals.keys()) {
+        if (displayedIds.has(memberId)) continue;
+        const weekTotal = weekTotals.get(memberId) || 0;
+        rows.push({
+          id: memberId,
+          teamRace: isWeekend ? [] : [null, null, null],
+          openRace: isWeekend ? [] : [null, null, null],
+          ...(isWeekend ? { previousPoints: null, points: null } : {}),
+          score: 0,
+          weekTotal,
+          total: weekTotal,
+          seasonPoints: isInSeason
+            ? (seasonTotals.get(memberId) || 0)
+            : (isInPreviousSeason ? (previousSeasonTotals.get(memberId) || 0) : 0),
+        });
+      }
       dailyDetail.push({ date: event.date, weekday: formatWeekday(event.date), rows });
     }
   }
