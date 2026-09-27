@@ -65,7 +65,7 @@ describe('ScoreEditor', () => {
       '6',
     );
 
-    const input = screen.getByRole('spinbutton', { name: '第1行队内赛1' });
+    const input = screen.getByLabelText('第1行队内赛1');
     await user.clear(input);
     await user.type(input, '6');
 
@@ -79,7 +79,9 @@ describe('ScoreEditor', () => {
     const onChange = vi.fn();
     render(<ScoreEditorHarness initialConfig={config} onChange={onChange} />);
 
-    const input = screen.getByRole('spinbutton', { name: '第1行队内赛1' });
+    const input = screen.getByLabelText('第1行队内赛1');
+    expect(input).toHaveAttribute('type', 'text');
+    expect(input).toHaveAttribute('inputmode', 'numeric');
     await user.clear(input);
     expect(onChange.mock.calls.at(-1)[0].dailyScores[0].rows[0].teamRace[0]).toBeNull();
 
@@ -126,7 +128,7 @@ describe('ScoreEditor', () => {
 
     await user.clear(screen.getByLabelText('筛选日期'));
     await user.type(screen.getByLabelText('筛选日期'), '2026-07-28');
-    const input = screen.getByRole('spinbutton', { name: '第1行队内赛1' });
+    const input = screen.getByLabelText('第1行队内赛1');
     await user.clear(input);
     await user.type(input, '5');
 
@@ -269,7 +271,7 @@ describe('ScoreEditor', () => {
 
     const sortedRows = screen.getAllByTestId('score-editor-row');
     expect(within(sortedRows[0]).getByRole('option', { name: config.scoreMembers[1].name, selected: true })).toBeInTheDocument();
-    const firstRace = within(sortedRows[0]).getByRole('spinbutton', { name: '第2行队内赛1' });
+    const firstRace = within(sortedRows[0]).getByLabelText('第2行队内赛1');
     await user.clear(firstRace);
     await user.type(firstRace, '10');
 

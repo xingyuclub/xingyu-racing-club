@@ -16,6 +16,7 @@ import { WeekendScoreEditor } from './WeekendScoreEditor.jsx';
 import { RecognitionHistory } from './RecognitionHistory.jsx';
 
 const clone = (value) => structuredClone(value);
+const digitsOnly = (value) => String(value ?? '').replace(/\D/g, '');
 
 const flattenScores = (dailyScores) => dailyScores.flatMap((round) =>
   round.rows.map((row) => ({ ...clone(row), date: round.date })));
@@ -499,15 +500,17 @@ export function ScoreEditor({ config, onChange }) {
                   {raceGroups.flatMap(([label, field]) => row[field].map((value, raceIndex) => (
                     <td key={`${field}-${raceIndex}`}>
                       <input
-                        type="number"
-                        min="0"
-                        step="1"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        autoComplete="off"
                         aria-label={`第${(rowIndex ?? displayIndex) + 1}行${label}${raceIndex + 1}`}
                         value={value ?? ''}
                         onChange={(event) => updateRow(rowIndex, (item) => {
-                          item[field][raceIndex] = event.target.value === ''
+                          const nextValue = digitsOnly(event.target.value);
+                          item[field][raceIndex] = nextValue === ''
                             ? null
-                            : Math.max(0, Number(event.target.value));
+                            : Number(nextValue);
                         })}
                       />
                     </td>

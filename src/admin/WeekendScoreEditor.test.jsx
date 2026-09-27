@@ -86,7 +86,9 @@ it('writes the edited value into the matching weekendScores row', async () => {
   await userEvent.type(screen.getByLabelText('周六 青山 积分'), '120');
 
   const input = screen.getByLabelText('周六 青山 积分');
-  expect(input).toHaveValue(120);
+  expect(input).toHaveAttribute('type', 'text');
+  expect(input).toHaveAttribute('inputmode', 'numeric');
+  expect(input).toHaveValue('120');
 });
 
 it('calculates weekend fields and keeps formula outputs read-only', async () => {
@@ -148,7 +150,7 @@ it('locks an inherited Saturday baseline and derives the weekly total', () => {
   try {
     render(<WeekendScoreEditor config={config} onChange={vi.fn()} />);
 
-    expect(screen.getByLabelText('周六 青山 上周积分')).toHaveValue(112);
+    expect(screen.getByLabelText('周六 青山 上周积分')).toHaveValue('112');
     expect(screen.getByLabelText('周六 青山 上周积分')).toHaveAttribute('readonly');
     expect(screen.getByLabelText('周六 青山 得分')).toHaveValue(8);
     expect(screen.getByLabelText('周六 青山 总分')).toHaveValue(16);
@@ -171,7 +173,7 @@ it('inherits the previous weekend points when the next Saturday has no saved row
     render(<WeekendScoreEditor config={config} onChange={vi.fn()} />);
 
     expect(screen.getByText('周六（2026-08-15）')).toBeInTheDocument();
-    expect(screen.getByLabelText('周六 青山 上周积分')).toHaveValue(112);
+    expect(screen.getByLabelText('周六 青山 上周积分')).toHaveValue('112');
     expect(screen.getByLabelText('周六 青山 上周积分')).toHaveAttribute('readonly');
   } finally {
     vi.useRealTimers();
@@ -197,7 +199,7 @@ it('pre-fills zero previous points for the first Saturday of the new season', ()
 
     expect(screen.getByText('周六（2026-08-22）')).toBeInTheDocument();
     const previousPoints = screen.getByLabelText('周六 青山 上周积分');
-    expect(previousPoints).toHaveValue(0);
+    expect(previousPoints).toHaveValue('0');
     expect(previousPoints).not.toHaveAttribute('readonly');
 
     fireEvent.change(screen.getByLabelText('周六 青山 积分'), { target: { value: '30' } });
@@ -263,8 +265,8 @@ it('loads existing weekendScores values into the inputs', () => {
 
   render(<WeekendScoreEditor config={config} onChange={vi.fn()} />);
 
-  expect(screen.getByLabelText('周六 青山 积分')).toHaveValue(100);
-  expect(screen.getByLabelText('周六 青山 上周积分')).toHaveValue(90);
+  expect(screen.getByLabelText('周六 青山 积分')).toHaveValue('100');
+  expect(screen.getByLabelText('周六 青山 上周积分')).toHaveValue('90');
 });
 
 it('opens an older weekend date from a previous calendar month with its existing values', () => {
@@ -281,7 +283,7 @@ it('opens an older weekend date from a previous calendar month with its existing
     fireEvent.click(screen.getByRole('button', { name: '2026-07-26 周日' }));
 
     expect(screen.getByText('周日（2026-07-26）')).toBeInTheDocument();
-    expect(screen.getByLabelText('周日 青山 积分')).toHaveValue(88);
+    expect(screen.getByLabelText('周日 青山 积分')).toHaveValue('88');
   } finally {
     vi.useRealTimers();
   }

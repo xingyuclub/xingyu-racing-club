@@ -3,6 +3,7 @@ import { ArrowDownWideNarrow, CalendarDays, ChevronLeft, ChevronRight } from 'lu
 import { hydrateSiteData, SEASON_START_DATE } from '../data/siteConfig.js';
 
 const clone = (value) => structuredClone(value);
+const digitsOnly = (value) => String(value ?? '').replace(/\D/g, '');
 
 const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
@@ -154,7 +155,7 @@ export function WeekendScoreEditor({ config, onChange }) {
       row = { id, previousPoints: null, points: null, score: null, total: null };
       round.rows.push(row);
     }
-    row[field] = numericInputValue(value);
+    row[field] = numericInputValue(digitsOnly(value));
     onChange(next);
   };
 
@@ -254,7 +255,10 @@ export function WeekendScoreEditor({ config, onChange }) {
                     {selectedWeekend.hasPreviousPoints && (
                       <td>
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          autoComplete="off"
                           aria-label={selectedWeekend.label + ' ' + member.name + ' 上周积分'}
                           value={row.previousPoints ?? ''}
                           readOnly={row.previousPointsInherited}
@@ -264,7 +268,10 @@ export function WeekendScoreEditor({ config, onChange }) {
                     )}
                     <td>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        autoComplete="off"
                         aria-label={selectedWeekend.label + ' ' + member.name + ' 积分'}
                         value={row.points ?? ''}
                         onChange={(event) => updateField(selectedWeekend.date, member, 'points', event.target.value)}
