@@ -185,6 +185,18 @@ export function AlbumPage({ albums = [], gallery = [], onOpenPhoto, resetKey = 0
   const [unlockedAlbumIds, setUnlockedAlbumIds] = useState(() => new Set());
   useRevealOnScroll(true, `${activeAlbumId || 'root'}:${activeTab}`);
 
+  const lockedMediaKeys = useMemo(() => {
+    const keys = new Set();
+    albums
+      .filter((album) => album.password)
+      .forEach((album) => {
+        (album.photos || []).forEach((item, index) => {
+          keys.add(mediaKey(item, index));
+        });
+      });
+    return keys;
+  }, [albums]);
+
   const allMedia = useMemo(() => {
     const source = [
       ...(Array.isArray(gallery) ? gallery : []),
@@ -193,10 +205,11 @@ export function AlbumPage({ albums = [], gallery = [], onOpenPhoto, resetKey = 0
     const unique = new Map();
     source.forEach((item, index) => {
       const key = mediaKey(item, index);
+      if (lockedMediaKeys.has(key)) return;
       if (!unique.has(key)) unique.set(key, item);
     });
     return [...unique.values()];
-  }, [albums, gallery]);
+  }, [albums, gallery, lockedMediaKeys]);
 
   const photos = allMedia.filter((item) => !isVideoMedia(item));
   const videos = allMedia.filter(isVideoMedia);

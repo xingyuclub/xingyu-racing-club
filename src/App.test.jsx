@@ -1082,6 +1082,64 @@ describe('App', () => {
     expect(screen.getAllByTestId('album-media-item')).toHaveLength(album.photos.length);
   });
 
+  it('keeps locked album media out of the public photo, video, and pinned collections', async () => {
+    const user = userEvent.setup();
+    const lockedPhoto = {
+      id: 'locked-photo',
+      title: '秘密照片',
+      src: '/images/locked-photo.jpg',
+      featured: true,
+    };
+    const lockedVideo = {
+      id: 'locked-video',
+      title: '秘密视频',
+      mediaType: 'video',
+      videoUrl: '/videos/locked-video.mp4',
+      videoPosterSrc: '/images/locked-video.jpg',
+      featured: true,
+    };
+    const publicPhoto = {
+      id: 'public-photo',
+      title: '公开照片',
+      src: '/images/public-photo.jpg',
+      featured: true,
+    };
+    const lockedAlbum = {
+      id: 'locked-album',
+      name: '秘密相册',
+      password: '2468',
+      photos: [lockedPhoto, lockedVideo],
+    };
+    const publicAlbum = {
+      id: 'public-album',
+      name: '公开相册',
+      photos: [publicPhoto],
+    };
+
+    render(
+      <AlbumPage
+        albums={[lockedAlbum, publicAlbum]}
+        gallery={[lockedPhoto, lockedVideo, publicPhoto]}
+        onOpenPhoto={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: '查看置顶照片 公开照片' })).toBeInTheDocument();
+    expect(screen.queryByText('秘密照片')).not.toBeInTheDocument();
+    expect(screen.getAllByTestId('album-media-item')).toHaveLength(1);
+
+    await user.click(screen.getByRole('tab', { name: '视频' }));
+    expect(screen.queryByText('秘密视频')).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId('album-media-item')).toHaveLength(0);
+
+    await user.click(screen.getByRole('tab', { name: '相册' }));
+    await user.click(screen.getByRole('button', { name: '打开文件夹秘密相册' }));
+    await user.type(screen.getByLabelText('相册密码'), '2468');
+    await user.click(screen.getByRole('button', { name: '进入相册' }));
+
+    expect(screen.getAllByTestId('album-media-item')).toHaveLength(2);
+  });
+
   it('anchors album covers and photo thumbnails to the top so portraits keep their heads', () => {
     expect(globalStyles).toMatch(
       /\.album-folder img\s*\{[^}]*object-fit:\s*cover;[^}]*object-position:\s*top;/s,
