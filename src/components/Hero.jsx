@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ExternalLink, Play } from 'lucide-react';
+import { Play } from 'lucide-react';
 import GradientText from './GradientText.jsx';
 import { resolvePublicAssetPath } from '../utils/publicAsset.js';
 
@@ -19,8 +19,8 @@ export function Hero({ team, showMedia = true, onVideoPlaybackChange }) {
   const [videoStarted, setVideoStarted] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
 
-  const fallbackImage = team.heroFallbackImage || DEFAULT_HERO_FALLBACK_IMAGE;
-  const posterImage = primaryMedia.posterSrc || fallbackImage;
+  const fallbackImage = team.heroFallbackImage || primaryMedia.posterSrc || DEFAULT_HERO_FALLBACK_IMAGE;
+  const posterImage = fallbackImage;
   const isVideo = primaryMedia.type === 'video' && Boolean(primaryMedia.src) && !videoFailed;
   const isImage = primaryMedia.type === 'image' && Boolean(primaryMedia.src);
   const imageSrc = isImage && (primaryMedia.originalSrc || primaryMedia.src);
@@ -76,7 +76,7 @@ export function Hero({ team, showMedia = true, onVideoPlaybackChange }) {
   };
 
   return (
-    <div className="hero-module" data-reveal>
+    <>
       <div className="hero-brand-bar">
         <h1 id="team-title" className="hero-brand" aria-label={heroLines.join('\n')}>
           {heroLines.map((line, index) => (
@@ -92,72 +92,64 @@ export function Hero({ team, showMedia = true, onVideoPlaybackChange }) {
           ))}
         </h1>
       </div>
-      {showMedia && (
-      <section
-        className={`hero-section${hasMedia ? '' : ' hero-section--empty'}`}
-        aria-labelledby="team-title"
-      >
-        {isVideo ? (
-          <div className="hero-media-stack">
+      <div className="hero-module" data-reveal>
+        {showMedia && (
+        <section
+          className={`hero-section${hasMedia ? '' : ' hero-section--empty'}`}
+          aria-labelledby="team-title"
+        >
+          {isVideo ? (
+            <div className="hero-media-stack">
+              <img
+                className="hero-media hero-media--poster"
+                src={posterImage}
+                alt=""
+                aria-hidden="true"
+                onError={() => setImageFailed(true)}
+              />
+              <video
+                ref={videoRef}
+                className={`hero-media hero-media--video${videoStarted ? '' : ' hero-media--pending'}`}
+                src={mediaSrc}
+                poster={posterImage}
+                loop
+                playsInline
+                preload="none"
+                aria-hidden={videoPlaying ? undefined : true}
+                aria-label={videoPlaying ? '暂停车队视频' : undefined}
+                role={videoPlaying ? 'button' : undefined}
+                tabIndex={videoPlaying ? 0 : undefined}
+                onClick={videoPlaying ? handlePlaybackClick : undefined}
+                onKeyDown={videoPlaying ? handleVideoKeyDown : undefined}
+                onPlaying={handlePlaying}
+                onPause={handlePause}
+                onError={handleVideoError}
+              />
+              {!videoPlaying && (
+                <button
+                  type="button"
+                  className="hero-play-button"
+                  aria-label="播放车队视频"
+                  onClick={handlePlaybackClick}
+                >
+                  <Play aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          ) : hasMedia ? (
             <img
-              className="hero-media hero-media--poster"
-              src={posterImage}
+              className="hero-media"
+              src={mediaSrc}
               alt=""
               aria-hidden="true"
               onError={() => setImageFailed(true)}
             />
-            <video
-              ref={videoRef}
-              className={`hero-media hero-media--video${videoStarted ? '' : ' hero-media--pending'}`}
-              src={mediaSrc}
-              loop
-              playsInline
-              preload="none"
-              aria-hidden={videoPlaying ? undefined : true}
-              aria-label={videoPlaying ? '暂停车队视频' : undefined}
-              role={videoPlaying ? 'button' : undefined}
-              tabIndex={videoPlaying ? 0 : undefined}
-              onClick={videoPlaying ? handlePlaybackClick : undefined}
-              onKeyDown={videoPlaying ? handleVideoKeyDown : undefined}
-              onPlaying={handlePlaying}
-              onPause={handlePause}
-              onError={handleVideoError}
-            />
-            {!videoPlaying && (
-              <button
-                type="button"
-                className="hero-play-button"
-                aria-label="播放车队视频"
-                onClick={handlePlaybackClick}
-              >
-                <Play aria-hidden="true" />
-              </button>
-            )}
-            {primaryMedia.originalSrc && primaryMedia.originalSrc !== primaryMedia.src && (
-              <a
-                className="media-original-action hero-original-action"
-                href={primaryMedia.originalSrc}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <ExternalLink aria-hidden="true" size={15} />
-                在线播放原视频
-              </a>
-            )}
-          </div>
-        ) : hasMedia ? (
-          <img
-            className="hero-media"
-            src={mediaSrc}
-            alt=""
-            aria-hidden="true"
-            onError={() => setImageFailed(true)}
-          />
-        ) : (
-          <div className="hero-media" aria-hidden="true" />
+          ) : (
+            <div className="hero-media" aria-hidden="true" />
+          )}
+        </section>
         )}
-      </section>
-      )}
-    </div>
+      </div>
+    </>
   );
 }

@@ -46,6 +46,7 @@ export function WeekendScoreEditor({ config, onChange }) {
     date: selectedDate,
     label: WEEKDAY_LABELS[selectedDay.getDay()],
     hasPreviousPoints: selectedDay.getDay() === 6,
+    hasPreviousDayPoints: selectedDay.getDay() === 0,
   };
 
   const calendarDays = useMemo(() => {
@@ -111,6 +112,10 @@ export function WeekendScoreEditor({ config, onChange }) {
     const round = scoresByDate.get(date);
     const source = round?.rows?.find((row) => row.id === id) || { id };
     const projected = projectedRowsByKey.get(`${date}|${id}`);
+    const dateValue = dateFromKey(date);
+    dateValue.setDate(dateValue.getDate() - 1);
+    const previousDayRound = scoresByDate.get(formatDateKey(dateValue));
+    const previousDayRow = previousDayRound?.rows?.find((row) => row.id === id);
     const inheritedPreviousPoints = inheritedPreviousPointsById.get(id);
     const firstNewSeasonWeekend = selectedWeekend.hasPreviousPoints
       && Boolean(SEASON_START_DATE)
@@ -124,6 +129,7 @@ export function WeekendScoreEditor({ config, onChange }) {
       score: projected?.score ?? source.score ?? null,
       total: projected?.total ?? source.total ?? null,
       previousPointsInherited: projected?.previousPointsInherited === true || inheritedPreviousPoints != null,
+      previousDayPoints: previousDayRow?.points ?? null,
     };
   };
 
@@ -222,6 +228,7 @@ export function WeekendScoreEditor({ config, onChange }) {
             <thead>
               <tr>
                 <th>队员</th>
+                {selectedWeekend.hasPreviousDayPoints && <th><span className="weekend-score-header">周六积分{sortButton(selectedWeekend, 'previousDayPoints', '周六积分')}</span></th>}
                 {selectedWeekend.hasPreviousPoints && <th><span className="weekend-score-header">上周积分{sortButton(selectedWeekend, 'previousPoints', '上周积分')}</span></th>}
                 <th><span className="weekend-score-header">积分{sortButton(selectedWeekend, 'points', '积分')}</span></th>
                 <th><span className="weekend-score-header">得分（{positiveScoreCount}人）{sortButton(selectedWeekend, 'score', '得分')}</span></th>
@@ -234,6 +241,16 @@ export function WeekendScoreEditor({ config, onChange }) {
                 return (
                   <tr key={member.id}>
                     <td>{member.name}</td>
+                    {selectedWeekend.hasPreviousDayPoints && (
+                      <td>
+                        <input
+                          type="number"
+                          aria-label={`周日 ${member.name} 周六积分`}
+                          value={row.previousDayPoints ?? ''}
+                          readOnly
+                        />
+                      </td>
+                    )}
                     {selectedWeekend.hasPreviousPoints && (
                       <td>
                         <input

@@ -12,7 +12,9 @@ function getPosition(index, activeIndex, count) {
   return 'is-hidden';
 }
 
-export function FeaturedMembers({ members, onSelect, paused = false }) {
+export function FeaturedMembers({ members, onSelect, paused = false, sectionTitle }) {
+  const eyebrow = sectionTitle?.eyebrow || 'XINGYU MASTERS';
+  const title = sectionTitle?.title || '星屿大神榜';
   const [activeIndex, setActiveIndex] = useState(0);
   const [interactionKey, setInteractionKey] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -62,8 +64,8 @@ export function FeaturedMembers({ members, onSelect, paused = false }) {
   return (
     <section className="section-block featured-section" aria-labelledby="featured-title" data-reveal>
       <div className="section-heading">
-        <p className="eyebrow">FEATURED DRIVERS</p>
-        <h2 id="featured-title">车队风采</h2>
+        <p className="eyebrow">{eyebrow}</p>
+        <h2 id="featured-title">{title}</h2>
       </div>
       <div
         className={`carousel-viewport${isDragging ? ' is-dragging' : ''}`}
@@ -106,7 +108,7 @@ export function FeaturedMembers({ members, onSelect, paused = false }) {
           </button>
         ))}
       </div>
-      <div className="carousel-dots" aria-label="车队风采轮播位置">
+      <div className="carousel-dots" aria-label={`${title}轮播位置`}>
         {members.map((member, index) => (
           <button
             className={`carousel-dot${index === activeIndex ? ' is-active' : ''}`}

@@ -1,6 +1,17 @@
-import { useEffect, useState } from 'react';
-import { ArrowLeft, LockKeyhole, PlayCircle, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { LockKeyhole, PlayCircle, X } from 'lucide-react';
+import { BackButton } from './BackButton.jsx';
 import { useRevealOnScroll } from '../hooks/useRevealOnScroll.js';
+
+const TABS = [
+  { key: 'photos', label: '照片' },
+  { key: 'videos', label: '视频' },
+  { key: 'albums', label: '相册' },
+];
+
+const isVideoMedia = (item) => item.mediaType === 'video' || Boolean(item.videoUrl);
+const mediaKey = (item, index) => item.id || item.videoUrl || item.src || String(index);
+const mediaPoster = (item) => item.videoPosterSrc || item.cardSrc || item.src || item.thumbSrc;
 
 function AlbumPasswordDialog({ album, onCancel, onUnlock }) {
   const [password, setPassword] = useState('');
@@ -62,13 +73,141 @@ function AlbumPasswordDialog({ album, onCancel, onUnlock }) {
   );
 }
 
-export function AlbumPage({ albums, onBack, onOpenPhoto }) {
+function PinnedMedia({ item, onOpen }) {
+  if (!item) return null;
+  const isVideo = isVideoMedia(item);
+  const poster = mediaPoster(item);
+
+  return (
+    <button
+      className="media-pin"
+      type="button"
+      onClick={() => onOpen(item, [item])}
+      aria-label={`查看置顶${isVideo ? '视频' : '照片'} ${item.title}`}
+    >
+      {poster && <img src={poster} alt="" />}
+      {isVideo && (
+        <span className="media-pin-play" aria-hidden="true">
+          <PlayCircle size={28} />
+        </span>
+      )}
+      <span className="media-pin-copy">
+        <small>置顶内容</small>
+        <strong>{item.title}</strong>
+        <span>{item.date}</span>
+      </span>
+    </button>
+  );
+}
+
+function MediaGrid({ items, onOpen }) {
+  const [dimensions, setDimensions] = useState({});
+
+  const updateDimensions = (key, width, height) => {
+    if (!width || !height) return;
+    setDimensions((current) => {
+      const previous = current[key];
+      if (previous?.width === width && previous?.height === height) return current;
+      return { ...current, [key]: { width, height } };
+    });
+  };
+
+  return (
+    <div className="album-media-grid" data-reveal>
+      {items.map((item, index) => {
+        const key = mediaKey(item, index);
+        const isVideo = isVideoMedia(item);
+        const knownDimensions = dimensions[key] || {
+          width: Number(item.width || item.videoWidth) || 0,
+          height: Number(item.height || item.videoHeight) || 0,
+        };
+        const isLandscape = Boolean(
+          knownDimensions.width
+          && knownDimensions.height
+          && knownDimensions.width > knownDimensions.height,
+        );
+        const mediaAspectRatio = knownDimensions.width && knownDimensions.height
+          ? `${knownDimensions.width} / ${knownDimensions.height}`
+          : undefined;
+        const poster = mediaPoster(item);
+
+        return (
+          <button
+            className={`album-media-item ${isLandscape ? 'is-landscape' : 'is-portrait'}`}
+            type="button"
+            key={key}
+            data-testid="album-media-item"
+            style={{ '--media-aspect-ratio': mediaAspectRatio }}
+            onClick={() => onOpen(item, items)}
+            aria-label={`查看${isVideo ? '视频' : ''}${item.title}`}
+          >
+            {isVideo ? (
+              <video
+                src={item.videoUrl}
+                poster={poster}
+                muted
+                playsInline
+                preload="metadata"
+                onLoadedMetadata={(event) => updateDimensions(
+                  key,
+                  event.currentTarget.videoWidth,
+                  event.currentTarget.videoHeight,
+                )}
+              />
+            ) : (
+              <img
+                src={item.thumbSrc || item.cardSrc || item.src}
+                alt=""
+                loading="lazy"
+                onLoad={(event) => updateDimensions(
+                  key,
+                  event.currentTarget.naturalWidth,
+                  event.currentTarget.naturalHeight,
+                )}
+              />
+            )}
+            {isVideo && (
+              <span className="album-media-play" aria-hidden="true">
+                <PlayCircle size={26} />
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function AlbumPage({ albums = [], gallery = [], onOpenPhoto, resetKey = 0 }) {
+  const [activeTab, setActiveTab] = useState('photos');
   const [activeAlbumId, setActiveAlbumId] = useState(null);
   const [lockedAlbum, setLockedAlbum] = useState(null);
   const [unlockedAlbumIds, setUnlockedAlbumIds] = useState(() => new Set());
-  useRevealOnScroll(true, activeAlbumId);
+  useRevealOnScroll(true, `${activeAlbumId || 'root'}:${activeTab}`);
+
+  const allMedia = useMemo(() => {
+    const source = [
+      ...(Array.isArray(gallery) ? gallery : []),
+      ...albums.flatMap((album) => album.photos || []),
+    ];
+    const unique = new Map();
+    source.forEach((item, index) => {
+      const key = mediaKey(item, index);
+      if (!unique.has(key)) unique.set(key, item);
+    });
+    return [...unique.values()];
+  }, [albums, gallery]);
+
+  const photos = allMedia.filter((item) => !isVideoMedia(item));
+  const videos = allMedia.filter(isVideoMedia);
+  const pinnedMedia = allMedia.find((item) => item.featured) || allMedia[0] || null;
   const activeAlbum = albums.find((album) => album.id === activeAlbumId);
-  const totalPhotos = albums.reduce((sum, album) => sum + album.photos.length, 0);
+
+  useEffect(() => {
+    if (resetKey <= 0) return;
+    setActiveAlbumId(null);
+    setActiveTab('albums');
+  }, [resetKey]);
 
   const openAlbum = (album) => {
     if (!album.password || unlockedAlbumIds.has(album.id)) {
@@ -86,90 +225,79 @@ export function AlbumPage({ albums, onBack, onOpenPhoto }) {
     return true;
   };
 
-  const handleBack = () => {
-    if (activeAlbum) {
-      setActiveAlbumId(null);
-      return;
-    }
-    onBack();
-  };
+  if (activeAlbum) {
+    return (
+      <section className="album-page album-page--detail" aria-label={activeAlbum.name}>
+        <div className="album-detail-toolbar">
+          <BackButton label="返回相册" onClick={() => setActiveAlbumId(null)} />
+        </div>
+        {activeAlbum.photos?.length
+          ? <MediaGrid items={activeAlbum.photos} onOpen={onOpenPhoto} />
+          : <p className="empty-state">该文件夹暂无照片</p>}
+      </section>
+    );
+  }
+
+  const tabItems = activeTab === 'photos'
+    ? photos
+    : activeTab === 'videos'
+      ? videos
+      : [];
 
   return (
-    <section className="album-page" aria-labelledby="album-title">
-      <header className="album-header" data-reveal>
-        <button className="text-action" type="button" onClick={handleBack}>
-          <ArrowLeft aria-hidden="true" size={17} />
-          {activeAlbum ? '返回文件夹' : '返回首页'}
-        </button>
-        <p className="eyebrow">
-          {activeAlbum
-            ? `${activeAlbum.name} / ${String(activeAlbum.photos.length).padStart(2, '0')}`
-            : `ALBUMS / ${String(albums.length).padStart(2, '0')} · PHOTOS / ${String(totalPhotos).padStart(2, '0')}`}
-        </p>
-        <h1 id="album-title">{activeAlbum ? activeAlbum.name : '车队相册'}</h1>
-      </header>
+    <section className="album-page" aria-label="相册">
+      <PinnedMedia item={pinnedMedia} onOpen={onOpenPhoto} />
 
-      {activeAlbum
-        ? activeAlbum.photos.length
-          ? (
-              <div className="album-grid" data-reveal>
-                {activeAlbum.photos.map((photo, index) => {
-                  const isVideo = photo.mediaType === 'video' || Boolean(photo.videoUrl);
+      <div className="album-content-tabs" role="tablist" aria-label="相册内容分类">
+        {TABS.map((tab) => (
+          <button
+            className={activeTab === tab.key ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.key}
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-                  return (
-                    <button
-                      className="album-photo"
-                      data-testid="album-photo"
-                      key={photo.id}
-                      type="button"
-                      style={{ '--stagger-index': Math.min(index, 5) }}
-                      onClick={() => onOpenPhoto(photo, activeAlbum.photos)}
-                      aria-label={`${isVideo ? '查看视频' : '查看'}${photo.title}`}
-                    >
-                      {(photo.thumbSrc || photo.src) && <img src={photo.thumbSrc || photo.src} alt="" loading="lazy" />}
-                      {isVideo && (
-                        <span className="photo-video-badge" aria-hidden="true">
-                          <PlayCircle size={16} />
-                        </span>
-                      )}
-                      <span className="album-photo-copy">
-                        <strong>{photo.title}</strong>
-                        <small>{photo.date}</small>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )
-          : <p className="empty-state">该文件夹暂无照片</p>
-        : albums.length
-          ? (
-              <div className="album-folder-grid" data-reveal>
-                {albums.map((album, index) => (
-                  <button
-                    className="album-folder"
-                    data-testid="album-folder"
-                    key={album.id}
-                    type="button"
-                    style={{ '--stagger-index': Math.min(index, 5) }}
-                    onClick={() => openAlbum(album)}
-                    aria-label={`打开文件夹${album.name}`}
-                  >
-                    {(album.coverThumbSrc || album.coverSrc) && <img src={album.coverThumbSrc || album.coverSrc} alt="" loading="lazy" />}
-                    {album.password && (
-                      <span className="album-folder-lock" aria-hidden="true">
-                        <LockKeyhole size={15} />
-                      </span>
-                    )}
-                    <span className="album-folder-copy">
-                      <strong>{album.name}</strong>
-                      <small>{`${album.photos.length} 张 · ${album.date}`}</small>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )
-          : <p className="empty-state">相册文件夹待添加</p>}
+      {activeTab === 'albums' ? (
+        albums.length ? (
+          <div className="album-folder-grid" data-reveal>
+            {albums.map((album, index) => (
+              <button
+                className="album-folder"
+                data-testid="album-folder"
+                key={album.id}
+                type="button"
+                style={{ '--stagger-index': Math.min(index, 5) }}
+                onClick={() => openAlbum(album)}
+                aria-label={`打开文件夹${album.name}`}
+              >
+                {(album.coverThumbSrc || album.coverSrc) && (
+                  <img src={album.coverThumbSrc || album.coverSrc} alt="" loading="lazy" />
+                )}
+                {album.password && (
+                  <span className="album-folder-lock" aria-hidden="true">
+                    <LockKeyhole size={15} />
+                  </span>
+                )}
+                <span className="album-folder-copy">
+                  <strong>{album.name}</strong>
+                  <small>{`${album.photos.length} 张 · ${album.date}`}</small>
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : <p className="empty-state">相册文件夹待添加</p>
+      ) : (
+        tabItems.length
+          ? <MediaGrid items={tabItems} onOpen={onOpenPhoto} />
+          : <p className="empty-state">{activeTab === 'videos' ? '暂无视频' : '暂无照片'}</p>
+      )}
+
       {lockedAlbum && (
         <AlbumPasswordDialog
           album={lockedAlbum}

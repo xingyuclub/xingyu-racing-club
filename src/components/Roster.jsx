@@ -11,7 +11,9 @@ function displayName(value) {
     .replace(TEAM_PREFIX, '');
 }
 
-export function Roster({ members, onSelect = () => {} }) {
+export function Roster({ members, onSelect = () => {}, sectionTitle }) {
+  const eyebrow = sectionTitle?.eyebrow || 'STAR PLAYERS';
+  const title = sectionTitle?.title || '明星队员';
   const images = members.map((member) => ({
     src: member.avatarThumb || member.avatar || '',
     alt: `查看${member.name} 卡片详情`,
@@ -30,13 +32,13 @@ export function Roster({ members, onSelect = () => {} }) {
       data-reveal
     >
       <div className="section-heading">
-        <p className="eyebrow">FULL ROSTER</p>
-        <h2 id="roster-title">队员阵容</h2>
+        <p className="eyebrow">{eyebrow}</p>
+        <h2 id="roster-title">{title}</h2>
       </div>
       <div
         className="roster-dome"
         data-testid="roster-grid"
-        aria-label="队员阵容球形展示"
+        aria-label={`${title}球形展示`}
       >
         <DomeGallery
           images={images}

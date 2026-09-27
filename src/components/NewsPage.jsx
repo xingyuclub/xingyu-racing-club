@@ -1,29 +1,26 @@
-import { useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useRevealOnScroll } from '../hooks/useRevealOnScroll.js';
 import { sortNewsPinnedFirstByDateDesc } from '../data/siteConfig.js';
 
-export function NewsPage({ news, categories, onBack, onOpenItem }) {
-  const [activeTab, setActiveTab] = useState('全部');
+export function NewsPage({ news, categories, onOpenItem }) {
+  const categoryTabs = Array.isArray(categories) ? categories : [];
+  const tabs = [...categoryTabs, '全部'];
+  const defaultTab = categoryTabs[0] || '全部';
+  const [activeTab, setActiveTab] = useState(defaultTab);
   useRevealOnScroll(true, activeTab);
   const list = Array.isArray(news) ? news : [];
-  const tabs = ['全部', ...(Array.isArray(categories) ? categories : [])];
   const visible = activeTab === '全部'
     ? list
     : list.filter((item) => item.category === activeTab);
   const sorted = sortNewsPinnedFirstByDateDesc(visible);
+  const tabsKey = tabs.join('\u0000');
+
+  useEffect(() => {
+    if (!tabs.includes(activeTab)) setActiveTab(defaultTab);
+  }, [activeTab, defaultTab, tabsKey]);
 
   return (
-    <section className="album-page news-page" aria-labelledby="news-page-title">
-      <header className="album-header" data-reveal>
-        <button className="text-action" type="button" onClick={onBack}>
-          <ArrowLeft aria-hidden="true" size={17} />
-          返回首页
-        </button>
-        <p className="eyebrow">NEWS / {String(list.length).padStart(2, '0')}</p>
-        <h1 id="news-page-title">车队动态</h1>
-      </header>
-
+    <section className="album-page news-page" aria-label="资讯列表">
       <div className="news-tabs" role="tablist" aria-label="新闻分类">
         {tabs.map((tab) => (
           <button

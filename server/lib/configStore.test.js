@@ -12,7 +12,7 @@ describe('config store', () => {
   const backupFile = 'site-config.json.bak';
   const candidateFile = 'site-config.json.next';
   const stagedBackupFile = 'site-config.json.bak.next';
-  const rawTopLevelKeys = ['team', 'stats', 'roster', 'scoreMembers', 'albums', 'dailyScores', 'weekendScores', 'memberAliases', 'news', 'newsCategories', 'music'];
+  const rawTopLevelKeys = ['team', 'stats', 'roster', 'scoreMembers', 'albums', 'dailyScores', 'weekendScores', 'memberAliases', 'news', 'newsCategories', 'sectionTitles', 'music'];
 
   let tempDir;
   let dataDir;

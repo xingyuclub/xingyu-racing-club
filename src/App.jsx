@@ -1,19 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createSeedConfig, getHomeNews, hydrateSiteData } from './data/siteConfig.js';
+import { createSeedConfig, hydrateSiteData } from './data/siteConfig.js';
 import { Hero } from './components/Hero.jsx';
 import { StatsBar } from './components/StatsBar.jsx';
 import { FeaturedMembers } from './components/FeaturedMembers.jsx';
 import { Roster } from './components/Roster.jsx';
-import { Leaderboard } from './components/Leaderboard.jsx';
 import { LeaderboardPage } from './components/LeaderboardPage.jsx';
-import { NewsFeed } from './components/NewsFeed.jsx';
 import { NewsPage } from './components/NewsPage.jsx';
 import { NewsDetailPage } from './components/NewsDetailPage.jsx';
 import { MediaStreamViewer } from './components/MediaStreamViewer.jsx';
-import { GalleryPreview } from './components/GalleryPreview.jsx';
 import { AlbumPage } from './components/AlbumPage.jsx';
-import { ScoreDetailsModal } from './components/ScoreDetailsModal.jsx';
+import { ScoreDetailsPage } from './components/ScoreDetailsPage.jsx';
 import { MusicPlayer } from './components/MusicPlayer.jsx';
+import { BottomNav } from './components/BottomNav.jsx';
 import { useRevealOnScroll } from './hooks/useRevealOnScroll.js';
 import { useSiteConfig } from './hooks/useSiteConfig.js';
 import { resolvePublicAssetPaths } from './utils/publicAsset.js';
@@ -72,6 +70,7 @@ const parseRoute = () => {
   }
   if (page === 'album') return { name: 'album' };
   if (page === 'leaderboard') return { name: 'leaderboard' };
+  if (page === 'score-details') return { name: 'score-details' };
   return { name: 'home' };
 };
 
@@ -83,8 +82,8 @@ export default function App() {
   const loadedSiteData = useSiteConfig(fallbackSiteData);
   const siteData = useMemo(() => resolvePublicAssetPaths(loadedSiteData), [loadedSiteData]);
   const [viewer, setViewer] = useState(null);
-  const [showScoreDetails, setShowScoreDetails] = useState(false);
   const [heroVideoPlaying, setHeroVideoPlaying] = useState(false);
+  const [albumResetKey, setAlbumResetKey] = useState(0);
   const [route, setRoute] = useState(parseRoute);
   const routeRef = useRef(route);
   const scrollPositionsRef = useRef(new Map());
@@ -143,13 +142,21 @@ export default function App() {
     navigateToHash('');
   };
 
-  const openAlbum = () => {
-    navigateToHash('album');
-  };
+  const navigatePrimary = useCallback((hash) => {
+    if (hash === 'album' && routeRef.current.name === 'album') {
+      setAlbumResetKey((current) => current + 1);
+      return;
+    }
+    navigateToHash(hash);
+  }, [navigateToHash]);
 
-  const openLeaderboard = () => {
-    navigateToHash('leaderboard');
-  };
+  const activePrimaryNav = route.name === 'leaderboard'
+    ? 'leaderboard'
+    : route.name === 'news' || route.name === 'news-detail'
+      ? 'news'
+      : route.name === 'album'
+        ? 'album'
+        : 'home';
 
   const goBackFromNewsDetail = () => {
     if (window.history.state?.xingyuNavigationSession === navigationSessionIdRef.current) {
@@ -182,20 +189,29 @@ export default function App() {
 
   if (route.name === 'leaderboard') {
     return (
-      <main className="site-shell leaderboard-shell">
-        <LeaderboardPage
-          rows={siteData.leaderboard}
-          scoreDate={siteData.latestScoreDate}
-          onBack={goHome}
-          onOpenDetails={() => setShowScoreDetails(true)}
-        />
-        {showScoreDetails && (
-          <ScoreDetailsModal
-            dailyScores={siteData.dailyScores}
-            onClose={() => setShowScoreDetails(false)}
+      <>
+        <main className="site-shell leaderboard-shell">
+          <Hero team={siteData.team} showMedia={false} onVideoPlaybackChange={setHeroVideoPlaying} />
+          <LeaderboardPage
+            rows={siteData.leaderboard}
+            scoreDate={siteData.latestScoreDate}
+            onOpenDetails={() => navigateToHash('score-details')}
           />
-        )}
-      </main>
+        </main>
+        <BottomNav
+          active={activePrimaryNav}
+          onNavigate={navigatePrimary}
+        />
+      </>
+    );
+  }
+
+  if (route.name === 'score-details') {
+    return (
+      <ScoreDetailsPage
+        dailyScores={siteData.dailyScores}
+        onBack={() => navigateToHash('leaderboard')}
+      />
     );
   }
 
@@ -204,7 +220,12 @@ export default function App() {
       <>
         <main className="site-shell album-shell">
           <Hero team={siteData.team} showMedia={false} onVideoPlaybackChange={setHeroVideoPlaying} />
-          <AlbumPage albums={siteData.albums} onBack={goHome} onOpenPhoto={openPhotoStream} />
+          <AlbumPage
+            albums={siteData.albums}
+            gallery={siteData.gallery}
+            onOpenPhoto={openPhotoStream}
+            resetKey={albumResetKey}
+          />
           {viewer && (
             <MediaStreamViewer
               items={viewer.items}
@@ -214,10 +235,9 @@ export default function App() {
             />
           )}
         </main>
-        <MusicPlayer
-          src={siteData.music.src}
-          cover={siteData.music.cover}
-          pauseForMedia={heroVideoPlaying || viewer !== null}
+        <BottomNav
+          active={activePrimaryNav}
+          onNavigate={navigatePrimary}
         />
       </>
     );
@@ -232,7 +252,6 @@ export default function App() {
             <NewsPage
               news={siteData.news}
               categories={siteData.newsCategories}
-              onBack={goHome}
               onOpenItem={(item) => navigateToHash(`news/${encodeURIComponent(item.id)}`)}
             />
           ) : (
@@ -243,10 +262,9 @@ export default function App() {
             />
           )}
         </main>
-        <MusicPlayer
-          src={siteData.music.src}
-          cover={siteData.music.cover}
-          pauseForMedia={heroVideoPlaying || viewer !== null}
+        <BottomNav
+          active={activePrimaryNav}
+          onNavigate={navigatePrimary}
         />
       </>
     );
@@ -254,30 +272,19 @@ export default function App() {
 
   return (
     <>
-      <main className="site-shell">
+      <main className="site-shell home-shell">
         <Hero team={siteData.team} onVideoPlaybackChange={setHeroVideoPlaying} />
         <StatsBar stats={siteData.stats} />
         <FeaturedMembers
           members={siteData.featuredMembers}
           onSelect={openMemberStream}
           paused={viewer !== null}
+          sectionTitle={siteData.sectionTitles?.featured}
         />
-        <Roster members={siteData.roster} onSelect={openMemberStream} />
-        <NewsFeed
-          items={getHomeNews(siteData.news)}
-          onOpenItem={(item) => navigateToHash(`news/${encodeURIComponent(item.id)}`)}
-          onOpenNews={() => navigateToHash('news')}
-        />
-        <GalleryPreview
-          photos={siteData.gallery}
-          onOpenPhoto={openPhotoStream}
-          onOpenAlbum={openAlbum}
-        />
-        <Leaderboard
-          rows={siteData.leaderboard}
-          scoreDate={siteData.latestScoreDate}
-          onOpenDetails={() => setShowScoreDetails(true)}
-          onOpenFull={openLeaderboard}
+        <Roster
+          members={siteData.roster}
+          onSelect={openMemberStream}
+          sectionTitle={siteData.sectionTitles?.roster}
         />
         {viewer && (
           <MediaStreamViewer
@@ -287,17 +294,15 @@ export default function App() {
             onClose={() => setViewer(null)}
           />
         )}
-        {showScoreDetails && (
-          <ScoreDetailsModal
-            dailyScores={siteData.dailyScores}
-            onClose={() => setShowScoreDetails(false)}
-          />
-        )}
       </main>
       <MusicPlayer
         src={siteData.music.src}
         cover={siteData.music.cover}
         pauseForMedia={heroVideoPlaying || viewer !== null}
+      />
+      <BottomNav
+        active={activePrimaryNav}
+        onNavigate={navigatePrimary}
       />
     </>
   );

@@ -44,3 +44,5 @@
 .score-roster-actions{display:flex;align-items:center;gap:6px}
 .score-roster-move{display:grid!important;width:30px;height:30px;place-items:center;padding:0!important;background:#e2e8f0!important;color:#17202a!important}
 .score-roster-move:disabled{opacity:.35;cursor:not-allowed}
+.section-titles-editor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding-top:4px}.section-title-group{padding:14px;border:1px solid #dbe3ec;border-radius:6px;background:#f8fafc}.section-title-group h3{margin:0 0 10px;color:#17202a;font-size:14px}.section-title-group .field-grid{grid-template-columns:1fr}
+@media(max-width:720px){.section-titles-editor{grid-template-columns:1fr}}

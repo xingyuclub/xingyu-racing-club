@@ -14,7 +14,7 @@ it('starts every top-level admin section collapsed and expands them independentl
 
   render(<ConfigEditor initialConfig={createSeedConfig()} onAuthError={() => false} />);
 
-  expect(screen.getAllByRole('button', { name: /^展开/ })).toHaveLength(7);
+  expect(screen.getAllByRole('button', { name: /^展开/ })).toHaveLength(8);
   expect(screen.queryByLabelText('名称')).not.toBeInTheDocument();
   expect(screen.queryByLabelText('个性签名')).not.toBeInTheDocument();
 
@@ -23,6 +23,83 @@ it('starts every top-level admin section collapsed and expands them independentl
   expect(screen.getAllByLabelText('个性签名')[0]).toHaveValue('');
   expect(screen.getByRole('button', { name: '收起 成员管理' })).toHaveAttribute('aria-expanded', 'true');
   expect(screen.getByRole('button', { name: '展开 新闻管理' })).toHaveAttribute('aria-expanded', 'false');
+});
+
+it('edits section titles independently', async () => {
+  const user = userEvent.setup();
+  const config = createSeedConfig();
+  vi.stubGlobal('fetch', vi.fn(async (path, options = {}) => {
+    if (path === '/api/admin/uploads') {
+      return { ok: true, status: 200, json: async () => [] };
+    }
+    if (path === '/api/admin/config' && options.method !== 'PUT') {
+      return { ok: true, status: 200, json: async () => config };
+    }
+    return { ok: true, status: 204 };
+  }));
+
+  render(<ConfigEditor initialConfig={config} onAuthError={() => false} />);
+  await user.click(screen.getByRole('button', { name: '展开 板块标题' }));
+
+  const featuredGroup = screen.getByText('星屿大神榜', { selector: 'h3' }).closest('.section-title-group');
+  const rosterGroup = screen.getByText('明星队员', { selector: 'h3' }).closest('.section-title-group');
+  expect(within(featuredGroup).getByLabelText('中文标题')).toHaveValue('星屿大神榜');
+  expect(within(featuredGroup).getByLabelText('英文标识')).toHaveValue('XINGYU MASTERS');
+  expect(within(rosterGroup).getByLabelText('中文标题')).toHaveValue('明星队员');
+  expect(within(rosterGroup).getByLabelText('英文标识')).toHaveValue('STAR PLAYERS');
+
+  await user.clear(within(featuredGroup).getByLabelText('中文标题'));
+  await user.type(within(featuredGroup).getByLabelText('中文标题'), '星屿王牌');
+  await user.clear(within(featuredGroup).getByLabelText('英文标识'));
+  await user.type(within(featuredGroup).getByLabelText('英文标识'), 'XINGYU ACES');
+  await user.click(screen.getByRole('button', { name: '保存全部配置' }));
+
+  const saveCall = fetch.mock.calls.find(([path, options]) =>
+    path === '/api/admin/config' && options?.method === 'PUT');
+  const savedConfig = JSON.parse(saveCall[1].body);
+  expect(savedConfig.sectionTitles.featured).toEqual({
+    eyebrow: 'XINGYU ACES',
+    title: '星屿王牌',
+  });
+  expect(savedConfig.sectionTitles.roster).toEqual({
+    eyebrow: 'STAR PLAYERS',
+    title: '明星队员',
+  });
+  expect(savedConfig.sectionMembers).toBeUndefined();
+});
+
+it('configures where each roster member is displayed', async () => {
+  const user = userEvent.setup();
+  const config = createSeedConfig();
+  vi.stubGlobal('fetch', vi.fn(async (path, options = {}) => {
+    if (path === '/api/admin/uploads') {
+      return { ok: true, status: 200, json: async () => [] };
+    }
+    if (path === '/api/admin/config' && options.method !== 'PUT') {
+      return { ok: true, status: 200, json: async () => config };
+    }
+    return { ok: true, status: 204 };
+  }));
+
+  render(<ConfigEditor initialConfig={config} onAuthError={() => false} />);
+  await user.click(screen.getByRole('button', { name: '展开 成员管理' }));
+
+  const firstMember = config.roster[0];
+  const firstCard = screen.getByRole('button', { name: `收起 ${firstMember.name}` }).closest('.array-item');
+  const featuredCheckbox = within(firstCard).getByLabelText('星屿大神榜展示');
+  const rosterCheckbox = within(firstCard).getByLabelText('明星队员展示');
+  expect(featuredCheckbox).toBeChecked();
+  expect(rosterCheckbox).toBeChecked();
+
+  await user.click(featuredCheckbox);
+  await user.click(rosterCheckbox);
+  await user.click(screen.getByRole('button', { name: '保存全部配置' }));
+
+  const saveCall = fetch.mock.calls.find(([path, options]) =>
+    path === '/api/admin/config' && options?.method === 'PUT');
+  const savedConfig = JSON.parse(saveCall[1].body);
+  expect(savedConfig.roster[0].showInFeatured).toBe(false);
+  expect(savedConfig.roster[0].showInRoster).toBe(false);
 });
 
 it('accepts audio files for the music source field', async () => {
@@ -81,7 +158,7 @@ it('logs in, edits public content, uploads a cover, and saves the draft', async 
   await user.click(within(rosterSection).getByRole('button', { name: '新增' }));
   expect(within(rosterSection).getAllByLabelText('ID').at(-1)).toHaveValue('1');
   await user.upload(screen.getByLabelText('首页主媒体上传'), new File(['video'], 'hero.mp4', { type: 'video/mp4' }));
-  await user.upload(screen.getByLabelText('视频失败备用图上传'), new File(['image'], 'fallback.png', { type: 'image/png' }));
+  await user.upload(screen.getByLabelText('视频默认展示图 / 失败备用图上传'), new File(['image'], 'fallback.png', { type: 'image/png' }));
   await user.click(screen.getByRole('button', { name: '保存全部配置' }));
 
   const saveCall = fetch.mock.calls.find(([path, options]) =>

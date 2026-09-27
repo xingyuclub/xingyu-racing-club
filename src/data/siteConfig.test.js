@@ -207,6 +207,7 @@ describe('site configuration', () => {
       'newsCategories',
       'roster',
       'scoreMembers',
+      'sectionTitles',
       'stats',
       'team',
       'weekendScores',
@@ -256,6 +257,22 @@ describe('site configuration', () => {
     });
     expect(data.leaderboard).toHaveLength(2);
 
+  });
+
+  it('uses independently configured roster and featured member selections', () => {
+    const raw = createSeedConfig();
+    const featured = [raw.roster[2].id, raw.roster[0].id];
+    const roster = [raw.roster[4].id, raw.roster[1].id, raw.roster[3].id];
+    const hydrated = hydrateSiteData(migrateRawConfig({
+      ...raw,
+      roster: raw.roster.map(({ showInFeatured, showInRoster, ...member }) => member),
+      sectionMembers: { featured, roster },
+    }));
+    const expectedFeatured = raw.roster.filter((member) => featured.includes(member.id)).map((member) => member.id);
+    const expectedRoster = raw.roster.filter((member) => roster.includes(member.id)).map((member) => member.id);
+
+    expect(hydrated.featuredMembers.map((member) => member.id)).toEqual(expectedFeatured);
+    expect(hydrated.roster.map((member) => member.id)).toEqual(expectedRoster);
   });
   it('includes the latest-day score members in the leaderboard regardless of roster', () => {
     const config = createSeedConfig();

@@ -35,6 +35,17 @@ const createContent = (html, text) => html || String(text || '')
   .map((line) => `<p>${escapeHtml(line)}</p>`)
   .join('');
 
+const getClipboardImages = (clipboardData) => {
+  const files = Array.from(clipboardData?.items || [])
+    .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+    .map((item) => item.getAsFile())
+    .filter(Boolean);
+  if (files.length > 0) return files;
+
+  return Array.from(clipboardData?.files || [])
+    .filter((file) => file.type.startsWith('image/'));
+};
+
 function ToolButton({ label, active = false, disabled = false, onClick, children }) {
   return (
     <button
@@ -84,6 +95,14 @@ export function RichTextEditor({ html, text, onChange, onUploaded }) {
         class: 'rich-text-content',
         role: 'textbox',
       },
+      handlePaste: (view, event) => {
+        const files = getClipboardImages(event.clipboardData);
+        if (files.length === 0) return false;
+
+        event.preventDefault();
+        void insertImages(files, view.state.selection.from);
+        return true;
+      },
     },
     immediatelyRender: false,
     shouldRerenderOnTransaction: true,
@@ -116,19 +135,31 @@ export function RichTextEditor({ html, text, onChange, onUploaded }) {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+    await insertImages([file], editor.state.selection.from);
+  };
+
+  async function insertImages(files, position) {
     setUploading(true);
     setError('');
     try {
-      const result = await uploadFile(file);
-      if (result.type !== 'image') throw new Error('正文只支持图片文件');
-      editor.chain().focus().setImage({ src: result.path, alt: file.name }).run();
-      onUploaded?.(result);
+      const uploaded = await Promise.all(files.map(async (file) => {
+        const result = await uploadFile(file);
+        if (result.type !== 'image') throw new Error('正文只支持图片文件');
+        return { file, result };
+      }));
+      const content = uploaded.map(({ file, result }) => ({
+        type: 'image',
+        attrs: { src: result.path, alt: file.name },
+      }));
+      const safePosition = Math.min(position, editor.state.doc.content.size);
+      editor.chain().focus().insertContentAt(safePosition, content).run();
+      uploaded.forEach(({ result }) => onUploaded?.(result));
     } catch (nextError) {
       setError(nextError.message);
     } finally {
       setUploading(false);
     }
-  };
+  }
 
   const textStyle = editor.getAttributes('textStyle');
   const alignment = editor.getAttributes('paragraph').textAlign

@@ -1,17 +1,18 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { getConfig, listUploads, saveConfig } from './adminApi.js';
 import { UploadField } from './UploadField.jsx';
 import { UploadLibrary } from './UploadLibrary.jsx';
 import { RichTextEditor } from './RichTextEditor.jsx';
 import { ScoreEditor } from './ScoreEditor.jsx';
+import { normalizeSectionTitles } from '../data/siteConfig.js';
 
 const clone = (value) => structuredClone(value);
 const newId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
   ? crypto.randomUUID()
   : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-const labels = { name:'名称', heroLines:'首屏文案', label:'英文标识', motto:'车队口号', heroMedia:'首页主媒体', heroFallbackImage:'视频失败备用图', src:'素材路径', cover:'封面', id:'ID', scoreMemberId:'积分人物', role:'角色', signature:'个性签名', avatar:'头像', videoUrl:'视频地址', title:'标题', category:'分类', date:'日期', imageSrc:'资讯图片', imageAlt:'图片说明', summary:'摘要', body:'正文', coverSrc:'相册封面', password:'访问密码', photos:'照片', alt:'替代文本', featured:'精选', mediaType:'媒体类型', pinned:'置顶', hidden:'隐藏', newsCategories:'分类列表', value:'数值' };
-const empty = { heroLines:'', roster:{ id:'',number:'',name:'',scoreMemberId:'',role:'队员',signature:'',basePoints:0,wins:0,avatar:'',videoUrl:'' }, news:{ id:'',title:'',category:'',date:'',imageSrc:'',imageAlt:'',summary:'',body:'',bodyHtml:'',pinned:false,hidden:false }, albums:{ id:'',name:'',date:'',coverSrc:'',password:'',photos:[] }, photos:{ id:'',src:'',title:'',date:'',alt:'',featured:false,mediaType:'image',videoUrl:'' } };
+const labels = { name:'名称', heroLines:'首屏文案', label:'英文标识', motto:'车队口号', heroMedia:'首页主媒体', heroFallbackImage:'视频默认展示图 / 失败备用图', src:'素材路径', cover:'封面', id:'ID', scoreMemberId:'积分人物', role:'角色', signature:'个性签名', avatar:'头像', videoUrl:'视频地址', title:'标题', category:'分类', date:'日期', imageSrc:'资讯图片', imageAlt:'图片说明', summary:'摘要', body:'正文', coverSrc:'相册封面', password:'访问密码', photos:'照片', alt:'替代文本', featured:'精选', mediaType:'媒体类型', pinned:'置顶', hidden:'隐藏', newsCategories:'分类列表', value:'数值', showInFeatured:'星屿大神榜展示', showInRoster:'明星队员展示' };
+const empty = { heroLines:'', roster:{ id:'',number:'',name:'',scoreMemberId:'',role:'队员',signature:'',basePoints:0,wins:0,avatar:'',videoUrl:'',showInFeatured:false,showInRoster:true }, news:{ id:'',title:'',category:'',date:'',imageSrc:'',imageAlt:'',summary:'',body:'',bodyHtml:'',pinned:false,hidden:false }, albums:{ id:'',name:'',date:'',coverSrc:'',password:'',photos:[] }, photos:{ id:'',src:'',title:'',date:'',alt:'',featured:false,mediaType:'image',videoUrl:'' } };
 const hiddenMediaFields = new Set([
   'originalSrc', 'originalSize', 'posterSrc', 'thumbSrc', 'cardSrc', 'width', 'height', 'duration',
   'avatarThumb', 'avatarCard', 'avatarOriginalSrc', 'avatarOriginalSize',
@@ -88,10 +89,13 @@ export function applyUploadResult(config, path, result) {
 function createDraft(config) {
   const draft = clone(config);
   draft.newsCategories = Array.isArray(draft.newsCategories) ? draft.newsCategories : [];
+  draft.sectionTitles = normalizeSectionTitles(draft.sectionTitles);
   draft.roster = draft.roster.map((member) => ({
     ...empty.roster,
     ...member,
     signature: typeof member.signature === 'string' ? member.signature : '',
+    showInFeatured: member.showInFeatured === true,
+    showInRoster: member.showInRoster !== false,
   }));
   draft.albums = draft.albums.map((album) => ({
     ...album,
@@ -176,6 +180,23 @@ function CategoriesEditor({ value, onChange }) {
   const add = () => onChange([...value, '']);
   return <div className="array-field news-categories-field"><div className="array-title">分类列表<button title="新增分类" onClick={add}><Plus size={16} /></button></div>{value.map((item, index) => <div className="category-row" key={index}><input value={item} placeholder="分类名称" onChange={(e) => update(index, e.target.value)} /><button title="删除分类" onClick={() => remove(index)}><Trash2 size={15} /></button></div>)}</div>;
 }
+
+function SectionTitlesEditor({ value, onChange }) {
+  const titles = normalizeSectionTitles(value);
+  const groups = [
+    ['featured', '星屿大神榜'],
+    ['roster', '明星队员'],
+  ];
+  const update = (section, field, nextValue) => onChange({
+    ...titles,
+    [section]: {
+      ...titles[section],
+      [field]: nextValue,
+    },
+  });
+
+  return <div className="section-titles-editor">{groups.map(([key, label]) => <section className="section-title-group" key={key}><h3>{label}</h3><div className="field-grid"><label>中文标题<input value={titles[key].title} onChange={(event) => update(key, 'title', event.target.value)} /></label><label>英文标识<input value={titles[key].eyebrow} onChange={(event) => update(key, 'eyebrow', event.target.value)} /></label></div></section>)}</div>;
+}
 function ArrayItem({ item, index, value, fieldKey, fixed, change, path, draft, setDraft, roster, refresh, trackUpload }) {
   const isNews = fieldKey === 'news';
   const [collapsed, setCollapsed] = useState(isNews && Boolean(item?.title));
@@ -231,5 +252,5 @@ export function ConfigEditor({ initialConfig, onAuthError }) {
   const appendUpload=(file)=>setFiles((current)=>current.some((item)=>item.name===file.name)?current:[...current,file]);
   const trackUpload=(uploading)=>setActiveUploads((count)=>Math.max(0,count+(uploading?1:-1)));
   const uploadPending=activeUploads>0;
-  return <>{sections.map(([title,value],index)=><AdminSection title={title} key={title}>{title==='新闻管理' && <CategoriesEditor value={draft.newsCategories || []} onChange={(next)=>setDraft((current)=>({...clone(current),newsCategories:next}))} />}<Tree value={value} path={index===0?[]:[['stats','roster','news','albums'][index-1]]} fieldKey={index===0?'base':['stats','roster','news','albums'][index-1]} fixed={title==='统计数据'} {...{draft,setDraft,roster:draft.roster,refresh:appendUpload,trackUpload}} /></AdminSection>)}<AdminSection title="星屿积分榜"><ScoreEditor config={draft} onChange={setDraft} /></AdminSection><AdminSection title="素材管理"><UploadLibrary files={files} setFiles={setFiles} onError={(e)=>setStatus(e.message)} /></AdminSection><div className="save-bar">{uploadPending && <p>素材上传中，请稍候</p>}{status && <p className={status.startsWith('已保存')?'admin-success':'admin-error'}>{status}</p>}<button disabled={saving||uploadPending} onClick={save}>保存全部配置</button></div></>;
+  return <>{sections.map(([title,value],index)=><Fragment key={title}><AdminSection title={title}>{title==='新闻管理' && <CategoriesEditor value={draft.newsCategories || []} onChange={(next)=>setDraft((current)=>({...clone(current),newsCategories:next}))} />}<Tree value={value} path={index===0?[]:[['stats','roster','news','albums'][index-1]]} fieldKey={index===0?'base':['stats','roster','news','albums'][index-1]} fixed={title==='统计数据'} {...{draft,setDraft,roster:draft.roster,refresh:appendUpload,trackUpload}} /></AdminSection>{index===0 && <AdminSection title="板块标题"><SectionTitlesEditor value={draft.sectionTitles} onChange={(next)=>setDraft((current)=>({...clone(current),sectionTitles:next}))} /></AdminSection>}</Fragment>)}<AdminSection title="星屿积分榜"><ScoreEditor config={draft} onChange={setDraft} /></AdminSection><AdminSection title="素材管理"><UploadLibrary files={files} setFiles={setFiles} onError={(e)=>setStatus(e.message)} /></AdminSection><div className="save-bar">{uploadPending && <p>素材上传中，请稍候</p>}{status && <p className={status.startsWith('已保存')?'admin-success':'admin-error'}>{status}</p>}<button disabled={saving||uploadPending} onClick={save}>保存全部配置</button></div></>;
 }

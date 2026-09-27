@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Share2 } from 'lucide-react';
+import { Share2 } from 'lucide-react';
+import { BackButton } from './BackButton.jsx';
 import { useRevealOnScroll } from '../hooks/useRevealOnScroll.js';
 
 function copyText(value) {
@@ -41,39 +42,25 @@ export function NewsDetailPage({ news, newsId, onBack = () => { window.location.
 
   if (!item) {
     return (
-      <section className="album-page news-page" aria-labelledby="news-detail-title">
-        <header className="album-header" data-reveal>
-          <button className="text-action" type="button" onClick={onBack}>
-            <ArrowLeft aria-hidden="true" size={17} />
-            返回
-          </button>
-          <p className="eyebrow">NEWS</p>
-          <h1 id="news-detail-title">资讯不存在</h1>
-        </header>
+      <section className="album-page news-page" aria-label="资讯详情">
+        <div className="news-detail-toolbar" data-reveal>
+          <BackButton label="返回资讯" onClick={onBack} />
+        </div>
         <p className="empty-state">该资讯不存在或已删除</p>
       </section>
     );
   }
 
   return (
-    <section className="album-page news-page" aria-labelledby="news-detail-title">
-      <header className="album-header" data-reveal>
-        <div className="news-detail-nav">
-          <button className="text-action" type="button" onClick={onBack}>
-            <ArrowLeft aria-hidden="true" size={17} />
-            返回
-          </button>
-          <button className="share-button" type="button" onClick={handleShare}>
-            <Share2 aria-hidden="true" size={16} />
-            分享
-          </button>
-        </div>
-        <h1 id="news-detail-title">{item.title}</h1>
-        <div className="news-modal-meta">
-          <p className="eyebrow">{item.category}</p>
-          <time dateTime={item.date}>{item.date}</time>
-        </div>
-      </header>
+    <section className="album-page news-page" aria-label="资讯详情">
+      <div className="news-detail-toolbar" data-reveal>
+        <BackButton label="返回资讯" onClick={onBack} />
+        <h1 className="news-detail-title">{item.title}</h1>
+        <button className="share-button" type="button" onClick={handleShare}>
+          <Share2 aria-hidden="true" size={16} />
+          分享
+        </button>
+      </div>
 
       {item.bodyHtml ? (
         <div

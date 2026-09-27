@@ -13,8 +13,8 @@ const isValidDateKey = (value) => {
   const date = new Date(year, month - 1, day);
   return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
 };
-const rawTopLevelKeys = ['team', 'stats', 'roster', 'scoreMembers', 'albums', 'dailyScores', 'weekendScores', 'memberAliases', 'news', 'newsCategories', 'music'];
-const rawTopLevelKeySet = new Set(rawTopLevelKeys);
+const rawTopLevelKeys = ['team', 'stats', 'roster', 'scoreMembers', 'albums', 'dailyScores', 'weekendScores', 'memberAliases', 'news', 'newsCategories', 'sectionTitles', 'music'];
+const rawTopLevelKeySet = new Set([...rawTopLevelKeys, 'sectionMembers']);
 
 function rejectUnexpectedTopLevelKeys(config) {
   if (!isObject(config)) return;
@@ -136,6 +136,9 @@ function validateConfig(config) {
     });
   }
 
+  requireStrings(config.sectionTitles?.featured, ['eyebrow', 'title'], 'sectionTitles.featured', details);
+  requireStrings(config.sectionTitles?.roster, ['eyebrow', 'title'], 'sectionTitles.roster', details);
+
   if (!Array.isArray(config.stats) || config.stats.length !== 4) {
     details.push('stats must contain exactly 4 entries');
   }
@@ -181,6 +184,11 @@ function validateConfig(config) {
       requireUniqueString(member.number, `${path}.number`, seenMemberNumbers, details);
       requireStrings(member, ['name', 'role'], path, details);
       requireString(member, ['avatar', 'videoUrl', 'signature'], path, details);
+      for (const field of ['showInFeatured', 'showInRoster']) {
+        if (typeof member[field] !== 'boolean') {
+          details.push(`${path}.${field} must be a boolean`);
+        }
+      }
       validateOptionalStrings(
         member,
         ['avatarThumb', 'avatarCard', 'avatarOriginalSrc', 'videoPosterSrc', 'videoOriginalUrl'],

@@ -13,7 +13,6 @@ import { Roster } from './components/Roster.jsx';
 import { MediaStreamViewer } from './components/MediaStreamViewer.jsx';
 import { AlbumPage } from './components/AlbumPage.jsx';
 import { GalleryPreview } from './components/GalleryPreview.jsx';
-import { NewsFeed } from './components/NewsFeed.jsx';
 import { NewsDetailPage } from './components/NewsDetailPage.jsx';
 import { LeaderboardList } from './components/Leaderboard.jsx';
 
@@ -120,6 +119,56 @@ describe('teamData', () => {
 });
 
 describe('App', () => {
+  it('shows the primary bottom navigation and switches between its pages', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    const nav = screen.getByRole('navigation', { name: '底部主导航' });
+
+    expect(within(nav).getByRole('button', { name: '首页' })).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).getByRole('button', { name: '资讯' })).toBeInTheDocument();
+    expect(within(nav).getByRole('button', { name: '积分榜' })).toBeInTheDocument();
+    expect(within(nav).getByRole('button', { name: '相册' })).toBeInTheDocument();
+    expect(container.querySelector('.hero-module')).toBeInTheDocument();
+    expect(container.querySelector('.stats-bar')).toBeInTheDocument();
+    expect(container.querySelector('.featured-section')).toBeInTheDocument();
+    expect(container.querySelector('.gallery-section')).not.toBeInTheDocument();
+    expect(container.querySelector('.news-section')).not.toBeInTheDocument();
+    expect(container.querySelector('[aria-labelledby="leaderboard-title"]')).not.toBeInTheDocument();
+
+    await user.click(within(nav).getByRole('button', { name: '资讯' }));
+
+    expect(window.location.hash).toBe('#news');
+    expect(screen.getByRole('tab', { name: '全部' })).toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: '底部主导航' })).getByRole('button', { name: '资讯' })).toHaveAttribute('aria-current', 'page');
+
+    await user.click(within(screen.getByRole('navigation', { name: '底部主导航' })).getByRole('button', { name: '积分榜' }));
+
+    expect(window.location.hash).toBe('#leaderboard');
+    expect(screen.getByRole('heading', { name: '赛季积分榜', level: 1 })).toBeInTheDocument();
+    expect(container.querySelector('.hero-brand-bar')).toBeInTheDocument();
+    expect(container.querySelector('.hero-section')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: '底部主导航' })).getByRole('button', { name: '积分榜' })).toHaveAttribute('aria-current', 'page');
+
+    await user.click(within(screen.getByRole('navigation', { name: '底部主导航' })).getByRole('button', { name: '首页' }));
+
+    expect(window.location.hash).toBe('');
+    expect(container.querySelector('.hero-module')).toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: '底部主导航' })).getByRole('button', { name: '首页' })).toHaveAttribute('aria-current', 'page');
+
+    await user.click(within(screen.getByRole('navigation', { name: '底部主导航' })).getByRole('button', { name: '相册' }));
+    expect(window.location.hash).toBe('#album');
+    expect(screen.getByRole('region', { name: '相册' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '照片', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '查看置顶照片 赛季全家福' })).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: '相册' }));
+    expect(screen.getAllByTestId('album-folder').length).toBeGreaterThan(0);
+    await user.click(screen.getAllByTestId('album-folder')[0]);
+    expect(screen.getAllByTestId('album-media-item').length).toBeGreaterThan(0);
+    await user.click(within(screen.getByRole('navigation', { name: '底部主导航' })).getByRole('button', { name: '相册' }));
+    expect(screen.getAllByTestId('album-folder').length).toBeGreaterThan(0);
+    expect(screen.queryAllByTestId('album-media-item')).toHaveLength(0);
+  });
+
   it('starts fresh routes at the top and restores positions from the current page session', async () => {
     const user = userEvent.setup();
     const scrollTo = vi.fn();
@@ -133,17 +182,17 @@ describe('App', () => {
     window.scrollY = 260;
     scrollTo.mockClear();
 
-    await user.click(screen.getByRole('button', { name: '返回首页' }));
+    await user.click(screen.getByRole('button', { name: '首页' }));
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' });
 
     window.scrollY = 740;
     scrollTo.mockClear();
-    await user.click(await screen.findByRole('button', { name: '查看更多相册' }));
+    await user.click(screen.getByRole('button', { name: '相册' }));
     expect(scrollTo).toHaveBeenCalledWith({ top: 260, left: 0, behavior: 'auto' });
 
     window.scrollY = 180;
     scrollTo.mockClear();
-    await user.click(screen.getByRole('button', { name: '返回首页' }));
+    await user.click(screen.getByRole('button', { name: '首页' }));
     expect(scrollTo).toHaveBeenCalledWith({ top: 740, left: 0, behavior: 'auto' });
   });
 
@@ -160,9 +209,9 @@ describe('App', () => {
     scrollTo.mockClear();
     window.scrollY = 520;
 
-    await user.click(screen.getByRole('button', { name: '返回' }));
+    await user.click(screen.getByRole('button', { name: '返回资讯' }));
 
-    expect(await screen.findByRole('heading', { name: '车队动态' })).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: '全部' })).toBeInTheDocument();
     expect(window.location.hash).toBe('#news');
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' });
   });
@@ -175,7 +224,7 @@ describe('App', () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole('link', { name: '查看更多动态' }));
+    await user.click(screen.getByRole('button', { name: '资讯' }));
     window.scrollY = 420;
     scrollTo.mockClear();
 
@@ -184,10 +233,10 @@ describe('App', () => {
 
     window.scrollY = 280;
     scrollTo.mockClear();
-    await user.click(screen.getByRole('button', { name: '返回' }));
+    await user.click(screen.getByRole('button', { name: '返回资讯' }));
 
     await waitFor(() => expect(window.location.hash).toBe('#news'));
-    expect(screen.getByRole('heading', { name: '车队动态' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '全部' })).toBeInTheDocument();
     expect(scrollTo).toHaveBeenCalledWith({ top: 420, left: 0, behavior: 'auto' });
   });
 
@@ -209,6 +258,27 @@ describe('App', () => {
 
     expect(await screen.findByText('实时配置')).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: configuredTeamName })).toBeInTheDocument();
+  });
+
+  it('renders independently configured featured and roster section titles', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ...teamData,
+        music: { src: '/audio/launch-now.mp3', cover: '/images/music-avatar.png' },
+        sectionTitles: {
+          featured: { eyebrow: 'XINGYU ACES', title: '星屿王牌' },
+          roster: { eyebrow: 'STAR LINEUP', title: '核心队员' },
+        },
+      }),
+    }));
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: '星屿王牌' })).toBeInTheDocument();
+    expect(screen.getByText('XINGYU ACES')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '核心队员' })).toBeInTheDocument();
+    expect(screen.getByText('STAR LINEUP')).toBeInTheDocument();
   });
 
   it('refreshes server configuration when the page regains focus', async () => {
@@ -259,7 +329,8 @@ describe('App', () => {
       .toContain('linear-gradient');
     expect(heroBrand.querySelector('.text-type')).not.toBeInTheDocument();
     expect(heroBrand.querySelector('.text-type__cursor')).not.toBeInTheDocument();
-    expect(brandBar.nextElementSibling).toBe(heroSection);
+    expect(brandBar.nextElementSibling).toHaveClass('hero-module');
+    expect(brandBar.nextElementSibling.firstElementChild).toBe(heroSection);
     expect(heroSection.firstElementChild).toHaveClass('hero-media');
     expect(heroSection.firstElementChild.tagName).toBe('IMG');
     expect(heroSection.firstElementChild).toHaveAttribute('src', teamData.team.heroMedia.src);
@@ -267,16 +338,13 @@ describe('App', () => {
     expect(container.querySelector('.hero-motto')).not.toBeInTheDocument();
     expect(screen.queryByText('RACING CLUB / 2026 SEASON')).not.toBeInTheDocument();
     expect(screen.queryByText('09 / 30')).not.toBeInTheDocument();
-    const featuredHeading = screen.getByRole('heading', { name: '车队风采' });
-    const newsHeading = screen.getByRole('heading', { name: '车队动态' });
-    const galleryHeading = screen.getByRole('heading', { name: '相册空间' });
+    const featuredHeading = screen.getByRole('heading', { name: '星屿大神榜' });
 
     expect(featuredHeading).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '队员阵容' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '星屿积分榜 S54赛季' })).toBeInTheDocument();
-    expect(newsHeading).toBeInTheDocument();
-    expect(featuredHeading.compareDocumentPosition(newsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(newsHeading.compareDocumentPosition(galleryHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('heading', { name: '明星队员' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '车队动态' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '星屿积分榜 S54赛季' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '相册空间' })).not.toBeInTheDocument();
   });
 
   it('promotes the welcome heading and keeps the slogan non-heading', () => {
@@ -406,8 +474,7 @@ describe('App', () => {
 
     expect(poster).toHaveAttribute('src', '/posters/hero.webp');
     expect(video).toHaveAttribute('src', '/videos/hero--720p.mp4');
-    expect(screen.getByRole('link', { name: '在线播放原视频' }))
-      .toHaveAttribute('href', '/originals/hero.mp4');
+    expect(screen.queryByRole('link', { name: '在线播放原视频' })).not.toBeInTheDocument();
     expect(video).toHaveClass('hero-media--pending');
     expect(container.querySelector('.hero-play-button')).toBeInTheDocument();
 
@@ -417,6 +484,29 @@ describe('App', () => {
     expect(container.querySelector('.hero-play-button')).not.toBeInTheDocument();
     expect(video).toHaveAttribute('role', 'button');
     expect(video).toHaveAttribute('aria-label', '暂停车队视频');
+  });
+
+  it('uses the configured fallback image as the default video display image', () => {
+    const seed = createSeedConfig();
+    const config = hydrateSiteData({
+      ...seed,
+      team: {
+        ...seed.team,
+        heroMedia: {
+          src: '/videos/hero--720p.mp4',
+          type: 'video',
+          posterSrc: '/posters/hero.webp',
+        },
+        heroFallbackImage: '/uploads/default-video-cover.png',
+      },
+    });
+
+    const { container } = render(<Hero team={config.team} />);
+    const poster = container.querySelector('img.hero-media--poster');
+    const video = container.querySelector('video.hero-media');
+
+    expect(poster).toHaveAttribute('src', '/uploads/default-video-cover.png');
+    expect(video).toHaveAttribute('poster', '/uploads/default-video-cover.png');
   });
 
   it('plays and pauses the hero video with the same control', () => {
@@ -553,7 +643,6 @@ describe('App', () => {
       expect(shell.querySelector('.stat-number')).toBeInTheDocument();
       expect(shell.querySelector('.stat-label')).toBeInTheDocument();
     });
-    expect(container.querySelector('.leaderboard-frame .electric-border-canvas')).not.toBeInTheDocument();
   });
 
   it('arranges the full roster around a static dome sphere', async () => {
@@ -875,34 +964,34 @@ describe('App', () => {
     expect(container.querySelector('.driver-card.is-active')).toHaveTextContent('成员 02');
   });
 
-  it('shows five featured photos and opens the full album view', async () => {
+  it('opens the album tab and displays folder contents', async () => {
     const user = userEvent.setup();
-    render(<App />);
+    const { container } = render(<App />);
 
-    expect(screen.getAllByTestId('featured-photo')).toHaveLength(5);
-    expect(screen.getAllByTestId('featured-photo')[0].querySelector('img')).not.toHaveClass('photo-card-image--contain');
-    expect(globalStyles).toMatch(/\.photo-card img\s*\{[^}]*object-fit:\s*cover;/s);
-    const featuredVideo = screen.getByRole('button', { name: '查看视频车队记录 02' });
-    const featuredVideoBadge = featuredVideo.querySelector('.photo-video-badge');
-    expect(featuredVideoBadge).toBeInTheDocument();
-    expect(featuredVideoBadge).not.toHaveTextContent('视频');
-    expect(featuredVideoBadge.querySelector('svg')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '查看更多相册' }));
+    expect(screen.queryByTestId('featured-photo')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '相册' }));
 
     expect(window.location.hash).toBe('#album');
-    expect(screen.getByRole('heading', { name: '车队相册' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '相册' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /音乐/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '车队相册' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: '相册' }));
     expect(screen.getAllByTestId('album-folder')).toHaveLength(teamData.albums.length);
 
     await user.click(screen.getAllByTestId('album-folder')[0]);
-    expect(screen.getAllByTestId('album-photo')).toHaveLength(teamData.albums[0].photos.length);
-    expect(screen.getAllByTestId('album-photo')[0].querySelector('img')).not.toHaveClass('photo-card-image--contain');
-    const albumVideo = screen.getByRole('button', { name: '查看视频车队记录 02' });
-    const albumVideoBadge = albumVideo.querySelector('.photo-video-badge');
-    expect(albumVideoBadge).toBeInTheDocument();
-    expect(albumVideoBadge).not.toHaveTextContent('视频');
-    expect(albumVideoBadge.querySelector('svg')).toBeInTheDocument();
+    expect(screen.getAllByTestId('album-media-item')).toHaveLength(teamData.albums[0].photos.length);
+    expect(container.querySelector('.album-detail-cover')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /音乐/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '查看视频车队记录 02' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '查看视频车队记录 02' }).querySelector('video')).toBeInTheDocument();
+  });
+
+  it('keeps the album brand bar fixed while the album content scrolls', () => {
     expect(globalStyles).toMatch(
-      /\.photo-video-badge\s*\{[^}]*top:\s*10px;[^}]*right:\s*10px;[^}]*bottom:\s*auto;[^}]*left:\s*auto;[^}]*width:\s*30px;[^}]*height:\s*30px;/s,
+      /\.album-shell\s*\{[^}]*overflow:\s*visible;/s,
+    );
+    expect(globalStyles).toMatch(
+      /\.home-shell \.hero-brand-bar,\s*\.album-shell \.hero-brand-bar\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0;/s,
     );
   });
 
@@ -932,23 +1021,54 @@ describe('App', () => {
     expect(preview.container.querySelector('img')).toHaveAttribute('src', '/images/card.webp');
     preview.unmount();
 
-    const albums = render(<AlbumPage albums={[album]} onBack={() => {}} onOpenPhoto={() => {}} />);
+    const albums = render(<AlbumPage albums={[album]} onOpenPhoto={() => {}} />);
+    fireEvent.click(screen.getByRole('tab', { name: '相册' }));
     expect(albums.container.querySelector('.album-folder img'))
       .toHaveAttribute('src', '/images/cover-thumb.webp');
     fireEvent.click(screen.getByRole('button', { name: '打开文件夹训练日' }));
-    expect(albums.container.querySelector('.album-photo img'))
+    expect(albums.container.querySelector('.album-media-item img'))
       .toHaveAttribute('src', '/images/thumb.webp');
+  });
+
+  it('shows portrait album photos full-width with their natural aspect ratio', () => {
+    const photo = {
+      id: 'portrait-1',
+      title: '竖屏训练照',
+      date: '2026-08-08',
+      src: '/images/portrait.jpg',
+      width: 1080,
+      height: 1440,
+    };
+    const album = {
+      id: 'album-portrait',
+      name: '竖屏测试',
+      date: '2026-08-08',
+      coverSrc: '/images/portrait.jpg',
+      photos: [photo],
+    };
+
+    render(<AlbumPage albums={[album]} onOpenPhoto={() => {}} />);
+    fireEvent.click(screen.getByRole('tab', { name: '相册' }));
+    fireEvent.click(screen.getByRole('button', { name: '打开文件夹竖屏测试' }));
+
+    const portrait = screen.getByTestId('album-media-item');
+    expect(portrait).toHaveClass('is-portrait');
+    expect(portrait.style.getPropertyValue('--media-aspect-ratio')).toBe('1080 / 1440');
+    expect(globalStyles).toMatch(
+      /\.album-media-item\.is-portrait\s*\{[^}]*grid-column:\s*1\s*\/\s*-1;[^}]*aspect-ratio:\s*var\(--media-aspect-ratio,\s*3\s*\/\s*4\);/s,
+    );
   });
 
   it('requires the configured album password before opening a protected folder', async () => {
     const user = userEvent.setup();
     const album = { ...teamData.albums[0], password: '2468' };
 
-    render(<AlbumPage albums={[album]} onBack={() => {}} onOpenPhoto={() => {}} />);
+    render(<AlbumPage albums={[album]} onOpenPhoto={() => {}} />);
 
+    await user.click(screen.getByRole('tab', { name: '相册' }));
     await user.click(screen.getByRole('button', { name: `打开文件夹${album.name}` }));
     expect(screen.getByRole('dialog', { name: '访问受保护相册' })).toBeInTheDocument();
-    expect(screen.queryAllByTestId('album-photo')).toHaveLength(0);
+    expect(screen.queryAllByTestId('album-media-item')).toHaveLength(0);
 
     await user.type(screen.getByLabelText('相册密码'), '0000');
     await user.click(screen.getByRole('button', { name: '进入相册' }));
@@ -959,7 +1079,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: '进入相册' }));
 
     expect(screen.queryByRole('dialog', { name: '访问受保护相册' })).not.toBeInTheDocument();
-    expect(screen.getAllByTestId('album-photo')).toHaveLength(album.photos.length);
+    expect(screen.getAllByTestId('album-media-item')).toHaveLength(album.photos.length);
   });
 
   it('anchors album covers and photo thumbnails to the top so portraits keep their heads', () => {
@@ -984,14 +1104,13 @@ describe('App', () => {
       expect(document.querySelector('.hero-section')).not.toBeInTheDocument();
     };
 
-    await user.click(screen.getByRole('button', { name: '查看更多相册' }));
+    await user.click(screen.getByRole('button', { name: '相册' }));
     expect(window.location.hash).toBe('#album');
-    expectHeroAbove(screen.getByRole('heading', { name: '车队相册' }));
+    expectHeroAbove(screen.getByRole('tablist', { name: '相册内容分类' }));
 
-    await user.click(screen.getByRole('button', { name: '返回首页' }));
-    await user.click(await screen.findByRole('link', { name: '查看更多动态' }));
+    await user.click(screen.getByRole('button', { name: '资讯' }));
     expect(window.location.hash).toBe('#news');
-    expectHeroAbove(screen.getByRole('heading', { name: '车队动态' }));
+    expectHeroAbove(screen.getByRole('tablist', { name: '新闻分类' }));
 
     await user.click(screen.getByRole('link', { name: '查看资讯 赛季积分榜更新' }));
     expect(window.location.hash).toBe(`#news/${teamData.news[0].id}`);
@@ -1001,6 +1120,7 @@ describe('App', () => {
     const user = userEvent.setup();
     render(<App />);
 
+    await user.click(screen.getByRole('button', { name: '相册' }));
     await user.click(screen.getByRole('button', { name: '查看赛季全家福' }));
     expect(screen.getByRole('dialog')).toHaveTextContent('赛季全家福');
     expect(screen.getByRole('link', { name: '查看原图' })).toBeInTheDocument();
@@ -1013,6 +1133,8 @@ describe('App', () => {
     const user = userEvent.setup();
     render(<App />);
 
+    await user.click(screen.getByRole('button', { name: '相册' }));
+    await user.click(screen.getByRole('tab', { name: '视频' }));
     await user.click(screen.getByRole('button', { name: '查看视频车队记录 02' }));
     const dialog = screen.getByRole('dialog');
 
@@ -1023,20 +1145,22 @@ describe('App', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('renders the score lookup entry with the supplied icon and Chinese score unit', () => {
+  it('renders the leaderboard page score lookup and displayed score units', async () => {
+    const user = userEvent.setup();
     const { container } = render(<App />);
 
-    expect(screen.getByRole('heading', { name: '星屿积分榜 S54赛季' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '查找' })).toBeInTheDocument();
-    expect(container.querySelector('.section-heading--action-right')).toBeInTheDocument();
-    expect(container.querySelector('.text-action--stacked')).toBeInTheDocument();
-    expect(container.querySelector('.score-search-icon')).toHaveAttribute(
-      'src',
-      '/images/icons/search.png',
-    );
-    // 排行榜同时显示最新日期所在周的积分和赛季总分。
+    await user.click(screen.getByRole('button', { name: '积分榜' }));
+
+    expect(screen.getByRole('heading', { name: '赛季积分榜', level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '按日期查找' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '返回首页' })).not.toBeInTheDocument();
+    expect(container.querySelector('.leaderboard-season-code')).toHaveTextContent('S54');
+    expect(container.querySelector('.leaderboard-season-code')).not.toHaveTextContent('2026');
+    expect(container.querySelector('.leaderboard-season-copy')).toHaveTextContent('截至 2026.07.24');
+    expect(container.querySelector('.leaderboard-season-search svg')).toBeInTheDocument();
+    expect(screen.queryByText(/SEASON POINTS/)).not.toBeInTheDocument();
     expect(container.querySelector('.leader-week-score')).toHaveTextContent(/\d+分/);
-    expect(container.querySelector('.leaderboard-header')).toHaveTextContent('昵称本周积分赛季总分');
+    expect(container.querySelector('.leaderboard-header')).toHaveTextContent('车手本周积分赛季总分');
     expect(container.querySelector('.leader-season-score')).toHaveTextContent(/\d+分/);
     expect(screen.queryByText('PTS')).not.toBeInTheDocument();
   });
@@ -1061,30 +1185,32 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '按本周积分从高到低排序' })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('opens the daily score calendar and shows points for a selected date', async () => {
+  it('opens the daily score page, filters a date, and shows member results', async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: '查找' }));
-    const dialog = screen.getByRole('dialog');
+    await user.click(screen.getByRole('button', { name: '积分榜' }));
+    await user.click(screen.getByRole('button', { name: '按日期查找' }));
 
-    expect(within(dialog).getByRole('heading', { name: '日期积分查询' })).toBeInTheDocument();
-    await user.click(
-      within(dialog).getByRole('button', { name: '查看 2026年7月24日积分' }),
-    );
+    expect(window.location.hash).toBe('#score-details');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '返回积分榜' })).toBeInTheDocument();
+    expect(screen.getByText('选择日期后查看成绩')).toBeInTheDocument();
 
-    expect(dialog).toHaveTextContent('2026年7月24日 · 周五');
-    expect(dialog).toHaveTextContent('队内赛');
-    expect(dialog).toHaveTextContent('开黑赛');
-    expect(dialog).toHaveTextContent('得分');
-    expect(dialog).toHaveTextContent('总分');
-    expect(dialog).toHaveTextContent('赛季总分');
-    expect(within(dialog).getAllByTestId('daily-score-row')).toHaveLength(30);
+    await user.click(screen.getByRole('button', { name: '查看 2026年7月24日积分' }));
 
-    await user.click(
-      within(dialog).getByRole('button', { name: '查看 2026年7月23日积分' }),
-    );
-    expect(dialog).toHaveTextContent('当日暂无积分记录');
+    const resultRegion = screen.getByRole('region', { name: '日期积分结果' });
+    expect(resultRegion).toHaveTextContent('2026年7月24日 · 周五');
+    expect(resultRegion).toHaveTextContent('14 人参与');
+    expect(within(resultRegion).getAllByTestId('score-query-row')).toHaveLength(30);
+    expect(within(resultRegion).getByText('队内赛')).toBeInTheDocument();
+    expect(within(resultRegion).getByText('开黑赛')).toBeInTheDocument();
+
+    await user.click(within(resultRegion).getByRole('button', { name: '更换日期' }));
+    expect(screen.getByText('选择日期后查看成绩')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '返回积分榜' }));
+    expect(window.location.hash).toBe('#leaderboard');
   });
 
   it('auto-plays the active member video muted and looping in the stream viewer', () => {
@@ -1496,10 +1622,7 @@ describe('App', () => {
       '.hero-module',
       '.stats-bar',
       '.featured-section',
-      '.gallery-section',
       '[aria-labelledby="roster-title"]',
-      '[aria-labelledby="leaderboard-title"]',
-      '.news-section',
     ];
 
     selectors.forEach((selector) => {
@@ -1522,30 +1645,34 @@ describe('App', () => {
     expect(memberDialog.getByRole('dialog')).toHaveAttribute('data-entrance');
     memberDialog.unmount();
 
+    await user.click(screen.getByRole('button', { name: '相册' }));
     await user.click(screen.getByRole('button', { name: '查看赛季全家福' }));
     expect(screen.getByRole('dialog')).toHaveAttribute('data-entrance');
     await user.keyboard('{Escape}');
 
-    await user.click(screen.getByRole('button', { name: '查找' }));
-    expect(screen.getByRole('dialog')).toHaveAttribute('data-entrance');
+    await user.click(screen.getByRole('button', { name: '积分榜' }));
+    await user.click(screen.getByRole('button', { name: '按日期查找' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '返回积分榜' })).toHaveClass('global-back-button');
   });
 
   it('reveals album folders and photos when switching views', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
 
-    await user.click(screen.getByRole('button', { name: '查看更多相册' }));
+    await user.click(screen.getByRole('button', { name: '相册' }));
 
-    expect(container.querySelector('.album-header')).toHaveAttribute('data-reveal');
+    expect(container.querySelector('.album-header')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: '相册' }));
     expect(container.querySelector('.album-folder-grid')).toHaveClass('is-visible');
     expect(screen.getAllByTestId('album-folder')[0].style.getPropertyValue('--stagger-index')).toBe('0');
     expect(screen.getAllByTestId('album-folder')[1].style.getPropertyValue('--stagger-index')).toBe('1');
 
     await user.click(screen.getAllByTestId('album-folder')[0]);
 
-    expect(container.querySelector('.album-grid')).toHaveAttribute('data-reveal');
-    expect(container.querySelector('.album-grid')).toHaveClass('is-visible');
-    expect(screen.getAllByTestId('album-photo')[0].style.getPropertyValue('--stagger-index')).toBe('0');
+    expect(container.querySelector('.album-media-grid')).toHaveAttribute('data-reveal');
+    expect(container.querySelector('.album-media-grid')).toHaveClass('is-visible');
+    expect(screen.getAllByTestId('album-media-item').length).toBeGreaterThan(0);
   });
 
   it('defines unified entrance motion with a reduced-motion fallback', () => {
@@ -1565,10 +1692,10 @@ describe('App', () => {
 
     expect(container.querySelector('.hero-frame')).not.toBeInTheDocument();
     expect(container.querySelector('.hero-topline')).not.toBeInTheDocument();
-    expect(container.querySelectorAll('.leader-row.is-podium')).toHaveLength(3);
-    expect(container.querySelectorAll('.leader-row')).toHaveLength(10);
-    expect(screen.getByRole('link', { name: '查看完整榜单' })).toBeInTheDocument();
-    expect(container.querySelector('.news-image')).toBeInTheDocument();
+    expect(container.querySelectorAll('.leader-row')).toHaveLength(0);
+    expect(container.querySelector('.news-image')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '资讯' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '积分榜' })).toBeInTheDocument();
     expect(screen.queryAllByText(/\d+ 胜/)).toHaveLength(0);
   });
 
@@ -1576,22 +1703,33 @@ describe('App', () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
 
-    const fullLeaderboardLink = screen.getByRole('link', { name: '查看完整榜单' });
-    expect(fullLeaderboardLink).toHaveAttribute('href', '#leaderboard');
-
-    await user.click(fullLeaderboardLink);
+    await user.click(screen.getByRole('button', { name: '积分榜' }));
 
     expect(window.location.hash).toBe('#leaderboard');
     expect(container.querySelectorAll('.leader-row')).toHaveLength(30);
-    expect(screen.getByRole('heading', { name: '星屿积分榜 S54赛季', level: 1 })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: '查看完整榜单' })).not.toBeInTheDocument();
-    expect(container.querySelector('.hero-module')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '赛季积分榜', level: 1 })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '返回首页' })).not.toBeInTheDocument();
+    expect(container.querySelector('.hero-module')).toBeInTheDocument();
+    expect(container.querySelector('.hero-brand-bar')).toBeInTheDocument();
+    expect(container.querySelector('.hero-section')).not.toBeInTheDocument();
     expect(container.querySelector('.featured-section')).not.toBeInTheDocument();
     expect(container.querySelector('audio')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '返回首页' }));
+    await user.click(screen.getByRole('button', { name: '首页' }));
     expect(window.location.hash).toBe('');
     expect(container.querySelector('.hero-module')).toBeInTheDocument();
+  });
+
+  it('keeps the homepage and full leaderboard column headers fixed above the scrolling rows', () => {
+    expect(globalStyles).toMatch(
+      /\.leaderboard-header\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0;/s,
+    );
+    expect(globalStyles).toMatch(
+      /\.leaderboard-frame\s*\{[^}]*overflow:\s*visible;/s,
+    );
+    expect(globalStyles).toMatch(
+      /\.site-shell\s*\{[^}]*overflow-x:\s*clip;/s,
+    );
   });
 
   it('renders a directly opened leaderboard link without loading the homepage', () => {
@@ -1600,8 +1738,10 @@ describe('App', () => {
     const { container } = render(<App />);
 
     expect(container.querySelectorAll('.leader-row')).toHaveLength(30);
-    expect(screen.getByRole('heading', { name: '星屿积分榜 S54赛季', level: 1 })).toBeInTheDocument();
-    expect(container.querySelector('.hero-module')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '赛季积分榜', level: 1 })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '返回首页' })).not.toBeInTheDocument();
+    expect(container.querySelector('.hero-brand-bar')).toBeInTheDocument();
+    expect(container.querySelector('.hero-section')).not.toBeInTheDocument();
     expect(container.querySelector('audio')).not.toBeInTheDocument();
   });
 
@@ -1612,22 +1752,26 @@ describe('App', () => {
     expect(container.querySelector('.stats-bar')).toBeInTheDocument();
   });
 
-  it('auto-plays looping background music from the floating avatar', async () => {
+  it('starts background music paused and plays only after the floating avatar is clicked', async () => {
     mediaPlay.mockResolvedValue();
+    const user = userEvent.setup();
     const { container } = render(<App />);
     const audio = container.querySelector('audio');
 
-    await waitFor(() => expect(mediaPlay).toHaveBeenCalled());
     expect(audio).toHaveAttribute('src', '/audio/launch-now.mp3');
-    expect(audio).toHaveAttribute('autoplay');
+    expect(audio).not.toHaveAttribute('autoplay');
     expect(audio).toHaveAttribute('loop');
-    expect(
-      screen.getByRole('button', { name: '音乐播放中，点击暂停，长按关闭' }),
-    ).toHaveClass('is-playing');
+    expect(mediaPlay).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: '音乐已暂停，点击继续，长按关闭' }));
+
+    await waitFor(() => expect(mediaPlay).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('button', { name: '音乐播放中，点击暂停，长按关闭' })).toHaveClass('is-playing');
   });
 
   it('pauses background music while the homepage video is playing', async () => {
     mediaPlay.mockResolvedValue();
+    const user = userEvent.setup();
     const seed = createSeedConfig();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
@@ -1645,6 +1789,7 @@ describe('App', () => {
     });
     const video = container.querySelector('video.hero-media');
 
+    await user.click(screen.getByRole('button', { name: '音乐已暂停，点击继续，长按关闭' }));
     await waitFor(() => expect(mediaPlay).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole('button', { name: '播放车队视频' }));
 
@@ -1655,7 +1800,7 @@ describe('App', () => {
 
     fireEvent.playing(video);
     fireEvent.pause(video);
-    expect(mediaPlay).toHaveBeenCalledTimes(2);
+    expect(mediaPlay.mock.instances.at(-1)).toBe(video);
   });
 
   it('keeps background music paused while another media source is active', () => {
@@ -1675,51 +1820,24 @@ describe('App', () => {
     ).toHaveClass('is-paused');
   });
 
-  it('pauses and resumes music when the avatar is clicked', async () => {
+  it('toggles music playback when the avatar is clicked', async () => {
     mediaPlay.mockResolvedValue();
     const user = userEvent.setup();
     render(<App />);
 
-    const playingButton = await screen.findByRole('button', {
-      name: '音乐播放中，点击暂停，长按关闭',
-    });
-    await user.click(playingButton);
+    await user.click(screen.getByRole('button', { name: '音乐已暂停，点击继续，长按关闭' }));
+    await waitFor(() => expect(mediaPlay).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole('button', { name: '音乐播放中，点击暂停，长按关闭' }));
     expect(mediaPause).toHaveBeenCalled();
-
-    await user.click(
-      screen.getByRole('button', { name: '音乐已暂停，点击继续，长按关闭' }),
-    );
-    expect(mediaPlay).toHaveBeenCalledTimes(2);
   });
 
-  it('retries blocked autoplay on the first page interaction', async () => {
-    mediaPlay.mockRejectedValueOnce(new Error('autoplay blocked')).mockResolvedValueOnce();
+  it('does not auto-play background music from unrelated page interactions', async () => {
+    mediaPlay.mockResolvedValue();
     render(<App />);
 
-    await waitFor(() => expect(mediaPlay).toHaveBeenCalledTimes(1));
     fireEvent.pointerDown(document.body);
-    await waitFor(() => expect(mediaPlay).toHaveBeenCalledTimes(2));
-  });
-
-  it('does not retry blocked background music from a hero video interaction', async () => {
-    mediaPlay.mockRejectedValueOnce(new Error('autoplay blocked'));
-    const { container } = render(
-      <>
-        <MusicPlayer src="/audio/music.mp3" cover="/images/cover.png" />
-        <button className="hero-play-button" type="button">播放视频</button>
-      </>,
-    );
-
-    await waitFor(() => expect(mediaPlay).toHaveBeenCalledTimes(1));
-    const audioPlay = vi.fn().mockResolvedValue();
-    container.querySelector('audio').play = audioPlay;
-
-    fireEvent.pointerDown(container.querySelector('.hero-play-button'));
     await act(async () => {});
-    expect(audioPlay).not.toHaveBeenCalled();
-
-    fireEvent.pointerDown(document.body);
-    await waitFor(() => expect(audioPlay).toHaveBeenCalledTimes(1));
+    expect(mediaPlay).not.toHaveBeenCalled();
   });
 
   it('stops and closes the music player after a long press', () => {
@@ -1763,7 +1881,7 @@ describe('App', () => {
     expect(player.style.top).toBe('492px');
     expect(player.style.left).toBe('');
     expect(container.querySelector('.music-player')).toBeInTheDocument();
-    expect(mediaPlay).toHaveBeenCalledTimes(1);
+    expect(mediaPlay).not.toHaveBeenCalled();
     expect(mediaPause).not.toHaveBeenCalled();
   });
 
@@ -1790,7 +1908,7 @@ describe('App', () => {
     act(() => vi.advanceTimersByTime(1));
     fireEvent.click(player);
 
-    expect(mediaPlay).toHaveBeenCalledTimes(2);
+    expect(mediaPlay).toHaveBeenCalledTimes(1);
   });
 
   it('uses icons instead of visible gender labels in the single-member stat', () => {
@@ -1816,7 +1934,8 @@ describe('App', () => {
     expect(container.querySelectorAll('sup.ordinal-suffix')[1]).toHaveTextContent('rd');
   });
 
-  it('shows only pinned news on the home page, capped at five', async () => {
+  it('renders all news on the news page', async () => {
+    const user = userEvent.setup();
     const config = {
       ...teamData,
       music: { src: '/audio/launch-now.mp3', cover: '/images/music-avatar.png' },
@@ -1831,12 +1950,16 @@ describe('App', () => {
 
     render(<App />);
 
+    await user.click(screen.getByRole('button', { name: '资讯' }));
+    await user.click(await screen.findByRole('tab', { name: '全部' }));
+
     expect(await screen.findByText('置顶资讯 1')).toBeInTheDocument();
-    expect(screen.getAllByTestId('news-image')).toHaveLength(5);
-    expect(screen.queryByText('置顶资讯 6')).not.toBeInTheDocument();
+    expect(screen.getAllByTestId('news-image')).toHaveLength(6);
+    expect(screen.getByText('置顶资讯 6')).toBeInTheDocument();
   });
 
-  it('falls back to the latest three news when nothing is pinned', async () => {
+  it('sorts all news by pinned state and date on the news page', async () => {
+    const user = userEvent.setup();
     const config = {
       ...teamData,
       music: { src: '/audio/launch-now.mp3', cover: '/images/music-avatar.png' },
@@ -1849,12 +1972,15 @@ describe('App', () => {
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => config }));
 
-    render(<App />);
+    const { container } = render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '资讯' }));
+    await user.click(await screen.findByRole('tab', { name: '全部' }));
 
     expect(await screen.findByText('新闻 B')).toBeInTheDocument();
-    expect(screen.getAllByTestId('news-image')).toHaveLength(3);
-    const newsRegion = screen.getByRole('region', { name: '车队动态' });
-    expect(within(newsRegion).getAllByRole('heading', { level: 3 }).map((node) => node.textContent)).toEqual(['新闻 B', '新闻 D', '新闻 C']);
+    expect(screen.getAllByTestId('news-image')).toHaveLength(4);
+    expect([...container.querySelectorAll('.news-copy h3')].map((node) => node.textContent))
+      .toEqual(['新闻 B', '新闻 D', '新闻 C', '旧闻 A']);
   });
 
   it('opens the news list page and filters by category tabs', async () => {
@@ -1870,24 +1996,31 @@ describe('App', () => {
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => config }));
 
-    render(<App />);
+    const { container } = render(<App />);
 
-    await user.click(await screen.findByRole('link', { name: '查看更多动态' }));
+    await user.click(screen.getByRole('button', { name: '资讯' }));
     expect(window.location.hash).toBe('#news');
-    expect(await screen.findByRole('tab', { name: '全部' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: '公告' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: '活动' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '返回首页' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '车队动态' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/NEWS \/ \d+/)).not.toBeInTheDocument();
+    expect(container.querySelector('audio')).not.toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: '公告', selected: true })).toBeInTheDocument();
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['公告', '活动', '全部']);
+    expect(screen.getAllByTestId('news-image')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: '查看资讯 公告新闻' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: '活动' }));
+    expect(screen.getAllByTestId('news-image')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: '查看资讯 活动新闻' })).toBeInTheDocument();
+    expect(screen.queryByText('公告新闻')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: '全部' }));
     expect(screen.getAllByTestId('news-image')).toHaveLength(3);
     expect(screen.getAllByRole('link', { name: /查看资讯/ }).map((link) => link.getAttribute('aria-label'))).toEqual([
       '查看资讯 公告新闻',
       '查看资讯 活动新闻',
       '查看资讯 其他新闻',
     ]);
-
-    await user.click(screen.getByRole('tab', { name: '活动' }));
-    expect(screen.getAllByTestId('news-image')).toHaveLength(1);
-    expect(screen.getByRole('link', { name: '查看资讯 活动新闻' })).toBeInTheDocument();
-    expect(screen.queryByText('公告新闻')).not.toBeInTheDocument();
   });
 
   it('opens a news detail page and copies its share link', async () => {
@@ -1900,9 +2033,13 @@ describe('App', () => {
     try {
       render(<App />);
 
+      await user.click(screen.getByRole('button', { name: '资讯' }));
       await user.click(await screen.findByRole('link', { name: '查看资讯 赛季积分榜更新' }));
       expect(window.location.hash).toBe(`#news/${teamData.news[0].id}`);
       expect(await screen.findByRole('heading', { name: '赛季积分榜更新' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '返回资讯' })).toHaveClass('global-back-button');
+      expect(screen.queryByText(teamData.news[0].category)).not.toBeInTheDocument();
+      expect(screen.queryByText(teamData.news[0].date)).not.toBeInTheDocument();
       expect(screen.queryByRole('img', { name: '赛季积分榜更新资讯图' })).not.toBeInTheDocument();
       expect(screen.queryByText(teamData.news[0].summary)).not.toBeInTheDocument();
 
@@ -1927,7 +2064,10 @@ describe('App', () => {
     expect(screen.getByRole('link', { name: '规则链接' })).toHaveAttribute('rel', 'noopener noreferrer');
     expect(screen.getByRole('img', { name: '正文图一' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: '正文图二' })).toBeInTheDocument();
-    expect(screen.getByText(item.date)).toHaveAttribute('datetime', item.date);
+    expect(screen.getByRole('heading', { name: item.title })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '返回资讯' })).toHaveClass('global-back-button');
+    expect(screen.queryByText(item.category)).not.toBeInTheDocument();
+    expect(screen.queryByText(item.date)).not.toBeInTheDocument();
   });
 
   it('falls back to the legacy plain news body on the detail page', () => {
@@ -1937,23 +2077,26 @@ describe('App', () => {
     expect(legacy).toHaveTextContent(teamData.news[0].body);
   });
 
-  it('renders the detail title above the category and date row', () => {
+  it('keeps the title in the same toolbar as the global back and share buttons', () => {
     const { container } = render(<NewsDetailPage news={[teamData.news[0]]} newsId={teamData.news[0].id} />);
 
-    const header = container.querySelector('.album-header');
-    const directChildren = Array.from(header.children);
-    const titleIndex = directChildren.findIndex((child) => child.tagName === 'H1');
-    const metaIndex = directChildren.findIndex((child) => child.classList.contains('news-modal-meta'));
-    expect(titleIndex).toBeGreaterThan(-1);
-    expect(metaIndex).toBeGreaterThan(-1);
-    expect(titleIndex).toBeLessThan(metaIndex);
+    const toolbar = container.querySelector('.news-detail-toolbar');
+    const title = screen.getByRole('heading', { name: teamData.news[0].title });
+    expect(toolbar).toBeInTheDocument();
+    expect(toolbar).toContainElement(title);
+    expect(toolbar).toContainElement(screen.getByRole('button', { name: '返回资讯' }));
+    expect(toolbar).toContainElement(screen.getByRole('button', { name: '分享' }));
+    expect(screen.getByRole('button', { name: '返回资讯' })).toHaveClass('global-back-button');
+    expect(screen.queryByText(teamData.news[0].category)).not.toBeInTheDocument();
+    expect(screen.queryByText(teamData.news[0].date)).not.toBeInTheDocument();
     expect(container.querySelector('.news-lead')).not.toBeInTheDocument();
-    expect(header.nextElementSibling).toHaveClass('news-article-legacy');
+    expect(toolbar.nextElementSibling).toHaveClass('news-article-legacy');
   });
 
   it('shows an empty state for a missing news id', () => {
     render(<NewsDetailPage news={teamData.news} newsId="missing" />);
-    expect(screen.getByRole('heading', { name: '资讯不存在' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '资讯不存在' })).not.toBeInTheDocument();
     expect(screen.getByText('该资讯不存在或已删除')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '返回资讯' })).toHaveClass('global-back-button');
   });
 });

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { uploadFile } from './adminApi.js';
@@ -83,6 +83,31 @@ describe('RichTextEditor', () => {
     expect(screen.getByRole('img', { name: '第二张.jpg' })).toHaveAttribute('src', '/uploads/b--第二张.jpg');
     await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(
       expect.stringContaining('/uploads/b--第二张.jpg'),
+      '正文',
+    ));
+  });
+
+  it('uploads and inserts an image pasted from the clipboard', async () => {
+    uploadFile.mockResolvedValueOnce({ path: '/uploads/pasted--截图.png', type: 'image' });
+    const onChange = vi.fn();
+    render(<RichTextEditor html="<p>正文</p>" text="正文" onChange={onChange} />);
+    const editor = screen.getByRole('textbox', { name: '新闻正文' });
+    const file = new File(['image'], '截图.png', { type: 'image/png' });
+
+    fireEvent.paste(editor, {
+      clipboardData: {
+        items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
+        getData: () => '',
+      },
+    });
+
+    expect(uploadFile).toHaveBeenCalledWith(file);
+    expect(await screen.findByRole('img', { name: '截图.png' })).toHaveAttribute(
+      'src',
+      '/uploads/pasted--截图.png',
+    );
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(
+      expect.stringContaining('/uploads/pasted--截图.png'),
       '正文',
     ));
   });

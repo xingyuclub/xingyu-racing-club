@@ -25,45 +25,11 @@ export function MusicPlayer({ src, cover, pauseForMedia = false }) {
   pauseForMediaRef.current = pauseForMedia;
 
   useEffect(() => {
-    if (isDismissed) return undefined;
-
-    const audio = audioRef.current;
-    let active = true;
-
-    const attemptPlay = async (event) => {
-      if (
-        pauseForMediaRef.current
-        || event?.target?.closest?.('.hero-media-stack, .hero-play-button')
-      ) {
-        if (active) document.addEventListener('pointerdown', attemptPlay, { once: true });
-        return;
-      }
-
-      try {
-        await audio.play();
-        if (active && pauseForMediaRef.current) {
-          audio.pause();
-          setIsPlaying(false);
-        } else if (active) {
-          setIsPlaying(true);
-        }
-      } catch {
-        if (active) {
-          setIsPlaying(false);
-          document.addEventListener('pointerdown', attemptPlay, { once: true });
-        }
-      }
-    };
-
-    void attemptPlay();
-
     return () => {
-      active = false;
-      document.removeEventListener('pointerdown', attemptPlay);
       window.clearTimeout(longPressTimerRef.current);
       window.clearTimeout(clickResetTimerRef.current);
     };
-  }, [isDismissed]);
+  }, []);
 
   useEffect(() => {
     if (!pauseForMedia) return;
@@ -200,7 +166,6 @@ export function MusicPlayer({ src, cover, pauseForMedia = false }) {
       <audio
         ref={audioRef}
         src={src}
-        autoPlay
         loop
         preload="auto"
         onPlay={() => {

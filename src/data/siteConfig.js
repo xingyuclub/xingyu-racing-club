@@ -8,6 +8,45 @@ export const SEASON_START_DATE = '2026-08-20';
 const SEASON_END_DATE = '';
 export const PREVIOUS_SEASON_START_DATE = '2026-06-25';
 export const PREVIOUS_SEASON_END_DATE = '2026-08-19';
+export const DEFAULT_SECTION_TITLES = {
+  featured: {
+    eyebrow: 'XINGYU MASTERS',
+    title: '星屿大神榜',
+  },
+  roster: {
+    eyebrow: 'STAR PLAYERS',
+    title: '明星队员',
+  },
+};
+
+export function normalizeSectionTitles(value) {
+  const source = value && typeof value === 'object' ? value : {};
+  return {
+    featured: {
+      ...DEFAULT_SECTION_TITLES.featured,
+      ...(source.featured && typeof source.featured === 'object' ? source.featured : {}),
+    },
+    roster: {
+      ...DEFAULT_SECTION_TITLES.roster,
+      ...(source.roster && typeof source.roster === 'object' ? source.roster : {}),
+    },
+  };
+}
+
+export function normalizeSectionMembers(value, roster = []) {
+  const source = value && typeof value === 'object' ? value : {};
+  const rosterIds = roster.map((member) => member.id).filter(Boolean);
+  const rosterIdSet = new Set(rosterIds);
+  const normalizeList = (list, fallback) => {
+    if (!Array.isArray(list)) return fallback;
+    const normalized = [...new Set(list)].filter((id) => rosterIdSet.has(id));
+    return normalized.length ? normalized : fallback;
+  };
+  return {
+    featured: normalizeList(source.featured, rosterIds.slice(0, 8)),
+    roster: normalizeList(source.roster, rosterIds),
+  };
+}
 
 export function nextScoreMemberId(scoreMembers = []) {
   const used = new Set(scoreMembers.map((member) => String(member.id || '').trim()));
@@ -83,7 +122,7 @@ const createRawMember = (member, sortedScores) => {
 };
 
 export function migrateRawConfig(input) {
-  const { team, stats, roster, scoreMembers, albums, dailyScores, weekendScores, memberAliases, news, newsCategories, music } = clone(input);
+  const { team, stats, roster, scoreMembers, albums, dailyScores, weekendScores, memberAliases, news, newsCategories, music, sectionTitles, sectionMembers } = clone(input);
   const sortedScores = [...dailyScores].sort((left, right) => left.date.localeCompare(right.date));
   const normalizedNews = (Array.isArray(news) ? news : []).map((item) => ({
     pinned: false,
@@ -102,9 +141,19 @@ export function migrateRawConfig(input) {
     : derivedCategories.length > 0
       ? derivedCategories
       : ['公告', '活动'];
-  const rosterMembers = roster.map((member) => ({
+  const baseRosterMembers = roster.map((member) => ({
     ...createRawMember(member, sortedScores),
     signature: typeof member.signature === 'string' ? member.signature : '',
+  }));
+  const normalizedSectionMembers = normalizeSectionMembers(sectionMembers, baseRosterMembers);
+  const rosterMembers = baseRosterMembers.map((member) => ({
+    ...member,
+    showInFeatured: typeof member.showInFeatured === 'boolean'
+      ? member.showInFeatured
+      : normalizedSectionMembers.featured.includes(member.id),
+    showInRoster: typeof member.showInRoster === 'boolean'
+      ? member.showInRoster
+      : normalizedSectionMembers.roster.includes(member.id),
   }));
   const normalizedScoreMembers = Array.isArray(scoreMembers)
     ? scoreMembers
@@ -159,6 +208,7 @@ export function migrateRawConfig(input) {
     memberAliases: (Array.isArray(memberAliases) ? memberAliases : []).filter((alias) => normalizedRoster.some((member) => member.id === alias.memberId)),
     news: normalizedNews,
     newsCategories: normalizedNewsCategories,
+    sectionTitles: normalizeSectionTitles(sectionTitles),
     music,
   };
 }
@@ -200,6 +250,8 @@ export function hydrateSiteData(rawConfig) {
     })),
   }));
   const roster = config.roster;
+  const displayRoster = roster.filter((member) => member.showInRoster !== false);
+  const displayFeaturedMembers = roster.filter((member) => member.showInFeatured === true);
   const latestRound = dailyScores[dailyScores.length - 1];
   const latestDate = latestRound?.date || '';
   const leaderboard = (config.scoreMembers || [])
@@ -222,9 +274,9 @@ export function hydrateSiteData(rawConfig) {
     });
   return {
     ...config,
-    roster,
+    roster: displayRoster.length ? displayRoster : roster,
     news: (Array.isArray(config.news) ? config.news : []).filter((item) => !item.hidden),
-    featuredMembers: roster.slice(0, 8),
+    featuredMembers: displayFeaturedMembers.length ? displayFeaturedMembers : roster.slice(0, 8),
     gallery: config.albums
       .filter((album) => !album.password)
       .flatMap((album) => album.photos),

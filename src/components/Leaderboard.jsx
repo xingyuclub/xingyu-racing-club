@@ -1,11 +1,27 @@
 import { useMemo, useState } from 'react';
-import { ArrowDown } from 'lucide-react';
+import { ArrowDown, Search } from 'lucide-react';
 import { resolvePublicAssetPath } from '../utils/publicAsset.js';
 
 const formatDate = (dateKey) => {
   if (!dateKey) return '';
   const [year, month, day] = dateKey.split('-').map(Number);
   return `${year}年${month}月${day}日`;
+};
+
+const formatCompactDate = (dateKey) => {
+  if (!dateKey) return '';
+  const [year, month, day] = dateKey.split('-');
+  return `${year}.${month}.${day}`;
+};
+
+const getIsoWeek = (dateKey) => {
+  if (!dateKey) return '';
+  const date = new Date(`${dateKey}T00:00:00`);
+  const thursday = new Date(date);
+  thursday.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+  const firstThursday = new Date(thursday.getFullYear(), 0, 4);
+  firstThursday.setDate(firstThursday.getDate() + 3 - ((firstThursday.getDay() + 6) % 7));
+  return 1 + Math.round((thursday - firstThursday) / 604800000);
 };
 
 const sortRows = (rows, sortKey) => [...rows].sort((left, right) => {
@@ -16,18 +32,49 @@ const sortRows = (rows, sortKey) => [...rows].sort((left, right) => {
     || left.name.localeCompare(right.name);
 });
 
-export function LeaderboardList({ rows, limit }) {
+export function LeaderboardList({
+  rows,
+  limit,
+  seasonLabel = 'S54赛季',
+  scoreDate = '',
+  onOpenDetails,
+  titleId,
+}) {
   const [sortKey, setSortKey] = useState('seasonPoints');
+  const seasonCode = seasonLabel.replace(/赛季$/, '');
+  const seasonWeek = getIsoWeek(scoreDate);
   const visibleRows = useMemo(() => {
     const sortedRows = sortRows(rows, sortKey);
     return limit ? sortedRows.slice(0, limit) : sortedRows;
   }, [limit, rows, sortKey]);
 
   return (
-    <div className="leaderboard-frame">
+    <div className={`leaderboard-frame${onOpenDetails ? ' leaderboard-frame--season' : ''}`}>
       <div className="leaderboard">
+        {onOpenDetails && (
+          <section className="leaderboard-season-head" aria-label="赛季积分榜信息">
+            <div className="leaderboard-season-top">
+              <div className="leaderboard-season-code">
+                {seasonCode}
+              </div>
+              <div className="leaderboard-season-copy">
+                <h1 id={titleId}>赛季积分榜</h1>
+                {scoreDate && (
+                  <p>
+                    截至 {formatCompactDate(scoreDate)}
+                    {seasonWeek ? ` · 第 ${seasonWeek} 周` : ''}
+                  </p>
+                )}
+              </div>
+              <button className="leaderboard-season-search" type="button" onClick={onOpenDetails}>
+                <Search aria-hidden="true" size={15} />
+                按日期查找
+              </button>
+            </div>
+          </section>
+        )}
         <div className="leaderboard-header">
-          <span className="leaderboard-nickname-header">昵称</span>
+          <span className="leaderboard-nickname-header">车手</span>
           {[
             ['points', '本周积分'],
             ['seasonPoints', '赛季总分'],

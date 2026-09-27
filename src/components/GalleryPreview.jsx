@@ -5,9 +5,13 @@ export function GalleryPreview({ photos, onOpenPhoto, onOpenAlbum }) {
 
   return (
     <section className="section-block gallery-section" aria-labelledby="gallery-title" data-reveal>
-      <div className="section-heading">
+      <div className="section-heading section-heading--action-right">
         <p className="eyebrow">TEAM ALBUM</p>
         <h2 id="gallery-title">相册空间</h2>
+        <button className="text-action gallery-more" type="button" onClick={onOpenAlbum}>
+          查看更多相册
+          <ArrowRight aria-hidden="true" size={17} />
+        </button>
       </div>
       {featuredPhotos.length ? (
         <div className="gallery-preview-grid">
@@ -40,10 +44,6 @@ export function GalleryPreview({ photos, onOpenPhoto, onOpenAlbum }) {
       ) : (
         <p className="empty-state">相册照片待添加</p>
       )}
-      <button className="text-action gallery-more" type="button" onClick={onOpenAlbum}>
-        查看更多相册
-        <ArrowRight aria-hidden="true" size={17} />
-      </button>
     </section>
   );
 }

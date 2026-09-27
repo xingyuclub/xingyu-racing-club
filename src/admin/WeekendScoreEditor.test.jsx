@@ -60,6 +60,26 @@ it('disables weekdays and switches the table when a Sunday is selected', async (
   expect(screen.queryByLabelText('周日 青山 上周积分')).not.toBeInTheDocument();
 });
 
+it('shows the previous Saturday points on the left when Sunday is selected', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-08-08T12:00:00'));
+  const config = {
+    ...baseConfig,
+    weekendScores: [{ date: '2026-08-08', rows: [{ id: '1', points: 494 }] }],
+  };
+
+  try {
+    render(<WeekendScoreEditor config={config} onChange={vi.fn()} />);
+    const calendar = screen.getByRole('grid', { name: '周末日期' });
+    fireEvent.click(within(calendar).getByRole('button', { name: '2026-08-09 周日' }));
+
+    expect(screen.getByLabelText('周日 青山 周六积分')).toHaveValue(494);
+    expect(screen.getByLabelText('周日 青山 周六积分')).toHaveAttribute('readonly');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it('writes the edited value into the matching weekendScores row', async () => {
   render(<StatefulEditor initial={baseConfig} />);
 

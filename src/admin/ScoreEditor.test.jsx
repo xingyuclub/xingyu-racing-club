@@ -170,7 +170,7 @@ describe('ScoreEditor', () => {
     })).toBeInTheDocument();
   });
 
-  it('shows the number of members with score rows for the selected date', () => {
+  it('counts only members with a positive score while keeping zero-score rows visible', () => {
     const config = createConfig();
     config.scoreMembers = Array.from({ length: 27 }, (_, index) => ({
       id: String(index + 1),
@@ -178,15 +178,48 @@ describe('ScoreEditor', () => {
       basePoints: 0,
       wins: 0,
     }));
-    config.dailyScores[0].rows = config.scoreMembers.map((member) => ({
+    config.dailyScores[0].rows = config.scoreMembers.map((member, index) => ({
       id: member.id,
-      teamRace: [1, null, null],
+      teamRace: index < 25 ? [1, null, null] : [0, null, null],
       openRace: [null, null, null],
     }));
 
-    render(<ScoreEditor config={config} onChange={() => {}} />);
+    const { container } = render(<ScoreEditor config={config} onChange={() => {}} />);
 
-    expect(screen.getByRole('columnheader', { name: '队员（27人）' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '队员（25人）' })).toBeInTheDocument();
+    expect(container.querySelectorAll('[data-testid="score-editor-row"]')).toHaveLength(27);
+  });
+
+  it('shows zero-score members and the season points projected by the frontend rules', () => {
+    const config = createConfig();
+    config.scoreMembers[0].basePoints = 10;
+
+    const { container } = render(<ScoreEditor config={config} onChange={() => {}} />);
+
+    expect(screen.getByRole('columnheader', { name: '赛季积分' })).toBeInTheDocument();
+    const rows = [...container.querySelectorAll('[data-testid="score-editor-row"], [data-testid="score-editor-zero-row"]')];
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent(config.scoreMembers[0].name);
+    expect(rows[0]).toHaveTextContent('6');
+    expect(rows[1]).toHaveTextContent(config.scoreMembers[1].name);
+    expect(rows[1]).toHaveTextContent('0');
+  });
+
+  it('sorts by projected season points when requested', async () => {
+    const user = userEvent.setup();
+    const config = createConfig();
+    config.scoreMembers[1].basePoints = 20;
+    config.dailyScores[0].rows.push({
+      id: config.scoreMembers[1].id,
+      teamRace: [10, 0, 0],
+      openRace: [0, 0, 0],
+    });
+
+    render(<ScoreEditor config={config} onChange={() => {}} />);
+    await user.click(screen.getByRole('button', { name: '按赛季积分从大到小排序' }));
+
+    const rows = screen.getAllByTestId('score-editor-row');
+    expect(within(rows[0]).getByRole('option', { name: config.scoreMembers[1].name, selected: true })).toBeInTheDocument();
   });
 
   it('includes weekend dates in the date union and renders projected weekend fields read-only', async () => {
