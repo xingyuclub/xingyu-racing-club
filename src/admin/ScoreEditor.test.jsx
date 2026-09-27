@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { readFileSync } from 'node:fs';
 import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSeedConfig } from '../data/siteConfig.js';
@@ -15,6 +16,8 @@ vi.mock('./scoreWorkbook.js', () => ({
   mergeScoreImport: vi.fn((config) => ({ ...config, imported: true })),
   parseScoreWorkbookBuffer: vi.fn(),
 }));
+
+const adminStyles = readFileSync('src/admin/admin.css', 'utf8');
 
 const createConfig = () => {
   const config = createSeedConfig();
@@ -42,6 +45,13 @@ function ScoreEditorHarness({ initialConfig, onChange }) {
 describe('ScoreEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('removes native spinner controls from score and weekend number inputs', () => {
+    expect(adminStyles).toContain('.score-editor-table input[type="number"]');
+    expect(adminStyles).toContain('.weekend-score-table input[type="number"]');
+    expect(adminStyles).toContain('appearance: textfield');
+    expect(adminStyles).toContain('-webkit-appearance: none');
   });
 
   it('edits a race score and exposes calculated daily and weekly totals', async () => {

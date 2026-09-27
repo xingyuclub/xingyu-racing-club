@@ -46,3 +46,18 @@
 .score-roster-move:disabled{opacity:.35;cursor:not-allowed}
 .section-titles-editor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding-top:4px}.section-title-group{padding:14px;border:1px solid #dbe3ec;border-radius:6px;background:#f8fafc}.section-title-group h3{margin:0 0 10px;color:#17202a;font-size:14px}.section-title-group .field-grid{grid-template-columns:1fr}
 @media(max-width:720px){.section-titles-editor{grid-template-columns:1fr}}
+
+/* 积分录入只保留手动输入，移除数字输入框的上下调节箭头。 */
+.score-editor-table input[type="number"],
+.weekend-score-table input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.score-editor-table input[type="number"]::-webkit-outer-spin-button,
+.score-editor-table input[type="number"]::-webkit-inner-spin-button,
+.weekend-score-table input[type="number"]::-webkit-outer-spin-button,
+.weekend-score-table input[type="number"]::-webkit-inner-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
