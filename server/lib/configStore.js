@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { createSeedConfig, migrateRawConfig } from '../../src/data/siteConfig.js';
 import { sanitizeNewsBodyHtml } from './newsRichText.js';
 import { normalizeNickname } from '../../src/data/scoreRules.js';
+import { isGameUrl } from '../../src/data/games.js';
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim().length > 0;
@@ -13,7 +14,7 @@ const isValidDateKey = (value) => {
   const date = new Date(year, month - 1, day);
   return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
 };
-const rawTopLevelKeys = ['team', 'stats', 'roster', 'scoreMembers', 'albums', 'dailyScores', 'weekendScores', 'memberAliases', 'news', 'newsCategories', 'sectionTitles', 'music'];
+const rawTopLevelKeys = ['team', 'stats', 'roster', 'scoreMembers', 'albums', 'dailyScores', 'weekendScores', 'memberAliases', 'news', 'newsCategories', 'sectionTitles', 'music', 'games'];
 const rawTopLevelKeySet = new Set([...rawTopLevelKeys, 'sectionMembers']);
 
 function rejectUnexpectedTopLevelKeys(config) {
@@ -138,6 +139,22 @@ function validateConfig(config) {
 
   requireStrings(config.sectionTitles?.featured, ['eyebrow', 'title'], 'sectionTitles.featured', details);
   requireStrings(config.sectionTitles?.roster, ['eyebrow', 'title'], 'sectionTitles.roster', details);
+
+  if (config.games !== undefined) {
+    if (!Array.isArray(config.games)) {
+      details.push('games must be an array');
+    } else {
+      const seenGameIds = new Set();
+      config.games.forEach((game, index) => {
+        const path = `games[${index}]`;
+        requireUniqueString(game?.id, `${path}.id`, seenGameIds, details);
+        requireStrings(game, ['name'], path, details);
+        requireString(game, ['iconSrc'], path, details);
+        if (!isGameUrl(game?.url)) details.push(`${path}.url must be an absolute HTTP(S) URL without credentials`);
+        if (typeof game?.enabled !== 'boolean') details.push(`${path}.enabled must be a boolean`);
+      });
+    }
+  }
 
   if (!Array.isArray(config.stats) || config.stats.length !== 4) {
     details.push('stats must contain exactly 4 entries');

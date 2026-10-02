@@ -12,10 +12,40 @@ describe('config store', () => {
   const backupFile = 'site-config.json.bak';
   const candidateFile = 'site-config.json.next';
   const stagedBackupFile = 'site-config.json.bak.next';
-  const rawTopLevelKeys = ['team', 'stats', 'roster', 'scoreMembers', 'albums', 'dailyScores', 'weekendScores', 'memberAliases', 'news', 'newsCategories', 'sectionTitles', 'music'];
+  const rawTopLevelKeys = ['team', 'stats', 'roster', 'scoreMembers', 'albums', 'dailyScores', 'weekendScores', 'memberAliases', 'news', 'newsCategories', 'sectionTitles', 'music', 'games'];
 
   let tempDir;
   let dataDir;
+
+  it('persists game links, their order, and visibility flags', async () => {
+    const store = await createConfigStore({ dataDir });
+    const config = await store.read();
+    config.games.reverse();
+    config.games[0].enabled = false;
+    await store.write(config);
+    expect((await store.read()).games).toEqual(config.games);
+  });
+
+  it.each([
+    ['javascript:alert(1)'],
+    ['data:text/html,test'],
+    ['/games/local'],
+    ['https://'],
+    ['https://name:password@example.com/game'],
+  ])('rejects unsafe or non-absolute game links: %s', async (url) => {
+    const store = await createConfigStore({ dataDir });
+    const config = await store.read();
+    config.games[0].url = url;
+    await expect(store.write(config)).rejects.toMatchObject({ code: 'INVALID_CONFIG' });
+  });
+
+  it('rejects duplicate game IDs and invalid visibility flags', async () => {
+    const store = await createConfigStore({ dataDir });
+    const config = await store.read();
+    config.games[1].id = config.games[0].id;
+    config.games[0].enabled = 'yes';
+    await expect(store.write(config)).rejects.toMatchObject({ code: 'INVALID_CONFIG' });
+  });
 
   const createDeferred = () => {
     let resolve;

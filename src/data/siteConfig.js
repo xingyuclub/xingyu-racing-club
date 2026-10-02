@@ -1,6 +1,7 @@
 import { teamData } from './teamData.js';
 import { projectScores } from '../../server/lib/scoreLedger.js';
 import { buildScoreMemberMatcher } from './scoreRules.js';
+import { DEFAULT_GAMES } from './games.js';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const sum = (values) => values.reduce((total, value) => total + Number(value || 0), 0);
@@ -122,7 +123,7 @@ const createRawMember = (member, sortedScores) => {
 };
 
 export function migrateRawConfig(input) {
-  const { team, stats, roster, scoreMembers, albums, dailyScores, weekendScores, memberAliases, news, newsCategories, music, sectionTitles, sectionMembers } = clone(input);
+  const { team, stats, roster, scoreMembers, albums, dailyScores, weekendScores, memberAliases, news, newsCategories, music, sectionTitles, sectionMembers, games } = clone(input);
   const sortedScores = [...dailyScores].sort((left, right) => left.date.localeCompare(right.date));
   const normalizedNews = (Array.isArray(news) ? news : []).map((item) => ({
     pinned: false,
@@ -210,6 +211,7 @@ export function migrateRawConfig(input) {
     newsCategories: normalizedNewsCategories,
     sectionTitles: normalizeSectionTitles(sectionTitles),
     music,
+    games: games === undefined ? clone(DEFAULT_GAMES) : games,
   };
 }
 export function createSeedConfig() {

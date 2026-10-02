@@ -11,6 +11,34 @@ import {
 import { teamData } from './teamData.js';
 
 describe('site configuration', () => {
+  it('adds the default games to old configuration without modifying existing data', () => {
+    const legacy = structuredClone(teamData);
+    delete legacy.games;
+    const migrated = migrateRawConfig(legacy);
+
+    expect(migrated.games.map((game) => game.name)).toEqual([
+      '登山赛车',
+      '方块消除',
+      'Tiny Fishing',
+      'Fishing World',
+      'Game of Farmers',
+      'Fruit Ninja',
+      '抓大鹅',
+      'Monkey Mart',
+    ]);
+    expect(migrated.games.every((game) => game.enabled)).toBe(true);
+    expect(migrated.team.name).toBe(legacy.team.name);
+    expect(migrated.albums).toEqual(legacy.albums.map((album) => ({ ...album, password: '' })));
+  });
+
+  it('keeps edited games, their order, and an intentionally empty game list', () => {
+    const config = createSeedConfig();
+    const games = [...config.games].reverse().map((game) => ({ ...game, enabled: false }));
+    expect(migrateRawConfig({ ...config, games }).games).toEqual(games);
+    expect(hydrateSiteData({ ...config, games }).games).toEqual(games);
+    expect(migrateRawConfig({ ...config, games: [] }).games).toEqual([]);
+  });
+
   it('hydrates the public fallback without newer Object and Array helpers', () => {
     const originalHasOwn = Object.hasOwn;
     const originalAt = Array.prototype.at;
@@ -201,6 +229,7 @@ describe('site configuration', () => {
     expect(Object.keys(config).sort()).toEqual([
       'albums',
       'dailyScores',
+      'games',
       'memberAliases',
       'music',
       'news',

@@ -9,6 +9,7 @@ import { NewsPage } from './components/NewsPage.jsx';
 import { NewsDetailPage } from './components/NewsDetailPage.jsx';
 import { MediaStreamViewer } from './components/MediaStreamViewer.jsx';
 import { AlbumPage } from './components/AlbumPage.jsx';
+import { GamesPage } from './components/GamesPage.jsx';
 import { ScoreDetailsPage } from './components/ScoreDetailsPage.jsx';
 import { MusicPlayer } from './components/MusicPlayer.jsx';
 import { BottomNav } from './components/BottomNav.jsx';
@@ -69,6 +70,7 @@ const parseRoute = () => {
     return id ? { name: 'news-detail', newsId: decodeURIComponent(id) } : { name: 'news' };
   }
   if (page === 'album') return { name: 'album' };
+  if (page === 'games') return { name: 'games' };
   if (page === 'leaderboard') return { name: 'leaderboard' };
   if (page === 'score-details') return { name: 'score-details' };
   return { name: 'home' };
@@ -150,13 +152,15 @@ export default function App() {
     navigateToHash(hash);
   }, [navigateToHash]);
 
-  const activePrimaryNav = route.name === 'leaderboard'
-    ? 'leaderboard'
-    : route.name === 'news' || route.name === 'news-detail'
-      ? 'news'
-      : route.name === 'album'
-        ? 'album'
-        : 'home';
+  const activePrimaryNav = route.name === 'games'
+    ? 'games'
+    : route.name === 'leaderboard'
+      ? 'leaderboard'
+      : route.name === 'news' || route.name === 'news-detail'
+        ? 'news'
+        : route.name === 'album'
+          ? 'album'
+          : 'home';
 
   const goBackFromNewsDetail = () => {
     if (window.history.state?.xingyuNavigationSession === navigationSessionIdRef.current) {
@@ -212,6 +216,18 @@ export default function App() {
         dailyScores={siteData.dailyScores}
         onBack={() => navigateToHash('leaderboard')}
       />
+    );
+  }
+
+  if (route.name === 'games') {
+    return (
+      <>
+        <main className="site-shell album-shell">
+          <Hero team={siteData.team} showMedia={false} onVideoPlaybackChange={setHeroVideoPlaying} />
+          <GamesPage games={siteData.games} />
+        </main>
+        <BottomNav active={activePrimaryNav} onNavigate={navigatePrimary} />
+      </>
     );
   }
 

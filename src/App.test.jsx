@@ -119,6 +119,56 @@ describe('teamData', () => {
 });
 
 describe('App', () => {
+  it('places games after albums in the primary navigation and opens its own page', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    const nav = screen.getByRole('navigation', { name: '底部主导航' });
+
+    expect(within(nav).getAllByRole('button').map((button) => button.textContent))
+      .toEqual(['首页', '资讯', '积分榜', '相册', '小游戏']);
+    expect(screen.queryByRole('heading', { name: '休闲小游戏' })).not.toBeInTheDocument();
+    await user.click(within(nav).getByRole('button', { name: '小游戏' }));
+
+    expect(window.location.hash).toBe('#games');
+    expect(screen.getByRole('region', { name: '小游戏' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '打开 登山赛车' }))
+      .toHaveAttribute('href', 'https://poki.com/zh/g/hill-climb-racing-lite');
+    expect(screen.getByRole('link', { name: '打开 方块消除' }))
+      .toHaveAttribute('href', 'https://poki.com/zh/g/blocky-blast-puzzle');
+    expect(screen.getByRole('link', { name: '打开 Tiny Fishing' }))
+      .toHaveAttribute('href', 'https://poki.com/en/g/tiny-fishing');
+    expect(screen.getByRole('link', { name: '打开 Fishing World' }))
+      .toHaveAttribute('href', 'https://poki.com/en/g/fishing-world');
+    expect(screen.getByRole('link', { name: '打开 Game of Farmers' }))
+      .toHaveAttribute('href', 'https://poki.com/en/g/game-of-farmers');
+    expect(screen.getByRole('link', { name: '打开 Fruit Ninja' }))
+      .toHaveAttribute('href', 'https://poki.com/zh/g/fruit-ninja');
+    expect(screen.getByRole('link', { name: '打开 抓大鹅' }))
+      .toHaveAttribute('href', 'https://kunpo.cc/game-detail.html?id=2');
+    expect(screen.getByRole('link', { name: '打开 Monkey Mart' }))
+      .toHaveAttribute('href', 'https://poki.com/en/g/monkey-mart');
+    expect(within(screen.getByRole('navigation', { name: '底部主导航' }))
+      .getByRole('button', { name: '小游戏' })).toHaveAttribute('aria-current', 'page');
+    expect(container.querySelector('.hero-section')).not.toBeInTheDocument();
+    expect(container.querySelector('.featured-section')).not.toBeInTheDocument();
+    expect(container.querySelector('.music-player')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '首页' }));
+    expect(window.location.hash).toBe('');
+    expect(container.querySelector('.featured-section')).toBeInTheDocument();
+  });
+
+  it('opens the games page directly with old public configuration', () => {
+    const config = hydrateSiteData(createSeedConfig());
+    delete config.games;
+    window.__XINGYU_SITE_CONFIG__ = config;
+    window.location.hash = '#games';
+    render(<App />);
+
+    expect(screen.getAllByRole('link', { name: /^打开 / })).toHaveLength(8);
+    expect(screen.getByRole('button', { name: '小游戏' })).toHaveAttribute('aria-current', 'page');
+  });
+
   it('shows the primary bottom navigation and switches between its pages', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);

@@ -1,3 +1,5 @@
+import { DEFAULT_GAMES } from './games.js';
+
 const roster = Array.from({ length: 30 }, (_, index) => {
   const number = String(index + 1).padStart(2, '0');
   return {
@@ -98,6 +100,7 @@ const dailyScores = [
 ];
 
 export const teamData = {
+  games: DEFAULT_GAMES,
   team: {
     name: '⁢⁣ˣʸ༩·星⁡⁠屿',
     heroLines: ['欢迎来到星屿车队', 'Wellcome To RACING CLUB'],

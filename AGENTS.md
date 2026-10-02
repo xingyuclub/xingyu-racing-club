@@ -404,3 +404,20 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 新增 `server/lib/scoreLedger.test.js` 回归测试，验证缺失队员在后续日期显示 0 分并携带已累计赛季积分。
 - 验证结果：全量 `npm test -- --run` 通过 31 个测试文件、547 项测试；`npm run build` 通过；2026-08-19 实际派生 50 位积分人物，其中 27 位当天 0 分但仍显示赛季累计。
 - 已重启本机 `server/index.js` / `3000` 并通过后台原样保存配置，重新发布 COS `config/site-config.js`；公网地址仍为 `https://xingyuclub.github.io/xingyu-racing-club/`。GitHub Pages 已随 `c8d0fcc` 部署成功。若后续修改赛季投影代码，仍需先重启本机 API，再保存配置发布 COS。
+
+## 2026-10-02 小游戏一级菜单
+
+- 按用户确认新增第五个底部一级菜单“小游戏”，紧随“相册”；独立路由为 `#games`，首页不新增游戏板块。
+- 初始入口为登山赛车（Hill Climb Racing Lite）与方块消除（Blocky Blast Puzzle）。图标和名称均可点击，使用普通外链在新页面打开，无 iframe、第三方游戏脚本、游戏账号或成绩接入。
+- 新增 `src/data/games.js` 与 `src/components/GamesPage.jsx`；`games` 配置接入默认数据、旧配置迁移、公开配置和后台“小游戏管理”，支持名称、图标上传、链接、排序、新增、删除和上架开关。
+- 缺少 `games` 的旧配置补齐两款默认游戏；明确保存空数组不补回。服务端校验唯一 ID、非空名称、布尔上架状态及无账号密码的绝对 HTTP(S) 链接；前台隐藏下架项和不安全链接，图标加载失败时回退通用图标。
+- 两张入口图标存于 `public/images/games/`，不依赖第三方图片实时加载；来源和维护说明见 `docs/games.md`。
+- 全量测试 33 个文件、582 项通过，生产构建通过；浏览器确认两个外链打开对应页面，320/390/768/1280 视口无页面级横向溢出，导航名称均在按钮内，图标正确加载，原版相册导航保留。
+- 已备份并重启本机 API `3000`，公开配置返回两款上架游戏；与改动前备份比较，除新增 `games` 外原始配置保持一致。原始配置和原 `.bak` 分别保留于 `output/site-config-before-games-2026-10-02.json` 与 `output/site-config-backup-before-games-2026-10-02.json`，均不提交 Git。
+- 本轮未提交、推送、部署 GitHub Pages 或发布 COS。国内手机网络、微信内核、第三方广告和免登录要求仍需实际手机持续复查，不承诺外部平台永远免登录或无广告。
+
+## 2026-10-02 小游戏入口扩充
+
+- 在保留登山赛车和方块消除的基础上，新增 Tiny Fishing、Fishing World、Game of Farmers、Fruit Ninja、抓大鹅和 Monkey Mart，共 8 个上架入口。
+- 新增图标位于 `public/images/games/`，当前运行配置 `server/data/site-config.json` 已同步；抓大鹅链接为官方介绍/小程序入口，其余新增链接为 Poki 游戏页面。
+- 本轮全量测试 33 个文件、582 项通过，普通/公开生产构建通过，样式微调后 185 项定向测试通过；320/390/768/1280 宽度下 8 张图标均正常加载、无页面级横向溢出。当前配置除 `games` 外与扩充前数据深度一致；发布前公网配置与本机配置的非游戏字段也一致。

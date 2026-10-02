@@ -73,7 +73,7 @@ p {
   z-index: 70;
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 4px;
   padding:
     8px max(12px, env(safe-area-inset-right))
@@ -86,6 +86,7 @@ p {
 }
 
 .bottom-nav-item {
+  min-width: 0;
   min-height: 52px;
   display: flex;
   flex-direction: column;
@@ -3022,6 +3023,83 @@ button:focus-visible {
 }
 
 /* ===== News list page & detail page ===== */
+.games-page {
+  padding-top: 36px;
+}
+
+.games-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 28px 24px;
+}
+
+.game-link {
+  position: relative;
+  width: 116px;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 0 0 8px;
+  color: var(--ink);
+  border: 0;
+  background: transparent;
+  text-decoration: none;
+}
+
+.game-icon {
+  width: 108px;
+  height: 108px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 18px;
+  color: var(--signal-strong);
+}
+
+.game-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.game-name {
+  max-width: 100%;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.game-link:hover {
+  color: var(--signal-strong);
+}
+
+.game-link:focus-visible {
+  outline: 2px solid var(--signal-strong);
+  outline-offset: 5px;
+  border-radius: 18px;
+}
+
+.game-link:active {
+  transform: translateY(1px);
+}
+
+@media (max-width: 480px) {
+  .games-grid {
+    justify-content: space-between;
+    gap: 24px 18px;
+  }
+
+  .game-link {
+    width: calc(50% - 9px);
+    max-width: 132px;
+  }
+}
+
 .news-page {
   padding-top: 24px;
 }

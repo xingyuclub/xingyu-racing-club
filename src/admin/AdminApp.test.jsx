@@ -14,7 +14,7 @@ it('starts every top-level admin section collapsed and expands them independentl
 
   render(<ConfigEditor initialConfig={createSeedConfig()} onAuthError={() => false} />);
 
-  expect(screen.getAllByRole('button', { name: /^展开/ })).toHaveLength(8);
+  expect(screen.getAllByRole('button', { name: /^展开/ })).toHaveLength(9);
   expect(screen.queryByLabelText('名称')).not.toBeInTheDocument();
   expect(screen.queryByLabelText('个性签名')).not.toBeInTheDocument();
 
@@ -23,6 +23,41 @@ it('starts every top-level admin section collapsed and expands them independentl
   expect(screen.getAllByLabelText('个性签名')[0]).toHaveValue('');
   expect(screen.getByRole('button', { name: '收起 成员管理' })).toHaveAttribute('aria-expanded', 'true');
   expect(screen.getByRole('button', { name: '展开 新闻管理' })).toHaveAttribute('aria-expanded', 'false');
+});
+
+it('edits, orders, and disables games without changing other configuration', async () => {
+  const user = userEvent.setup();
+  const config = createSeedConfig();
+  vi.stubGlobal('fetch', vi.fn(async (path, options = {}) => {
+    if (path === '/api/admin/uploads') return { ok: true, json: async () => [] };
+    if (path === '/api/admin/config' && options.method !== 'PUT') {
+      return { ok: true, json: async () => config };
+    }
+    return { ok: true, status: 204 };
+  }));
+
+  render(<ConfigEditor initialConfig={config} onAuthError={() => false} />);
+  await user.click(screen.getByRole('button', { name: '展开 小游戏管理' }));
+  const section = screen.getByRole('heading', { name: '小游戏管理' }).closest('section');
+  expect(within(section).getAllByLabelText('游戏链接')[0])
+    .toHaveValue('https://poki.com/zh/g/hill-climb-racing-lite');
+  expect(within(section).getAllByLabelText('游戏图标上传')[0]).toHaveAttribute('accept', 'image/*');
+  await user.clear(within(section).getAllByLabelText('名称')[0]);
+  await user.type(within(section).getAllByLabelText('名称')[0], '登山赛车 Lite');
+  await user.click(within(section).getAllByLabelText('上架')[0]);
+  await user.click(within(section).getAllByRole('button', { name: '下移' })[0]);
+  await user.click(screen.getByRole('button', { name: '保存全部配置' }));
+
+  const saveCall = fetch.mock.calls.find(([path, options]) =>
+    path === '/api/admin/config' && options?.method === 'PUT');
+  const savedConfig = JSON.parse(saveCall[1].body);
+  expect(savedConfig.games.map((game) => game.name)).toEqual([
+    '方块消除',
+    '登山赛车 Lite',
+    ...config.games.slice(2).map((game) => game.name),
+  ]);
+  expect(savedConfig.games[1].enabled).toBe(false);
+  expect(savedConfig.roster).toEqual(config.roster);
 });
 
 it('edits section titles independently', async () => {

@@ -6,13 +6,14 @@ import { UploadLibrary } from './UploadLibrary.jsx';
 import { RichTextEditor } from './RichTextEditor.jsx';
 import { ScoreEditor } from './ScoreEditor.jsx';
 import { normalizeSectionTitles } from '../data/siteConfig.js';
+import { DEFAULT_GAMES } from '../data/games.js';
 
 const clone = (value) => structuredClone(value);
 const newId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
   ? crypto.randomUUID()
   : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-const labels = { name:'名称', heroLines:'首屏文案', label:'英文标识', motto:'车队口号', heroMedia:'首页主媒体', heroFallbackImage:'视频默认展示图 / 失败备用图', src:'素材路径', cover:'封面', id:'ID', scoreMemberId:'积分人物', role:'角色', signature:'个性签名', avatar:'头像', videoUrl:'视频地址', title:'标题', category:'分类', date:'日期', imageSrc:'资讯图片', imageAlt:'图片说明', summary:'摘要', body:'正文', coverSrc:'相册封面', password:'访问密码', photos:'照片', alt:'替代文本', featured:'精选', mediaType:'媒体类型', pinned:'置顶', hidden:'隐藏', newsCategories:'分类列表', value:'数值', showInFeatured:'星屿大神榜展示', showInRoster:'明星队员展示' };
-const empty = { heroLines:'', roster:{ id:'',number:'',name:'',scoreMemberId:'',role:'队员',signature:'',basePoints:0,wins:0,avatar:'',videoUrl:'',showInFeatured:false,showInRoster:true }, news:{ id:'',title:'',category:'',date:'',imageSrc:'',imageAlt:'',summary:'',body:'',bodyHtml:'',pinned:false,hidden:false }, albums:{ id:'',name:'',date:'',coverSrc:'',password:'',photos:[] }, photos:{ id:'',src:'',title:'',date:'',alt:'',featured:false,mediaType:'image',videoUrl:'' } };
+const labels = { name:'名称', heroLines:'首屏文案', label:'英文标识', motto:'车队口号', heroMedia:'首页主媒体', heroFallbackImage:'视频默认展示图 / 失败备用图', src:'素材路径', cover:'封面', id:'ID', scoreMemberId:'积分人物', role:'角色', signature:'个性签名', avatar:'头像', videoUrl:'视频地址', title:'标题', category:'分类', date:'日期', imageSrc:'资讯图片', imageAlt:'图片说明', summary:'摘要', body:'正文', coverSrc:'相册封面', password:'访问密码', photos:'照片', alt:'替代文本', featured:'精选', mediaType:'媒体类型', pinned:'置顶', hidden:'隐藏', newsCategories:'分类列表', value:'数值', showInFeatured:'星屿大神榜展示', showInRoster:'明星队员展示', games:'游戏列表', url:'游戏链接', iconSrc:'游戏图标', enabled:'上架' };
+const empty = { heroLines:'', roster:{ id:'',number:'',name:'',scoreMemberId:'',role:'队员',signature:'',basePoints:0,wins:0,avatar:'',videoUrl:'',showInFeatured:false,showInRoster:true }, news:{ id:'',title:'',category:'',date:'',imageSrc:'',imageAlt:'',summary:'',body:'',bodyHtml:'',pinned:false,hidden:false }, albums:{ id:'',name:'',date:'',coverSrc:'',password:'',photos:[] }, photos:{ id:'',src:'',title:'',date:'',alt:'',featured:false,mediaType:'image',videoUrl:'' }, games:{ id:'',name:'',url:'',iconSrc:'',enabled:true } };
 const hiddenMediaFields = new Set([
   'originalSrc', 'originalSize', 'posterSrc', 'thumbSrc', 'cardSrc', 'width', 'height', 'duration',
   'avatarThumb', 'avatarCard', 'avatarOriginalSrc', 'avatarOriginalSize',
@@ -90,6 +91,7 @@ function createDraft(config) {
   const draft = clone(config);
   draft.newsCategories = Array.isArray(draft.newsCategories) ? draft.newsCategories : [];
   draft.sectionTitles = normalizeSectionTitles(draft.sectionTitles);
+  draft.games = draft.games === undefined ? clone(DEFAULT_GAMES) : draft.games;
   draft.roster = draft.roster.map((member) => ({
     ...empty.roster,
     ...member,
@@ -137,7 +139,7 @@ function nextMemberId(members) {
 }
 function Field({ value, path, fieldKey, draft, setDraft, roster, refresh, trackUpload }) {
   const update=(next)=>setDraft((current)=>setAt(current,path,next));
-  if (['heroFallbackImage','avatar','videoUrl','imageSrc','coverSrc','src','cover'].includes(fieldKey)) {
+  if (['heroFallbackImage','avatar','videoUrl','imageSrc','coverSrc','src','cover','iconSrc'].includes(fieldKey)) {
     const allowedTypes = fieldKey === 'videoUrl'
       ? ['video']
       : fieldKey === 'src' && path[0] === 'music'
@@ -248,9 +250,9 @@ export function ConfigEditor({ initialConfig, onAuthError }) {
   const loadFiles=()=>listUploads().then((next)=>setFiles(Array.isArray(next)?next:[])).catch((e)=>{if(!onAuthError(e))setStatus(e.message)});
   useEffect(() => { loadFiles(); }, []);
   const save=async()=>{setSaving(true);setStatus('');try{const normalized=createDraft(draft);const complete=restoreReferencedScoreMembers(normalized,await getConfig());await saveConfig(complete);setDraft(complete);setStatus('已保存，前台刷新后可见最新内容');}catch(e){if(!onAuthError(e))setStatus([e.message,...(e.details||[])].join('\n'));}finally{setSaving(false)}};
-  const sections=[['基础信息',{team:draft.team,music:draft.music}],['统计数据',draft.stats],['成员管理',draft.roster],['新闻管理',draft.news],['相册管理',draft.albums]];
+  const sections=[['基础信息',{team:draft.team,music:draft.music}],['统计数据',draft.stats],['成员管理',draft.roster],['新闻管理',draft.news],['相册管理',draft.albums],['小游戏管理',draft.games]];
   const appendUpload=(file)=>setFiles((current)=>current.some((item)=>item.name===file.name)?current:[...current,file]);
   const trackUpload=(uploading)=>setActiveUploads((count)=>Math.max(0,count+(uploading?1:-1)));
   const uploadPending=activeUploads>0;
-  return <>{sections.map(([title,value],index)=><Fragment key={title}><AdminSection title={title}>{title==='新闻管理' && <CategoriesEditor value={draft.newsCategories || []} onChange={(next)=>setDraft((current)=>({...clone(current),newsCategories:next}))} />}<Tree value={value} path={index===0?[]:[['stats','roster','news','albums'][index-1]]} fieldKey={index===0?'base':['stats','roster','news','albums'][index-1]} fixed={title==='统计数据'} {...{draft,setDraft,roster:draft.roster,refresh:appendUpload,trackUpload}} /></AdminSection>{index===0 && <AdminSection title="板块标题"><SectionTitlesEditor value={draft.sectionTitles} onChange={(next)=>setDraft((current)=>({...clone(current),sectionTitles:next}))} /></AdminSection>}</Fragment>)}<AdminSection title="星屿积分榜"><ScoreEditor config={draft} onChange={setDraft} /></AdminSection><AdminSection title="素材管理"><UploadLibrary files={files} setFiles={setFiles} onError={(e)=>setStatus(e.message)} /></AdminSection><div className="save-bar">{uploadPending && <p>素材上传中，请稍候</p>}{status && <p className={status.startsWith('已保存')?'admin-success':'admin-error'}>{status}</p>}<button disabled={saving||uploadPending} onClick={save}>保存全部配置</button></div></>;
+  return <>{sections.map(([title,value],index)=><Fragment key={title}><AdminSection title={title}>{title==='新闻管理' && <CategoriesEditor value={draft.newsCategories || []} onChange={(next)=>setDraft((current)=>({...clone(current),newsCategories:next}))} />}<Tree value={value} path={index===0?[]:[['stats','roster','news','albums','games'][index-1]]} fieldKey={index===0?'base':['stats','roster','news','albums','games'][index-1]} fixed={title==='统计数据'} {...{draft,setDraft,roster:draft.roster,refresh:appendUpload,trackUpload}} /></AdminSection>{index===0 && <AdminSection title="板块标题"><SectionTitlesEditor value={draft.sectionTitles} onChange={(next)=>setDraft((current)=>({...clone(current),sectionTitles:next}))} /></AdminSection>}</Fragment>)}<AdminSection title="星屿积分榜"><ScoreEditor config={draft} onChange={setDraft} /></AdminSection><AdminSection title="素材管理"><UploadLibrary files={files} setFiles={setFiles} onError={(e)=>setStatus(e.message)} /></AdminSection><div className="save-bar">{uploadPending && <p>素材上传中，请稍候</p>}{status && <p className={status.startsWith('已保存')?'admin-success':'admin-error'}>{status}</p>}<button disabled={saving||uploadPending} onClick={save}>保存全部配置</button></div></>;
 }

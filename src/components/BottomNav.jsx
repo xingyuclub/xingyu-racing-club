@@ -1,10 +1,11 @@
-import { Home, Images, Newspaper, Trophy } from 'lucide-react';
+import { Gamepad2, Home, Images, Newspaper, Trophy } from 'lucide-react';
 
 const items = [
   { key: 'home', label: '首页', hash: '', icon: Home },
   { key: 'news', label: '资讯', hash: 'news', icon: Newspaper },
   { key: 'leaderboard', label: '积分榜', hash: 'leaderboard', icon: Trophy },
   { key: 'album', label: '相册', hash: 'album', icon: Images },
+  { key: 'games', label: '小游戏', hash: 'games', icon: Gamepad2 },
 ];
 
 export function BottomNav({ active, onNavigate }) {
