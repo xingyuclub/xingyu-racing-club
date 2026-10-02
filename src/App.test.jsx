@@ -1617,6 +1617,9 @@ describe('App', () => {
     expect(globalStyles).toMatch(
       /\.media-stream-media\s*\{[^}]*object-fit:\s*contain;/s,
     );
+    expect(globalStyles).toMatch(
+      /@media \(orientation:\s*portrait\)[\s\S]*?\.media-stream-stage\.is-expanded \.media-stream-media\s*\{[^}]*translate\(-50%,\s*-50%\)\s*rotate\(90deg\)/s,
+    );
 
     const portraitView = render(
       <MediaStreamViewer

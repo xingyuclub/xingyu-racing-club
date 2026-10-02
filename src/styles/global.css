@@ -3393,6 +3393,7 @@ button:focus-visible {
   position: fixed;
   inset: 0;
   z-index: 20;
+  overflow: hidden;
   background: #000000;
 }
 
@@ -3537,9 +3538,15 @@ button:focus-visible {
 
 @media (orientation: portrait) {
   .media-stream-stage.is-expanded .media-stream-media {
-    width: 100vh;
-    height: 100vw;
-    transform: rotate(90deg);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100dvh;
+    height: 100dvw;
+    max-width: none;
+    max-height: none;
+    transform: translate(-50%, -50%) rotate(90deg);
+    transform-origin: center;
   }
 }
 
