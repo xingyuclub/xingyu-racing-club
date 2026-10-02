@@ -421,3 +421,10 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 在保留登山赛车和方块消除的基础上，新增 Tiny Fishing、Fishing World、Game of Farmers、Fruit Ninja、抓大鹅和 Monkey Mart，共 8 个上架入口。
 - 新增图标位于 `public/images/games/`，当前运行配置 `server/data/site-config.json` 已同步；抓大鹅链接为官方介绍/小程序入口，其余新增链接为 Poki 游戏页面。
 - 本轮全量测试 33 个文件、582 项通过，普通/公开生产构建通过，样式微调后 185 项定向测试通过；320/390/768/1280 宽度下 8 张图标均正常加载、无页面级横向溢出。当前配置除 `games` 外与扩充前数据深度一致；发布前公网配置与本机配置的非游戏字段也一致。
+
+## 2026-10-02 小游戏图标迁移腾讯云
+
+- 8 张游戏图标已上传现有腾讯云 COS/CDN，键为 `games/icons/<内容 SHA-256 前 16 位>-<原文件名>`，设置一年 `immutable` 缓存；CDN 回读 HTTP 200，8 张图片与原图哈希一致。
+- `server/data/site-config.json` 与 COS 公开配置已同步 CDN 地址，默认 `src/data/games.js` 同步使用 CDN；本地原图保留作备份，不删除。迁移前本地配置、原 `.bak`、公开配置保存在 `output/*before-cos-game-icons-*`，不提交 Git。
+- 保留最新后台上下架状态：抓大鹅 `enabled: false`，其余 7 款上架。图标以外的所有配置深度一致。
+- 全量 `npm test -- --run` 通过 33 个文件、583 项测试，公开生产构建通过；新增回归覆盖仓库子路径不改写 CDN 地址和自定义本地图片仍支持子路径。

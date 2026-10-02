@@ -47,7 +47,21 @@ describe('GamesPage', () => {
 
   it('supports a public deployment under a repository base path', () => {
     render(<GamesPage games={resolvePublicAssetPaths(DEFAULT_GAMES, '/xingyu/')} />);
-    expect(document.querySelector('img')).toHaveAttribute('src', '/xingyu/images/games/hill-climb-racing.png');
+    const images = document.querySelectorAll('.game-icon img');
+    expect(images).toHaveLength(8);
+    images.forEach((image, index) => {
+      expect(image).toHaveAttribute('src', DEFAULT_GAMES[index].iconSrc);
+      expect(image.getAttribute('src')).toMatch(
+        /^https:\/\/media\.xn--0tr48cxwl51iluvqh7c\.xn--fiqs8s\/games\/icons\/[a-f0-9]{16}-/,
+      );
+    });
     expect(screen.getByRole('link', { name: '打开 登山赛车' })).toHaveAttribute('href', DEFAULT_GAMES[0].url);
+  });
+
+  it('still supports a custom local icon under a repository base path', () => {
+    render(<GamesPage games={resolvePublicAssetPaths([
+      { ...DEFAULT_GAMES[0], iconSrc: '/images/games/custom.png' },
+    ], '/xingyu/')} />);
+    expect(document.querySelector('img')).toHaveAttribute('src', '/xingyu/images/games/custom.png');
   });
 });
