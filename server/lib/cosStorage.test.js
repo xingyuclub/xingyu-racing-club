@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createCosStorage } from './cosStorage.js';
+import { createCosStorage, createCosStorageFromEnv } from './cosStorage.js';
 
 function createFakeClient() {
   return {
@@ -13,6 +13,20 @@ function createFakeClient() {
 }
 
 describe('createCosStorage', () => {
+  it('rejects missing cloud configuration when cloud storage is required', () => {
+    expect(() => createCosStorageFromEnv({}, { required: true }))
+      .toThrow('不允许回退到本地上传');
+  });
+
+  it('still allows explicitly isolated callers to omit cloud storage', () => {
+    expect(createCosStorageFromEnv({})).toBeNull();
+  });
+
+  it('rejects incomplete cloud configuration instead of falling back locally', () => {
+    expect(() => createCosStorageFromEnv({ COS_SECRET_ID: 'test-id' }, { required: true }))
+      .toThrow('COS 配置不完整');
+  });
+
   it('uploads objects with bucket, region and cache metadata', async () => {
     const client = createFakeClient();
     const storage = createCosStorage({

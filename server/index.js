@@ -528,7 +528,7 @@ export async function createApp(options = {}) {
 if (process.argv[1] && resolve(process.argv[1]) === currentFilePath) {
   const app = await createApp({
     dev: process.argv.includes('--dev'),
-    mediaStorage: createCosStorageFromEnv(),
+    mediaStorage: createCosStorageFromEnv(process.env, { required: true }),
   });
   const port = Number.parseInt(process.env.PORT ?? '3000', 10);
   const host = process.env.HOST || '127.0.0.1';

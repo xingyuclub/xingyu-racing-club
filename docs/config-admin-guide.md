@@ -20,7 +20,11 @@ powershell -ExecutionPolicy Bypass -File scripts/start-local-services.ps1
 
 生产模式执行 `npm run serve`，服务地址是 `http://127.0.0.1:3000/`，后台为 `http://127.0.0.1:3000/admin`。
 
-运行时配置保存在 `server/data/site-config.json`；每次保存前的上一版位于 `server/data/site-config.json.bak`。上传的图片、视频和音频保存在 `server/storage/uploads/`，后台会返回可直接填写到配置中的 `/uploads/...` 路径。
+运行时配置保存在 `server/data/site-config.json`；每次保存前的上一版位于 `server/data/site-config.json.bak`。
+
+站点公开素材（图片、视频、音乐及小游戏图标）在后台上传后直接保存到腾讯云 COS，自动返回 CDN 地址并填入配置，之后点击“保存全部配置”发布到公网，不需要另外执行迁移命令。图片自动生成 WebP 尺寸版本，视频生成 720p MP4 和封面；本机 `server/storage/uploads/` 仅用于处理过程中的临时文件，成功后自动清理。
+
+正式 CLI 启动必须配置 `.env` 中的 `COS_SECRET_ID`、`COS_SECRET_KEY`、`COS_BUCKET`、`COS_REGION` 和 `COS_CDN_BASE_URL`；缺失或不完整时启动报错，不会静默回退为本地 `/uploads/`。腾讯云上传失败也不会返回本地地址，请修复后重新上传。积分截图识别的原图仍按审计规则保留本机，不作为公开素材上传。
 
 `server/config/admin.local.json` 使用明文保存单个管理员账号和密码，仅限本地配置，绝不能提交、公开或部署到公网。会话保存在服务进程内，重启 API 服务后需重新登录。
 
@@ -35,7 +39,7 @@ powershell -ExecutionPolicy Bypass -File scripts/start-local-services.ps1
 - 正文工具栏支持撤销、重做、正文/二级/三级标题、字体、字号、文字颜色、粗体、斜体、下划线、对齐、列表、链接和换行。
 - 点击“插入图片”可在当前光标处加入正文图片，并可重复上传多张；正文图片与首页封面图相互独立。
 - 编辑器会同时保存安全 HTML 和兼容旧版的纯文本正文。旧新闻无需手动迁移，展开时会自动按原有换行显示。
-- 正文图片只允许后台上传路径 `/uploads/` 或项目图片路径 `/images/`；外链图片、Base64 图片和不安全 HTML 会在服务端保存时移除。
+- 正文图片允许站点配置的腾讯云 CDN 地址及兼容的 `/uploads/`、`/images/` 路径；任意其他外链图片、Base64 图片和不安全 HTML 会在服务端保存时移除。
 - 编辑完成后点击页面底部“保存全部配置”。前台首页只展示置顶新闻（最多 5 条，无置顶时兜底最新 3 条）；点“查看更多新闻”进入 `#news` 列表页，按分类 Tab 切换；点条目进入 `#news/<id>` 独立详情页，详情页右上角“分享”按钮复制当前完整链接，可直接粘贴到微信群。
 
 ## 星屿积分榜

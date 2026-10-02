@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import request from 'supertest';
@@ -274,6 +274,62 @@ describe('config admin API', () => {
       contentType: 'image/webp',
     });
     expect(await fixture.app.locals.listUploadFiles()).toEqual([]);
+  });
+
+  it('does not return a local upload path when COS uploading fails', async () => {
+    const mediaStorage = {
+      publicUrl: (key) => `https://media.example.test/${key}`,
+      putObject: async ({ body }) => {
+        body.destroy?.();
+        throw new Error('COS unavailable');
+      },
+      deleteObject: async () => {},
+      listObjects: async () => [],
+    };
+    const fixture = await createFixture({ mediaStorage });
+    tempRoots.push(fixture.rootDir);
+    const { agent } = await loginAsAdmin(fixture.app);
+    const image = await sharp({
+      create: { width: 24, height: 16, channels: 3, background: '#0ea5e9' },
+    }).png().toBuffer();
+
+    const response = await agent
+      .post('/api/admin/upload')
+      .attach('file', image, { filename: 'icon.png', contentType: 'image/png' })
+      .expect(500);
+
+    expect(response.body).not.toHaveProperty('path');
+    expect(await readdir(fixture.uploadDir)).toEqual([]);
+  });
+
+  it('uploads audio directly to COS and removes the temporary local file', async () => {
+    const uploaded = [];
+    const mediaStorage = {
+      publicUrl: (key) => `https://media.example.test/${key}`,
+      putObject: async ({ body, ...input }) => {
+        const chunks = [];
+        for await (const chunk of body) chunks.push(chunk);
+        uploaded.push({ ...input, body: Buffer.concat(chunks) });
+      },
+      deleteObject: async () => {},
+      listObjects: async () => [],
+    };
+    const fixture = await createFixture({ mediaStorage });
+    tempRoots.push(fixture.rootDir);
+    const { agent } = await loginAsAdmin(fixture.app);
+    const audio = Buffer.from('audio');
+
+    const response = await agent
+      .post('/api/admin/upload')
+      .attach('file', audio, { filename: 'music.mp3', contentType: 'audio/mpeg' })
+      .expect(201);
+
+    expect(response.body.path).toMatch(/^https:\/\/media\.example\.test\/originals\//);
+    expect(response.body.type).toBe('audio');
+    expect(uploaded).toHaveLength(1);
+    expect(uploaded[0].body).toEqual(audio);
+    expect(uploaded[0].cacheControl).toContain('immutable');
+    expect(await readdir(fixture.uploadDir)).toEqual([]);
   });
 
   it('uploads original video, 720p MP4 and poster without running FFmpeg in the API test', async () => {

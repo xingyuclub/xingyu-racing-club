@@ -8,6 +8,20 @@ import { UploadField } from './UploadField.jsx';
 
 afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); });
 
+it('stores uploaded game icons as CDN addresses without changing other games', () => {
+  const config = createSeedConfig();
+  const cdnPath = 'https://media.example.test/variants/icon--display.webp';
+  const next = applyUploadResult(config, ['games', 0, 'iconSrc'], {
+    type: 'image',
+    path: cdnPath,
+    variants: { display: cdnPath },
+  });
+  expect(next.games[0].iconSrc).toBe(cdnPath);
+  expect(next.games.slice(1)).toEqual(config.games.slice(1));
+  expect(next.roster).toEqual(config.roster);
+  expect(config.games[0].iconSrc).not.toBe(cdnPath);
+});
+
 it('starts every top-level admin section collapsed and expands them independently', async () => {
   const user = userEvent.setup();
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
