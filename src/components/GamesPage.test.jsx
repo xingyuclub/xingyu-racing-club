@@ -36,6 +36,18 @@ describe('GamesPage', () => {
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
+  it('warns that games open on a third-party site and how to open them inside WeChat', () => {
+    const { rerender } = render(<GamesPage />);
+    const notice = screen.getByRole('note');
+    expect(notice).toHaveTextContent('小游戏需跳转到第三方网站');
+    expect(notice).toHaveTextContent('在浏览器中打开');
+    expect(notice.compareDocumentPosition(document.querySelector('.games-grid')) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+
+    rerender(<GamesPage games={[]} />);
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+  });
+
   it('keeps the playable link when an icon fails and retries a changed icon', () => {
     const { container, rerender } = render(<GamesPage games={[DEFAULT_GAMES[0]]} />);
     fireEvent.error(container.querySelector('img'));
