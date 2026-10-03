@@ -66,13 +66,14 @@ describe('GamesPage', () => {
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
-  it('shows a neutral notice outside WeChat and opens links without blocking', () => {
+  it('shows the third-party notice outside WeChat and opens links without blocking', () => {
     const { rerender } = render(<GamesPage />);
     const notice = screen.getByRole('note');
     expect(notice).toHaveTextContent('小游戏需跳转到第三方网站');
-    expect(notice).toHaveTextContent('点击图标会在新页面打开');
+    expect(notice).toHaveTextContent('微信内请先点右上角');
     expect(notice.compareDocumentPosition(document.querySelector('.games-grid')) & Node.DOCUMENT_POSITION_FOLLOWING)
       .toBeTruthy();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('link')[0]);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
@@ -80,20 +81,15 @@ describe('GamesPage', () => {
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
   });
 
-  it('blocks in-app WeChat clicks and offers the page link instead', async () => {
+  it('opens the browser guard as soon as WeChat lands on the page', async () => {
     setUserAgent('Mozilla/5.0 (iPhone) MicroMessenger/8.0.49');
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(window.navigator, 'clipboard', { value: { writeText }, configurable: true });
     render(<GamesPage />);
 
-    const notice = screen.getByRole('note');
-    expect(notice).toHaveTextContent('请先「在浏览器中打开」再开始游戏');
-    expect(notice).toHaveTextContent('微信内置浏览器无法打开游戏');
-
-    fireEvent.click(screen.getAllByRole('link')[0]);
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('请先换到浏览器');
-    expect(window.location.href).not.toBe('');
+    expect(dialog).toHaveTextContent('微信内置浏览器无法打开游戏');
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '复制本页链接' }));
@@ -103,6 +99,9 @@ describe('GamesPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '知道了' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole('link')[0]);
+    expect(screen.getByRole('dialog')).toHaveTextContent('请先换到浏览器');
   });
 
   it('keeps the playable link when an icon fails and retries a changed icon', () => {

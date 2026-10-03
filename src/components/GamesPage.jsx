@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Gamepad2, Info } from 'lucide-react';
+import { Gamepad2, Info } from 'lucide-react';
 import { DEFAULT_GAMES, GAME_CATEGORIES, isGameUrl } from '../data/games.js';
 import { resolvePublicAssetPath } from '../utils/publicAsset.js';
 
@@ -89,6 +89,11 @@ export function GamesPage({ games = DEFAULT_GAMES }) {
     };
   }, [guardOpen]);
 
+  // WeChat cannot run these games at all, so push the switch before the user picks anything.
+  useEffect(() => {
+    if (wechat) setGuardOpen(true);
+  }, [wechat]);
+
   const guardAgainstWeChat = (event) => {
     if (!wechat) return;
     event.preventDefault();
@@ -114,17 +119,13 @@ export function GamesPage({ games = DEFAULT_GAMES }) {
     <section className="album-page games-page" aria-label="小游戏">
       {visibleGames.length ? (
         <>
-          <div className={`games-notice${wechat ? ' is-warning' : ''}`} role="note">
+          <div className="games-notice" role="note">
             <span className="games-notice-head">
-              {wechat
-                ? <AlertTriangle size={16} aria-hidden="true" />
-                : <Info size={16} aria-hidden="true" />}
-              <strong>{wechat ? '请先「在浏览器中打开」再开始游戏' : '小游戏需跳转到第三方网站'}</strong>
+              <Info size={16} aria-hidden="true" />
+              <strong>小游戏需跳转到第三方网站</strong>
             </span>
             <span className="games-notice-body">
-              {wechat
-                ? '微信内置浏览器无法打开游戏，请点右上角「···」，选「在浏览器中打开」，再挑游戏。'
-                : '点击图标会在新页面打开。'}
+              游戏由第三方网站提供；微信内请先点右上角「···」，选「在浏览器中打开」，再挑游戏。
             </span>
           </div>
           <div className="games-tabs" role="tablist" aria-label="游戏分类" onKeyDown={moveTab}>

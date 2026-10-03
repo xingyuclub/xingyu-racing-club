@@ -3062,14 +3062,6 @@ button:focus-visible {
   padding-left: 22px;
 }
 
-.games-notice.is-warning {
-  border-left: 3px solid #d97706;
-}
-
-.games-notice.is-warning .games-notice-head svg {
-  color: #d97706;
-}
-
 .games-tabs {
   display: flex;
   gap: 8px;
