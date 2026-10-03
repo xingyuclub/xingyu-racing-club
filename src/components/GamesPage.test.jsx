@@ -87,7 +87,7 @@ describe('GamesPage', () => {
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('请先换到浏览器');
     expect(dialog).toHaveTextContent('微信内置浏览器无法打开游戏');
-    expect(screen.getByRole('note')).toHaveTextContent('请先「在浏览器中打开」再开始游戏');
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '复制本页链接' }));

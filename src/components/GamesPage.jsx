@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Gamepad2, Info } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Gamepad2 } from 'lucide-react';
 import { DEFAULT_GAMES, GAME_CATEGORIES, isGameUrl } from '../data/games.js';
 import { resolvePublicAssetPath } from '../utils/publicAsset.js';
 
@@ -56,6 +56,7 @@ export function GamesPage({ games = DEFAULT_GAMES }) {
   const [activeTab, setActiveTab] = useState(DEFAULT_TAB);
   const [guardOpen, setGuardOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const tabsRef = useRef(null);
   const wechat = detectWeChat();
 
   const visibleGames = (Array.isArray(games) ? games : [])
@@ -94,6 +95,24 @@ export function GamesPage({ games = DEFAULT_GAMES }) {
     if (wechat) setGuardOpen(true);
   }, [wechat]);
 
+  // Keep the tab row parked right below the sticky brand bar, whatever height it renders at.
+  useEffect(() => {
+    const tabs = tabsRef.current;
+    const brandBar = document.querySelector('.hero-brand-bar');
+    if (!tabs || !brandBar) return undefined;
+    const applyOffset = () => {
+      tabs.style.setProperty('--games-tabs-top', `${Math.round(brandBar.getBoundingClientRect().height)}px`);
+    };
+    applyOffset();
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(applyOffset) : null;
+    observer?.observe(brandBar);
+    window.addEventListener('resize', applyOffset);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', applyOffset);
+    };
+  }, [visibleGames.length]);
+
   const guardAgainstWeChat = (event) => {
     if (!wechat) return;
     event.preventDefault();
@@ -119,18 +138,7 @@ export function GamesPage({ games = DEFAULT_GAMES }) {
     <section className="album-page games-page" aria-label="小游戏">
       {visibleGames.length ? (
         <>
-          {wechat && (
-            <div className="games-notice" role="note">
-              <span className="games-notice-head">
-                <Info size={16} aria-hidden="true" />
-                <strong>请先「在浏览器中打开」再开始游戏</strong>
-              </span>
-              <span className="games-notice-body">
-                微信内置浏览器无法打开游戏，请点右上角「···」，选「在浏览器中打开」，再挑游戏。
-              </span>
-            </div>
-          )}
-          <div className="games-tabs" role="tablist" aria-label="游戏分类" onKeyDown={moveTab}>
+          <div className="games-tabs" role="tablist" aria-label="游戏分类" ref={tabsRef} onKeyDown={moveTab}>
             {tabs.map((tab) => (
               <button
                 className={`games-tab${tab.key === currentTab.key ? ' is-active' : ''}`}

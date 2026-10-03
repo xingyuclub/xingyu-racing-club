@@ -442,7 +442,9 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 新增 `category` 字段（`racing`/`action`/`puzzle`/`casual`/`sim`/`sports`）：`src/data/games.js` 导出 `GAME_CATEGORIES` 与 `isGameCategory`，`src/data/siteConfig.js` 迁移时非法或缺失回退 `casual`，`server/lib/configStore.js` 校验枚举，后台“小游戏管理”新增分类下拉。
 - `src/components/GamesPage.jsx` 重写：横向分类 Tab（默认竞速、全部最后、支持左右方向键）、分类过滤。
 - 2026-10-03 按用户建议调整微信策略：微信 UA（`MicroMessenger`）下**进入 `#games` 立即弹出**「请先换到浏览器」引导层，提供复制本页链接（`navigator.clipboard` + `execCommand` 兜底），让用户在挑游戏前就换到外部浏览器；关闭后点击任意图标会再次弹出作为兜底，避免微信内置浏览器直接打开游戏卡死。
-- 同日再调整：提示条只在微信内显示（`请先「在浏览器中打开」再开始游戏` / `微信内置浏览器无法打开游戏，请点右上角「···」，选「在浏览器中打开」，再挑游戏。`）。**非微信环境既不显示提示条也不弹层**，页面只有分类 Tab 与游戏网格，点击图标在新页面打开。
+- 同日再调整：**页面顶部提示条整体移除**，微信内只保留进入即弹出的引导层。非微信环境只有分类 Tab 与游戏网格，点击图标在新页面打开。
+- 分类 Tab 改为吸顶：`position: sticky`，吸附偏移由 `ResizeObserver` 监听 `.hero-brand-bar`（品牌栏本身 sticky，高度随标题行数变化）写入 CSS 变量 `--games-tabs-top`，不写死数值；实测滚动后 Tab 停在品牌栏正下方，滑到底部仍可切换分类。
+- 2026-10-03 本地 Vite（4173）曾出现模块缓存陈旧：CSS 更新生效但 `GamesPage.jsx` 仍返回旧文件，已重启 dev server（仍为 `--host 0.0.0.0 --port 4173`，局域网地址不变）。以后遇到“改了没生效”先确认 dev server 返回的模块内容。
 - 目录与图标由 `scripts/import-games-catalog.js` 生成：抓 Poki `og:image`、`sharp` 缩放 256×256、转 WebP 上传 COS，键为 `games/icons/<SHA-256 前 16 位>-<id>.webp`，缓存 `public, max-age=31536000, immutable`。首次误用 PNG 上传 46 张（约 4.9 MB），已改为 WebP（47 张约 0.5 MB，含登山赛车一次重建）并删除全部 PNG 孤儿对象，COS `games/icons/` 现存 54 个对象与目录一一对应。
 - 注意：脚本的 `REUSE_ICON_FROM` 按旧配置 id 复用图标，只在“旧配置 → 新目录”首次迁移时命中；配置已是新目录后再跑会重新上传同名图标（内容哈希相同，结果幂等）。登山赛车因此从复用旧 PNG 变成统一的 WebP，旧 PNG 已删除。
 - 运行时配置 `server/data/site-config.json` 已写入 54 款并保留备份 `output/site-config-before-games-catalog-<ts>.json`；本机 API 读取到 54 款、分类计数 9/9/9/12/7/8。
