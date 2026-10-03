@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { createSeedConfig, migrateRawConfig } from '../../src/data/siteConfig.js';
 import { sanitizeNewsBodyHtml } from './newsRichText.js';
 import { normalizeNickname } from '../../src/data/scoreRules.js';
-import { isGameUrl } from '../../src/data/games.js';
+import { isGameCategory, isGameUrl } from '../../src/data/games.js';
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim().length > 0;
@@ -152,6 +152,9 @@ function validateConfig(config) {
         requireString(game, ['iconSrc'], path, details);
         if (!isGameUrl(game?.url)) details.push(`${path}.url must be an absolute HTTP(S) URL without credentials`);
         if (typeof game?.enabled !== 'boolean') details.push(`${path}.enabled must be a boolean`);
+        if (game?.category !== undefined && !isGameCategory(game.category)) {
+          details.push(`${path}.category must be a supported game category`);
+        }
       });
     }
   }

@@ -9,6 +9,7 @@ import {
   sortNewsPinnedFirstByDateDesc,
 } from './siteConfig.js';
 import { teamData } from './teamData.js';
+import { DEFAULT_GAMES, GAME_CATEGORIES } from './games.js';
 
 describe('site configuration', () => {
   it('adds the default games to old configuration without modifying existing data', () => {
@@ -16,19 +17,22 @@ describe('site configuration', () => {
     delete legacy.games;
     const migrated = migrateRawConfig(legacy);
 
-    expect(migrated.games.map((game) => game.name)).toEqual([
-      '登山赛车',
-      '方块消除',
-      'Tiny Fishing',
-      'Fishing World',
-      'Game of Farmers',
-      'Fruit Ninja',
-      '抓大鹅',
-      'Monkey Mart',
-    ]);
+    expect(migrated.games.map((game) => game.name)).toEqual(DEFAULT_GAMES.map((game) => game.name));
     expect(migrated.games.every((game) => game.enabled)).toBe(true);
+    expect(migrated.games.every((game) => GAME_CATEGORIES.some((category) => category.key === game.category)))
+      .toBe(true);
     expect(migrated.team.name).toBe(legacy.team.name);
     expect(migrated.albums).toEqual(legacy.albums.map((album) => ({ ...album, password: '' })));
+  });
+
+  it('falls back to a valid category when a stored game has none', () => {
+    const config = createSeedConfig();
+    const games = [
+      { ...config.games[0], category: undefined },
+      { ...config.games[1], category: 'not-a-category' },
+    ];
+    expect(migrateRawConfig({ ...config, games }).games.map((game) => game.category))
+      .toEqual(['casual', 'casual']);
   });
 
   it('keeps edited games, their order, and an intentionally empty game list', () => {

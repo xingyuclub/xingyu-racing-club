@@ -6,14 +6,14 @@ import { UploadLibrary } from './UploadLibrary.jsx';
 import { RichTextEditor } from './RichTextEditor.jsx';
 import { ScoreEditor } from './ScoreEditor.jsx';
 import { normalizeSectionTitles } from '../data/siteConfig.js';
-import { DEFAULT_GAMES } from '../data/games.js';
+import { DEFAULT_GAMES, GAME_CATEGORIES, isGameCategory } from '../data/games.js';
 
 const clone = (value) => structuredClone(value);
 const newId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
   ? crypto.randomUUID()
   : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 const labels = { name:'名称', heroLines:'首屏文案', label:'英文标识', motto:'车队口号', heroMedia:'首页主媒体', heroFallbackImage:'视频默认展示图 / 失败备用图', src:'素材路径', cover:'封面', id:'ID', scoreMemberId:'积分人物', role:'角色', signature:'个性签名', avatar:'头像', videoUrl:'视频地址', title:'标题', category:'分类', date:'日期', imageSrc:'资讯图片', imageAlt:'图片说明', summary:'摘要', body:'正文', coverSrc:'相册封面', password:'访问密码', photos:'照片', alt:'替代文本', featured:'精选', mediaType:'媒体类型', pinned:'置顶', hidden:'隐藏', newsCategories:'分类列表', value:'数值', showInFeatured:'星屿大神榜展示', showInRoster:'明星队员展示', games:'游戏列表', url:'游戏链接', iconSrc:'游戏图标', enabled:'上架' };
-const empty = { heroLines:'', roster:{ id:'',number:'',name:'',scoreMemberId:'',role:'队员',signature:'',basePoints:0,wins:0,avatar:'',videoUrl:'',showInFeatured:false,showInRoster:true }, news:{ id:'',title:'',category:'',date:'',imageSrc:'',imageAlt:'',summary:'',body:'',bodyHtml:'',pinned:false,hidden:false }, albums:{ id:'',name:'',date:'',coverSrc:'',password:'',photos:[] }, photos:{ id:'',src:'',title:'',date:'',alt:'',featured:false,mediaType:'image',videoUrl:'' }, games:{ id:'',name:'',url:'',iconSrc:'',enabled:true } };
+const empty = { heroLines:'', roster:{ id:'',number:'',name:'',scoreMemberId:'',role:'队员',signature:'',basePoints:0,wins:0,avatar:'',videoUrl:'',showInFeatured:false,showInRoster:true }, news:{ id:'',title:'',category:'',date:'',imageSrc:'',imageAlt:'',summary:'',body:'',bodyHtml:'',pinned:false,hidden:false }, albums:{ id:'',name:'',date:'',coverSrc:'',password:'',photos:[] }, photos:{ id:'',src:'',title:'',date:'',alt:'',featured:false,mediaType:'image',videoUrl:'' }, games:{ id:'',name:'',category:'casual',url:'',iconSrc:'',enabled:true } };
 const hiddenMediaFields = new Set([
   'originalSrc', 'originalSize', 'posterSrc', 'thumbSrc', 'cardSrc', 'width', 'height', 'duration',
   'avatarThumb', 'avatarCard', 'avatarOriginalSrc', 'avatarOriginalSize',
@@ -164,6 +164,10 @@ function Field({ value, path, fieldKey, draft, setDraft, roster, refresh, trackU
       .map((member) => member.scoreMemberId)
       .filter(Boolean));
     return <label>{labels[fieldKey]}<select value={value || ''} onChange={(e)=>update(e.target.value)}><option value="">未绑定</option>{(draft.scoreMembers || []).map((member)=><option key={member.id} value={member.id} disabled={usedByOthers.has(member.id)}>{member.name}</option>)}</select></label>;
+  }
+  if (fieldKey === 'category' && path[0] === 'games') {
+    const selected = isGameCategory(value) ? value : 'casual';
+    return <label>{labels[fieldKey]}<select value={selected} onChange={(e)=>update(e.target.value)}>{GAME_CATEGORIES.map((item)=><option key={item.key} value={item.key}>{item.label}</option>)}</select></label>;
   }
   const numeric=typeof value === 'number';
   const label = fieldKey === 'heroLines' && typeof path.at(-1) === 'number'

@@ -1,7 +1,18 @@
 import { teamData } from './teamData.js';
 import { projectScores } from '../../server/lib/scoreLedger.js';
 import { buildScoreMemberMatcher } from './scoreRules.js';
-import { DEFAULT_GAMES } from './games.js';
+import { DEFAULT_GAMES, isGameCategory } from './games.js';
+
+const DEFAULT_GAME_CATEGORY = 'casual';
+
+function normalizeGames(games) {
+  const source = games === undefined ? clone(DEFAULT_GAMES) : games;
+  if (!Array.isArray(source)) return [];
+  return source.map((game) => ({
+    ...game,
+    category: isGameCategory(game?.category) ? game.category : DEFAULT_GAME_CATEGORY,
+  }));
+}
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const sum = (values) => values.reduce((total, value) => total + Number(value || 0), 0);
@@ -211,7 +222,7 @@ export function migrateRawConfig(input) {
     newsCategories: normalizedNewsCategories,
     sectionTitles: normalizeSectionTitles(sectionTitles),
     music,
-    games: games === undefined ? clone(DEFAULT_GAMES) : games,
+    games: normalizeGames(games),
   };
 }
 export function createSeedConfig() {

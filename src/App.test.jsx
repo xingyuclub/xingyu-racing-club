@@ -6,6 +6,7 @@ import { vi } from 'vitest';
 import App from './App.jsx';
 import { teamData } from './data/teamData.js';
 import { createSeedConfig, hydrateSiteData } from './data/siteConfig.js';
+import { DEFAULT_GAMES } from './data/games.js';
 import { Hero } from './components/Hero.jsx';
 import { MusicPlayer } from './components/MusicPlayer.jsx';
 import { FeaturedMembers } from './components/FeaturedMembers.jsx';
@@ -132,22 +133,19 @@ describe('App', () => {
     expect(window.location.hash).toBe('#games');
     expect(screen.getByRole('region', { name: '小游戏' })).toBeInTheDocument();
     expect(screen.getByRole('note')).toHaveTextContent('小游戏需跳转到第三方网站');
+    expect(screen.getByRole('tab', { name: '竞速' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('link', { name: '打开 登山赛车' }))
       .toHaveAttribute('href', 'https://poki.com/zh/g/hill-climb-racing-lite');
+
+    await user.click(screen.getByRole('tab', { name: '全部' }));
     expect(screen.getByRole('link', { name: '打开 方块消除' }))
       .toHaveAttribute('href', 'https://poki.com/zh/g/blocky-blast-puzzle');
     expect(screen.getByRole('link', { name: '打开 Tiny Fishing' }))
       .toHaveAttribute('href', 'https://poki.com/en/g/tiny-fishing');
-    expect(screen.getByRole('link', { name: '打开 Fishing World' }))
-      .toHaveAttribute('href', 'https://poki.com/en/g/fishing-world');
-    expect(screen.getByRole('link', { name: '打开 Game of Farmers' }))
-      .toHaveAttribute('href', 'https://poki.com/en/g/game-of-farmers');
-    expect(screen.getByRole('link', { name: '打开 Fruit Ninja' }))
+    expect(screen.getByRole('link', { name: '打开 水果忍者' }))
       .toHaveAttribute('href', 'https://poki.com/zh/g/fruit-ninja');
-    expect(screen.getByRole('link', { name: '打开 抓大鹅' }))
+    expect(screen.getByRole('link', { name: '打开 抓大鹅（小程序版）' }))
       .toHaveAttribute('href', 'https://kunpo.cc/game-detail.html?id=2');
-    expect(screen.getByRole('link', { name: '打开 Monkey Mart' }))
-      .toHaveAttribute('href', 'https://poki.com/en/g/monkey-mart');
     expect(within(screen.getByRole('navigation', { name: '底部主导航' }))
       .getByRole('button', { name: '小游戏' })).toHaveAttribute('aria-current', 'page');
     expect(container.querySelector('.hero-section')).not.toBeInTheDocument();
@@ -166,7 +164,9 @@ describe('App', () => {
     window.location.hash = '#games';
     render(<App />);
 
-    expect(screen.getAllByRole('link', { name: /^打开 / })).toHaveLength(8);
+    expect(screen.getAllByRole('tab')).toHaveLength(7);
+    expect(screen.getAllByRole('link', { name: /^打开 / }))
+      .toHaveLength(DEFAULT_GAMES.filter((game) => game.category === 'racing').length);
     expect(screen.getByRole('button', { name: '小游戏' })).toHaveAttribute('aria-current', 'page');
   });
 

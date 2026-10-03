@@ -435,6 +435,16 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 2026-10-03 已发布到公网：提交 `0275cdb`（小游戏页第三方跳转提示、移动端两列网格、页面左右留白 20px、上下间距 22px，另将 `output/` 排除出 Vitest 收集范围）推送到 `main`，GitHub Actions 自动部署成功。公网 `https://xingyuclub.github.io/xingyu-racing-club/#games` 已确认提示条渲染、上间距 = 下间距 = 22px、提示条与网格宽度差为 0、控制台无错误。
 - 推送时本机直连 GitHub 被重置，改用本机 Clash 代理 `127.0.0.1:7897`（`git -c http.proxy=http://127.0.0.1:7897 push origin main`）成功；后续推送如遇同样问题可照此处理。
 - 遗留待确认：运行时配置 `server/data/site-config.json` 的 `games` 目前是 10 项，仍包含 iframe 实验期加入的「方块拼图」「竞速赛车」，两项图标指向第三方 `img.gamedistribution.com` 而非腾讯 COS；抓大鹅当前为上架状态，与 `docs/games.md` 记的 8 款/抓大鹅下架不一致。这两项属后台数据而非代码，需用户确认后删除或把图标迁到 COS。
+
+## 2026-10-03 小游戏 54 款与分类 Tab
+
+- 用户确认：只做 Poki 平台、默认「竞速」、`全部` 放最后、`体育对战` 暂不拆分，并保留 Tiny Fishing / Fishing World / Game of Farmers / 抓大鹅，最终 54 款。
+- 新增 `category` 字段（`racing`/`action`/`puzzle`/`casual`/`sim`/`sports`）：`src/data/games.js` 导出 `GAME_CATEGORIES` 与 `isGameCategory`，`src/data/siteConfig.js` 迁移时非法或缺失回退 `casual`，`server/lib/configStore.js` 校验枚举，后台“小游戏管理”新增分类下拉。
+- `src/components/GamesPage.jsx` 重写：横向分类 Tab（默认竞速、全部最后、支持左右方向键）、分类过滤、双态提示条。微信 UA（`MicroMessenger`）下提示改为“请先「在浏览器中打开」再开始游戏”，并拦截图标点击弹出「请先换到浏览器」引导层，提供复制本页链接（`navigator.clipboard` + `execCommand` 兜底），避免微信内置浏览器直接打开游戏卡死；非微信仍是中性提示并在新页面打开。
+- 目录与图标由 `scripts/import-games-catalog.js` 生成：抓 Poki `og:image`、`sharp` 缩放 256×256、转 WebP 上传 COS，键为 `games/icons/<SHA-256 前 16 位>-<id>.webp`，缓存 `public, max-age=31536000, immutable`。首次误用 PNG 上传了 46 张（约 4.9 MB），已改为 WebP（46 张约 0.5 MB）并删除 46 个 PNG 孤儿对象，COS `games/icons/` 现存 54 个对象与目录一一对应。
+- 运行时配置 `server/data/site-config.json` 已写入 54 款并保留备份 `output/site-config-before-games-catalog-<ts>.json`；本机 API 读取到 54 款、分类计数 9/9/9/12/7/8。
+- 验证：`npm test -- --run` 通过 33 个文件、593 项测试；390 宽下 Tab 顺序与默认选中正确、无横向溢出；微信 UA 下警示态与点击拦截、复制链接均实测通过。
+- 本轮先发前端、后发 COS 配置（`--apply` 只写本机、`--publish` 才发布），避免公网出现“新配置 + 旧前端”的空窗。
 - 2026-10-03 后台打不开的排查结论：`/admin` 页面本身由 Vite 提供且返回 200，问题是本机 API `3000` 未监听，导致登录和读写配置的 `/api` 全部失败；已用 `node server/index.js --dev` 重新拉起（监听 `127.0.0.1:3000`）。开发模式下后台地址是 `http://127.0.0.1:4173/admin` 或 `http://192.168.1.24:4173/admin`（Vite 把 `/api` 代理到 3000），直接访问 `3000/admin` 会是 404，属正常。
 
 ## 2026-10-02 小游戏图标迁移腾讯云

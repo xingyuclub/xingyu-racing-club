@@ -66,7 +66,7 @@ it('edits, orders, and disables games without changing other configuration', asy
     path === '/api/admin/config' && options?.method === 'PUT');
   const savedConfig = JSON.parse(saveCall[1].body);
   expect(savedConfig.games.map((game) => game.name)).toEqual([
-    '方块消除',
+    config.games[1].name,
     '登山赛车 Lite',
     ...config.games.slice(2).map((game) => game.name),
   ]);
