@@ -119,15 +119,17 @@ export function GamesPage({ games = DEFAULT_GAMES }) {
     <section className="album-page games-page" aria-label="小游戏">
       {visibleGames.length ? (
         <>
-          <div className="games-notice" role="note">
-            <span className="games-notice-head">
-              <Info size={16} aria-hidden="true" />
-              <strong>小游戏需跳转到第三方网站</strong>
-            </span>
-            <span className="games-notice-body">
-              游戏由第三方网站提供；微信内请先点右上角「···」，选「在浏览器中打开」，再挑游戏。
-            </span>
-          </div>
+          {wechat && (
+            <div className="games-notice" role="note">
+              <span className="games-notice-head">
+                <Info size={16} aria-hidden="true" />
+                <strong>请先「在浏览器中打开」再开始游戏</strong>
+              </span>
+              <span className="games-notice-body">
+                微信内置浏览器无法打开游戏，请点右上角「···」，选「在浏览器中打开」，再挑游戏。
+              </span>
+            </div>
+          )}
           <div className="games-tabs" role="tablist" aria-label="游戏分类" onKeyDown={moveTab}>
             {tabs.map((tab) => (
               <button

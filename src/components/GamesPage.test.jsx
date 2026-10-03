@@ -66,14 +66,11 @@ describe('GamesPage', () => {
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
-  it('shows the third-party notice outside WeChat and opens links without blocking', () => {
+  it('keeps the page clean outside WeChat and opens links without blocking', () => {
     const { rerender } = render(<GamesPage />);
-    const notice = screen.getByRole('note');
-    expect(notice).toHaveTextContent('小游戏需跳转到第三方网站');
-    expect(notice).toHaveTextContent('微信内请先点右上角');
-    expect(notice.compareDocumentPosition(document.querySelector('.games-grid')) & Node.DOCUMENT_POSITION_FOLLOWING)
-      .toBeTruthy();
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('tab')).toHaveLength(7);
     fireEvent.click(screen.getAllByRole('link')[0]);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
@@ -90,6 +87,7 @@ describe('GamesPage', () => {
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('请先换到浏览器');
     expect(dialog).toHaveTextContent('微信内置浏览器无法打开游戏');
+    expect(screen.getByRole('note')).toHaveTextContent('请先「在浏览器中打开」再开始游戏');
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '复制本页链接' }));

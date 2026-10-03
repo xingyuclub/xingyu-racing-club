@@ -132,7 +132,7 @@ describe('App', () => {
 
     expect(window.location.hash).toBe('#games');
     expect(screen.getByRole('region', { name: '小游戏' })).toBeInTheDocument();
-    expect(screen.getByRole('note')).toHaveTextContent('小游戏需跳转到第三方网站');
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '竞速' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('link', { name: '打开 登山赛车' }))
       .toHaveAttribute('href', 'https://poki.com/zh/g/hill-climb-racing-lite');
