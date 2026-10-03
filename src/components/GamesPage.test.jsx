@@ -54,7 +54,7 @@ describe('GamesPage', () => {
       { ...DEFAULT_GAMES[1], id: 'unsafe', url: 'javascript:alert(1)' },
       { ...DEFAULT_GAMES[1], id: 'second' },
     ]} />);
-    expect(screen.getAllByRole('link').map((link) => link.textContent))
+    expect(screen.getAllByRole('link').map((link) => link.querySelector('.game-name').textContent))
       .toEqual([DEFAULT_GAMES[0].name, DEFAULT_GAMES[1].name]);
   });
 
@@ -70,7 +70,7 @@ describe('GamesPage', () => {
     const { rerender } = render(<GamesPage />);
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.getAllByRole('tab')).toHaveLength(7);
+    expect(screen.getAllByRole('tab')).toHaveLength(GAME_CATEGORIES.length + 1);
     fireEvent.click(screen.getAllByRole('link')[0]);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
@@ -109,6 +109,14 @@ describe('GamesPage', () => {
     expect(screen.getByRole('link', { name: `打开 ${DEFAULT_GAMES[0].name}` })).toBeInTheDocument();
     rerender(<GamesPage games={[{ ...DEFAULT_GAMES[0], iconSrc: '/images/new-game.png' }]} />);
     expect(container.querySelector('img')).toHaveAttribute('src', '/images/new-game.png');
+  });
+
+  it('badges the games that keep progress in the browser', () => {
+    render(<GamesPage />);
+    expect(screen.getByRole('link', { name: '打开 Moto X3M' }).querySelector('.game-save-badge'))
+      .toHaveTextContent('存档');
+    expect(screen.getByRole('link', { name: '打开 登山赛车' }).querySelector('.game-save-badge'))
+      .toBeNull();
   });
 
   it('supports a public deployment under a repository base path', () => {

@@ -3037,8 +3037,6 @@ button:focus-visible {
   margin-bottom: 12px;
   padding: 6px 0;
   overflow-x: auto;
-  background: var(--page-bg);
-  border-bottom: 1px solid var(--line);
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -3070,6 +3068,20 @@ button:focus-visible {
 .games-tab:focus-visible {
   outline: 2px solid var(--signal-strong);
   outline-offset: 2px;
+}
+
+.game-save-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 1px 7px;
+  color: #ffffff;
+  font-size: 0.64rem;
+  font-weight: 700;
+  line-height: 1.6;
+  background: rgba(41, 106, 202, 0.92);
+  border-radius: 999px;
+  pointer-events: none;
 }
 
 .game-guard {

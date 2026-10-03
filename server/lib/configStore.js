@@ -155,6 +155,9 @@ function validateConfig(config) {
         if (game?.category !== undefined && !isGameCategory(game.category)) {
           details.push(`${path}.category must be a supported game category`);
         }
+        if (game?.hasSave !== undefined && typeof game.hasSave !== 'boolean') {
+          details.push(`${path}.hasSave must be a boolean`);
+        }
       });
     }
   }

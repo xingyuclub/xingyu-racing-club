@@ -6,7 +6,7 @@ import { vi } from 'vitest';
 import App from './App.jsx';
 import { teamData } from './data/teamData.js';
 import { createSeedConfig, hydrateSiteData } from './data/siteConfig.js';
-import { DEFAULT_GAMES } from './data/games.js';
+import { DEFAULT_GAMES, GAME_CATEGORIES } from './data/games.js';
 import { Hero } from './components/Hero.jsx';
 import { MusicPlayer } from './components/MusicPlayer.jsx';
 import { FeaturedMembers } from './components/FeaturedMembers.jsx';
@@ -164,7 +164,7 @@ describe('App', () => {
     window.location.hash = '#games';
     render(<App />);
 
-    expect(screen.getAllByRole('tab')).toHaveLength(7);
+    expect(screen.getAllByRole('tab')).toHaveLength(GAME_CATEGORIES.length + 1);
     expect(screen.getAllByRole('link', { name: /^打开 / }))
       .toHaveLength(DEFAULT_GAMES.filter((game) => game.category === 'racing').length);
     expect(screen.getByRole('button', { name: '小游戏' })).toHaveAttribute('aria-current', 'page');

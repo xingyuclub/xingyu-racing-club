@@ -19,6 +19,7 @@ const publishChanges = process.argv.includes('--publish');
 
 export const GAME_CATEGORIES = [
   { key: 'racing', label: '竞速' },
+  { key: 'level', label: '闯关' },
   { key: 'action', label: '动作' },
   { key: 'puzzle', label: '益智' },
   { key: 'casual', label: '休闲' },
@@ -37,6 +38,9 @@ const POKI_GAMES = [
   ['real-cars-in-city', '城市真车', 'racing'],
   ['tuning-car-racing', '改装赛车', 'racing'],
   ['top-speed-3d', '极速 3D', 'racing'],
+  ['red-ball-4', 'Red Ball 4', 'level'],
+  ['level-devil', '恶魔关卡', 'level'],
+  ['run-3', 'Run 3', 'level'],
   ['blockpost', 'Blockpost 方块战场', 'action'],
   ['war-master', '战争大师', 'action'],
   ['lethal-sniper-3d-army-soldier', '致命狙击 3D', 'action'],
@@ -47,7 +51,6 @@ const POKI_GAMES = [
   ['mr-bullet', '子弹先生', 'action'],
   ['tank-stars', '坦克之星', 'action'],
   ['2048', '2048', 'puzzle'],
-  ['level-devil', '恶魔关卡', 'puzzle'],
   ['blocky-blast-puzzle', '方块消除', 'puzzle'],
   ['tear-blocks-down', '拆方块', 'puzzle'],
   ['marble-run-3d', '3D 弹珠', 'puzzle'],
@@ -88,13 +91,13 @@ const RETAINED_GAMES = [
   { id: 'zhuadae', category: 'puzzle' },
 ];
 
-// 这 4 款 Poki 游戏线上已有同名条目，图标直接复用，不重复上传
+// 这几款 Poki 游戏线上已有条目但 id 变了，图标按旧 id 复用，不重复上传
 const REUSE_ICON_FROM = {
   'hill-climb-racing-lite': 'hill-climb-racing',
-  'blocky-blast-puzzle': 'blocky-blast-puzzle',
-  'fruit-ninja': 'fruit-ninja',
-  'monkey-mart': 'monkey-mart',
 };
+
+// 关卡/生涯进度会被浏览器保存的游戏，前台打「存档」角标
+const SAVED_GAME_IDS = new Set(['moto-x3m', 'level-devil', 'red-ball-4', 'run-3', 'retro-bowl']);
 
 function iconKey(id, bytes) {
   const digest = createHash('sha256')
@@ -154,8 +157,9 @@ function renderGamesModule(games) {
     lines.push('  {');
     lines.push(`    id: '${game.id}',`);
     lines.push(`    name: '${game.name}',`);
-    lines.push(`    category: '${game.category}',`);
-    lines.push(`    url: '${game.url}',`);
+  lines.push(`    category: '${game.category}',`);
+  lines.push(`    hasSave: ${game.hasSave},`);
+  lines.push(`    url: '${game.url}',`);
     lines.push(`    iconSrc: '${game.iconSrc}',`);
     lines.push(`    enabled: ${game.enabled},`);
     lines.push('  },');
@@ -193,7 +197,7 @@ async function main() {
 
   for (const [slug, name, category] of POKI_GAMES) {
     const reuseId = REUSE_ICON_FROM[slug];
-    const reusedGame = reuseId ? existingById.get(reuseId) : null;
+    const reusedGame = existingById.get(slug) ?? (reuseId ? existingById.get(reuseId) : null);
     let iconSrc;
     if (reusedGame?.iconSrc) {
       iconSrc = reusedGame.iconSrc;
@@ -208,6 +212,7 @@ async function main() {
       id: slug,
       name,
       category,
+      hasSave: SAVED_GAME_IDS.has(slug),
       url: `https://poki.com/zh/g/${slug}`,
       iconSrc,
       enabled: true,
@@ -221,6 +226,7 @@ async function main() {
       id: existing.id,
       name: existing.name,
       category: retained.category,
+      hasSave: existing.hasSave === true,
       url: existing.url,
       iconSrc: existing.iconSrc,
       enabled: existing.enabled !== false,

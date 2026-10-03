@@ -445,6 +445,15 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 同日再调整：**页面顶部提示条整体移除**，微信内只保留进入即弹出的引导层。非微信环境只有分类 Tab 与游戏网格，点击图标在新页面打开。
 - 分类 Tab 改为吸顶：`position: sticky`，吸附偏移由 `ResizeObserver` 监听 `.hero-brand-bar`（品牌栏本身 sticky，高度随标题行数变化）写入 CSS 变量 `--games-tabs-top`，不写死数值；实测滚动后 Tab 停在品牌栏正下方，滑到底部仍可切换分类。
 - 2026-10-03 本地 Vite（4173）曾出现模块缓存陈旧：CSS 更新生效但 `GamesPage.jsx` 仍返回旧文件，已重启 dev server（仍为 `--host 0.0.0.0 --port 4173`，局域网地址不变）。以后遇到“改了没生效”先确认 dev server 返回的模块内容。
+
+## 2026-10-03 小游戏 Tab 视觉、存档标记与闯关分类
+
+- Tab 行去掉浅色底与下边框（`background` / `border-bottom`），只保留吸顶与胶囊按钮，消除横贯页面的浅色带。
+- 新增 `hasSave` 布尔字段：服务端校验、`siteConfig` 迁移回退 `false`、后台“小游戏管理”加「有存档」勾选；前台在图标右上角显示「存档」角标（`aria-hidden`，不改变链接无障碍名称）。当前标记 Moto X3M、Red Ball 4、恶魔关卡、Run 3、复古橄榄球。
+- 新增「闯关」分类（`level`），排在「竞速」之后，含 Red Ball 4、Level Devil（从益智移入）、Run 3；目录从 54 款增至 56 款，新上传 2 张 WebP 图标。
+- `scripts/import-games-catalog.js` 的图标复用改为「按 id 命中已有配置」，修掉上次重跑会重复上传的问题；本次重跑仅上传 2 张新图标、复用 54 张。
+- 注意：脚本在同一次运行内改写了 `src/data/games.js`，但校验用的 `isGameCategory` 仍是进程启动时导入的旧模块，导致首次 `--apply` 报 `category must be a supported game category`；重跑一次即通过。以后新增分类需连跑两次，或先改 `games.js` 再跑。
+- 本地 Vite 再次出现 CSS 转换缓存陈旧（源文件已改、服务端仍返回旧规则），重启 dev server 后恢复；`node_modules/.vite` 删除被策略拦截，重启即可解决。
 - 目录与图标由 `scripts/import-games-catalog.js` 生成：抓 Poki `og:image`、`sharp` 缩放 256×256、转 WebP 上传 COS，键为 `games/icons/<SHA-256 前 16 位>-<id>.webp`，缓存 `public, max-age=31536000, immutable`。首次误用 PNG 上传 46 张（约 4.9 MB），已改为 WebP（47 张约 0.5 MB，含登山赛车一次重建）并删除全部 PNG 孤儿对象，COS `games/icons/` 现存 54 个对象与目录一一对应。
 - 注意：脚本的 `REUSE_ICON_FROM` 按旧配置 id 复用图标，只在“旧配置 → 新目录”首次迁移时命中；配置已是新目录后再跑会重新上传同名图标（内容哈希相同，结果幂等）。登山赛车因此从复用旧 PNG 变成统一的 WebP，旧 PNG 已删除。
 - 运行时配置 `server/data/site-config.json` 已写入 54 款并保留备份 `output/site-config-before-games-catalog-<ts>.json`；本机 API 读取到 54 款、分类计数 9/9/9/12/7/8。

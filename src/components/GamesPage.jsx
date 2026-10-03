@@ -172,6 +172,7 @@ export function GamesPage({ games = DEFAULT_GAMES }) {
                 onClick={guardAgainstWeChat}
               >
                 <span className="game-icon"><GameIcon src={game.iconSrc} /></span>
+                {game.hasSave && <span className="game-save-badge" aria-hidden="true">存档</span>}
                 <span className="game-name">{game.name}</span>
               </a>
             ))}

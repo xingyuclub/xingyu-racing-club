@@ -11,6 +11,7 @@ function normalizeGames(games) {
   return source.map((game) => ({
     ...game,
     category: isGameCategory(game?.category) ? game.category : DEFAULT_GAME_CATEGORY,
+    hasSave: game?.hasSave === true,
   }));
 }
 
