@@ -432,7 +432,9 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 手机端（≤480px）由 `justify-content: space-between` 加 `max-width: 132px` 改为两列网格：图标按列宽等比铺满，列间距 16px，与页面左右留白一致；320/390 下每行 2 个、中间间距 16px，1280 保持原有多列排列，三档均无页面级横向溢出。
 - 定向验证：`src/components/GamesPage.test.jsx` 7 项、`src/App.test.jsx` 113 项通过；提示条位置在游戏网格之前，空列表时不显示。
 - 嵌入方案实测记录（供以后评估，本轮不采用）：GameDistribution 页内 iframe 点击 PLAY 后会加载 Google 广告与 IMA 视频广告 SDK、Prebid 头竞价、Criteo 和 reCAPTCHA，Unity WebGL 游戏从点击到进入约 25 秒；国内网络通常无法访问上述 Google 广告域名，因此暂不启用站内嵌入。
-- 本轮未提交、推送或部署。
+- 2026-10-03 已发布到公网：提交 `0275cdb`（小游戏页第三方跳转提示、移动端两列网格、页面左右留白 20px、上下间距 22px，另将 `output/` 排除出 Vitest 收集范围）推送到 `main`，GitHub Actions 自动部署成功。公网 `https://xingyuclub.github.io/xingyu-racing-club/#games` 已确认提示条渲染、上间距 = 下间距 = 22px、提示条与网格宽度差为 0、控制台无错误。
+- 推送时本机直连 GitHub 被重置，改用本机 Clash 代理 `127.0.0.1:7897`（`git -c http.proxy=http://127.0.0.1:7897 push origin main`）成功；后续推送如遇同样问题可照此处理。
+- 遗留待确认：运行时配置 `server/data/site-config.json` 的 `games` 目前是 10 项，仍包含 iframe 实验期加入的「方块拼图」「竞速赛车」，两项图标指向第三方 `img.gamedistribution.com` 而非腾讯 COS；抓大鹅当前为上架状态，与 `docs/games.md` 记的 8 款/抓大鹅下架不一致。这两项属后台数据而非代码，需用户确认后删除或把图标迁到 COS。
 - 2026-10-03 后台打不开的排查结论：`/admin` 页面本身由 Vite 提供且返回 200，问题是本机 API `3000` 未监听，导致登录和读写配置的 `/api` 全部失败；已用 `node server/index.js --dev` 重新拉起（监听 `127.0.0.1:3000`）。开发模式下后台地址是 `http://127.0.0.1:4173/admin` 或 `http://192.168.1.24:4173/admin`（Vite 把 `/api` 代理到 3000），直接访问 `3000/admin` 会是 404，属正常。
 
 ## 2026-10-02 小游戏图标迁移腾讯云
