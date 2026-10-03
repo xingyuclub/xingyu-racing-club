@@ -441,7 +441,8 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 用户确认：只做 Poki 平台、默认「竞速」、`全部` 放最后、`体育对战` 暂不拆分，并保留 Tiny Fishing / Fishing World / Game of Farmers / 抓大鹅，最终 54 款。
 - 新增 `category` 字段（`racing`/`action`/`puzzle`/`casual`/`sim`/`sports`）：`src/data/games.js` 导出 `GAME_CATEGORIES` 与 `isGameCategory`，`src/data/siteConfig.js` 迁移时非法或缺失回退 `casual`，`server/lib/configStore.js` 校验枚举，后台“小游戏管理”新增分类下拉。
 - `src/components/GamesPage.jsx` 重写：横向分类 Tab（默认竞速、全部最后、支持左右方向键）、分类过滤、双态提示条。微信 UA（`MicroMessenger`）下提示改为“请先「在浏览器中打开」再开始游戏”，并拦截图标点击弹出「请先换到浏览器」引导层，提供复制本页链接（`navigator.clipboard` + `execCommand` 兜底），避免微信内置浏览器直接打开游戏卡死；非微信仍是中性提示并在新页面打开。
-- 目录与图标由 `scripts/import-games-catalog.js` 生成：抓 Poki `og:image`、`sharp` 缩放 256×256、转 WebP 上传 COS，键为 `games/icons/<SHA-256 前 16 位>-<id>.webp`，缓存 `public, max-age=31536000, immutable`。首次误用 PNG 上传了 46 张（约 4.9 MB），已改为 WebP（46 张约 0.5 MB）并删除 46 个 PNG 孤儿对象，COS `games/icons/` 现存 54 个对象与目录一一对应。
+- 目录与图标由 `scripts/import-games-catalog.js` 生成：抓 Poki `og:image`、`sharp` 缩放 256×256、转 WebP 上传 COS，键为 `games/icons/<SHA-256 前 16 位>-<id>.webp`，缓存 `public, max-age=31536000, immutable`。首次误用 PNG 上传 46 张（约 4.9 MB），已改为 WebP（47 张约 0.5 MB，含登山赛车一次重建）并删除全部 PNG 孤儿对象，COS `games/icons/` 现存 54 个对象与目录一一对应。
+- 注意：脚本的 `REUSE_ICON_FROM` 按旧配置 id 复用图标，只在“旧配置 → 新目录”首次迁移时命中；配置已是新目录后再跑会重新上传同名图标（内容哈希相同，结果幂等）。登山赛车因此从复用旧 PNG 变成统一的 WebP，旧 PNG 已删除。
 - 运行时配置 `server/data/site-config.json` 已写入 54 款并保留备份 `output/site-config-before-games-catalog-<ts>.json`；本机 API 读取到 54 款、分类计数 9/9/9/12/7/8。
 - 验证：`npm test -- --run` 通过 33 个文件、593 项测试；390 宽下 Tab 顺序与默认选中正确、无横向溢出；微信 UA 下警示态与点击拦截、复制链接均实测通过。
 - 本轮先发前端、后发 COS 配置（`--apply` 只写本机、`--publish` 才发布），避免公网出现“新配置 + 旧前端”的空窗。

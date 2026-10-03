@@ -15,7 +15,7 @@ export const DEFAULT_GAMES = [
     name: '登山赛车',
     category: 'racing',
     url: 'https://poki.com/zh/g/hill-climb-racing-lite',
-    iconSrc: 'https://media.xn--0tr48cxwl51iluvqh7c.xn--fiqs8s/games/icons/c32d52d6238d5b9e-hill-climb-racing.png',
+    iconSrc: 'https://media.xn--0tr48cxwl51iluvqh7c.xn--fiqs8s/games/icons/5f1f8ae12b613db6-hill-climb-racing-lite.webp',
     enabled: true,
   },
   {
