@@ -21,7 +21,15 @@ export default defineConfig({
   server: {
     allowedHosts: true,
     watch: {
-      ignored: ['**/output/**'],
+      // server/data、server/storage、server/config 由 API 进程在运行时原子写入
+      // （如 site-config.json.bak.next），Windows 上监听这些临时文件会抛
+      // EBUSY 并直接终止 dev server，导致后台请求全部变成 Failed to fetch。
+      ignored: [
+        '**/output/**',
+        '**/server/data/**',
+        '**/server/storage/**',
+        '**/server/config/**',
+      ],
     },
     proxy: {
       '/api': 'http://127.0.0.1:3000',
