@@ -850,6 +850,46 @@ describe('App', () => {
     );
   });
 
+  it('plays the clicked featured member video instead of the first roster video', () => {
+    const config = createSeedConfig();
+    const [featuredSource, rosterSource, ...rest] = config.roster;
+    window.__XINGYU_SITE_CONFIG__ = hydrateSiteData({
+      ...config,
+      roster: [
+        {
+          ...featuredSource,
+          showInFeatured: true,
+          showInRoster: false,
+          videoUrl: '/videos/featured.mp4',
+          videoPosterSrc: '/posters/featured.webp',
+        },
+        {
+          ...rosterSource,
+          showInFeatured: false,
+          showInRoster: true,
+          videoUrl: '/videos/roster.mp4',
+          videoPosterSrc: '/posters/roster.webp',
+        },
+        ...rest.map((member) => ({
+          ...member,
+          showInFeatured: false,
+          showInRoster: true,
+          videoUrl: '',
+        })),
+      ],
+    });
+    render(<App />);
+
+    fireEvent.click(
+      screen.getByRole('button', { name: `查看${featuredSource.name} 高光视频` }),
+    );
+
+    expect(screen.getByRole('dialog').querySelector('video')).toHaveAttribute(
+      'src',
+      '/videos/featured.mp4',
+    );
+  });
+
   it('keeps the roster sphere static under hover (no auto rotation)', async () => {
     vi.useFakeTimers();
     render(<App />);

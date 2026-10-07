@@ -182,14 +182,21 @@ export default function App() {
 
   const openMemberStream = useCallback((member) => {
     if (!member || !member.videoUrl) return;
-    const withVideo = (siteData.roster || []).filter((candidate) => candidate.videoUrl);
+    // 队伍风采与队员阵容是两份互斥名单，只从 roster 里取会让风采区点谁都播第一个人的视频。
+    const seen = new Set();
+    const withVideo = [];
+    for (const candidate of [...(siteData.featuredMembers || []), ...(siteData.roster || [])]) {
+      if (!candidate.videoUrl || seen.has(candidate.id)) continue;
+      seen.add(candidate.id);
+      withVideo.push(candidate);
+    }
     const startIndex = Math.max(0, withVideo.findIndex((candidate) => candidate.id === member.id));
     setViewer({
       items: withVideo.map(memberToStreamItem),
       startIndex,
       showActions: false,
     });
-  }, [siteData.roster]);
+  }, [siteData.featuredMembers, siteData.roster]);
 
   if (route.name === 'leaderboard') {
     return (
