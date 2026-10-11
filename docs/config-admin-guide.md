@@ -16,7 +16,11 @@ npm run dev
 powershell -ExecutionPolicy Bypass -File scripts/start-local-services.ps1
 ```
 
-开发时前台地址是 `http://127.0.0.1:5173/`，后台地址是 `http://127.0.0.1:5173/admin`。Vite 会把 `/api` 和 `/uploads` 转发给本地 API 服务。
+**日常后台请用 `http://127.0.0.1:3000/admin`**：`node server/index.js`（不带 `--dev`）在 3000 同时提供前台静态资源、后台页面和 API，不依赖 Vite，只要 API 进程在就能用。前台源码改动需要重新 `npm run build` 才会反映到 3000；本地构建必须使用默认 base，不要带 `VITE_BASE_PATH`（那是 GitHub Pages 专用参数，误用会让 `dist/index.html` 引用 `/xingyu-racing-club/assets/...`，导致 3000 后台白屏）。
+
+只有需要前台热更新开发时才走 Vite：前台 `http://127.0.0.1:4173/`，后台 `http://127.0.0.1:4173/admin`，Vite 把 `/api` 和 `/uploads` 转发给 3000。此时若 Vite 进程退出，页面里所有请求都会报 `Failed to fetch`，重新执行上面的脚本即可恢复。
+
+首次本地开发也可以分别执行 `npm run dev:api` 和 `npm run dev`：前台 `http://127.0.0.1:5173/`，后台 `http://127.0.0.1:5173/admin`。
 
 生产模式执行 `npm run serve`，服务地址是 `http://127.0.0.1:3000/`，后台为 `http://127.0.0.1:3000/admin`。
 

@@ -249,7 +249,7 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 
 ## 当前交接重点
 - 公网 H5：GitHub Actions 发布静态前台；媒体与配置脚本依赖 COS/CDN；具体变量见 `.env.example`，发布说明见 `docs/github-pages-deploy.md`。
-- 本机后台：`http://127.0.0.1:3000/admin`；公网前台不能访问本机后台 API。截图识别必须在这台 Windows 电脑上运行 Node 服务和 Ollama 模型 `xingyu-score-recognition`。
+- 本机后台（日常默认）：`http://127.0.0.1:3000/admin`，由 `node server/index.js` 直接服务 `dist` 与 API，不依赖 Vite；只有做前台热更新开发时才用 `http://127.0.0.1:4173/admin`（Vite 把 `/api` 代理到 3000）。公网前台不能访问本机后台 API。截图识别必须在这台 Windows 电脑上运行 Node 服务和 Ollama 模型 `xingyu-score-recognition`。
 - 微信域名验证：微信要求在公网域名根目录放置指定 TXT 文件并能通过 HTTPS 直接访问；局域网 `192.168.x.x`、`localhost` 或仅 GitHub Actions 构建目录不能完成该验证。
 - 数据安全：`.env`、`server/config/admin.local.json`、运行时 `server/data/site-config.json`、上传媒体和识别原图均不可提交；部署前私有备份位于 `output/deployment-backups/20260807-110721`。
 - 识别队列：截至 2026-08-17 为 `29 committed`、`10 discarded`、`4 ready`、`4 failed`、`1 processing`；`processing` 批次自 2026-08-07 起未更新。保留批次和原图作为审计证据，在后台逐条继续审核、重试或明确废弃。
@@ -259,7 +259,7 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 1. 先查看 `git status --short --branch`；`main` 已包含 `4381621 fix: keep pinned news first on news page`，以及 2026-08-17 收口的新闻隐藏、审核页显式新增积分人物、上传期间禁止保存、积分表人数显示和本地服务启动脚本，工作区应为干净状态。
 2. 修改前先运行 `npm test -- --run`；涉及前台布局或媒体时，再运行 `npm run build` 并做 390/768/1280 视口检查。
 3. 需要更新公网内容时，在本机后台保存配置并确认 COS 配置脚本时间戳/内容已更新；不直接编辑 GitHub Pages 产物。
-4. 需要截图识别时，先确认 `127.0.0.1:3000` 和 `127.0.0.1:11434` 可用，并确认 Ollama 模型存在。
+4. 需要截图识别时，先确认 `127.0.0.1:3000` 和 `127.0.0.1:11434` 可用，并确认 Ollama 模型存在。后台默认走 `http://127.0.0.1:3000/admin`；用户报 `Failed to fetch` 时，先确认正在使用的那个前端入口（3000 或 4173）是否还活着，而不是先怀疑识别代码。
 
 ## 2026-08-09 媒体流与公网发布交接
 
@@ -354,7 +354,7 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 新闻数据新增可选布尔字段 `hidden`，旧数据自动迁移为 `false`。后台新闻卡片提供“隐藏”开关和收起态标记；公开首页、新闻列表、分类页与详情路由统一过滤隐藏新闻，隐藏记录仍保留在后台，可取消隐藏恢复展示。
 - 截图识别继续禁止无人确认时自动创建积分人物；对 `unmatched` 证据，管理员可在审核页明确输入名称并点击“新增积分人物并匹配”。服务端校验名称归一化去重、使用最小未占用正整数 ID、期初积分和胜场均为 0，并重新生成草稿；同批次相同昵称随新人物一起匹配。
 - 后台任一配置素材上传期间，“保存全部配置”会禁用并显示等待提示，避免保存旧地址；文件选择器会在开始上传后清空，因此同一个文件可再次选择重传。积分明细表“队员”表头显示当前可见行数。
-- 新增 `scripts/start-local-services.ps1`，用于一次启动或复用本机 Ollama、Node `3000` 和 Vite `4173`，后台地址为 `http://127.0.0.1:4173/admin`，日志位于 `%TEMP%\xingyu-local-logs`。
+- 新增 `scripts/start-local-services.ps1`，用于一次启动或复用本机 Ollama、Node `3000` 和 Vite `4173`；日常后台用 `http://127.0.0.1:3000/admin`，前台热更新开发用 `http://127.0.0.1:4173/admin`（2026-10-11 更新，见文末同名交接），日志位于 `%TEMP%\xingyu-local-logs`。
 - 识别运行时目录已被 `.gitignore` 忽略，不再跟踪索引大 diff。当前队列不做删除：`29 committed`、`10 discarded`、`4 ready`、`4 failed`、`1 processing`；后续逐条审核、重试或明确废弃。
 - 根目录 `agent.md` 已标记为 2026-07-28 历史废弃文档，当前开发和交接只以 `AGENTS.md` 为准。
 - 最终验证：`npm test -- --run` 通过 31 个测试文件、534 项测试；`npm run build` 通过；`git diff --check` 和 `scripts/start-local-services.ps1` PowerShell 语法检查通过。构建仅保留 ExcelJS 动态块超过 500 kB 的既有提示。
@@ -459,7 +459,7 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 运行时配置 `server/data/site-config.json` 已写入 54 款并保留备份 `output/site-config-before-games-catalog-<ts>.json`；本机 API 读取到 54 款、分类计数 9/9/9/12/7/8。
 - 验证：`npm test -- --run` 通过 33 个文件、593 项测试；390 宽下 Tab 顺序与默认选中正确、无横向溢出；微信 UA 下警示态与点击拦截、复制链接均实测通过。
 - 本轮先发前端、后发 COS 配置（`--apply` 只写本机、`--publish` 才发布），避免公网出现“新配置 + 旧前端”的空窗。
-- 2026-10-03 后台打不开的排查结论：`/admin` 页面本身由 Vite 提供且返回 200，问题是本机 API `3000` 未监听，导致登录和读写配置的 `/api` 全部失败；已用 `node server/index.js --dev` 重新拉起（监听 `127.0.0.1:3000`）。开发模式下后台地址是 `http://127.0.0.1:4173/admin` 或 `http://192.168.1.24:4173/admin`（Vite 把 `/api` 代理到 3000），直接访问 `3000/admin` 会是 404，属正常。
+- 2026-10-03 后台打不开的排查结论：`/admin` 页面本身由 Vite 提供且返回 200，问题是本机 API `3000` 未监听，导致登录和读写配置的 `/api` 全部失败；已用 `node server/index.js --dev` 重新拉起（监听 `127.0.0.1:3000`）。开发模式下后台地址是 `http://127.0.0.1:4173/admin` 或 `http://192.168.1.24:4173/admin`（Vite 把 `/api` 代理到 3000）。（2026-10-11 更新：该次用的是 `--dev` 模式才不服务 `dist`；日常应改用 `http://127.0.0.1:3000/admin`，不带 `--dev` 时由同一进程服务 `dist` 与 API，详见文末同名交接。）
 
 ## 2026-10-02 小游戏图标迁移腾讯云
 
@@ -475,3 +475,11 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 新增测试覆盖必需 COS 缺失/不完整、测试隔离、COS 上传失败不返回本地地址、音频直传与临时文件清理、游戏图标保存 CDN 地址。
 - 后续代理新增/替换公开媒体时，也必须在同一轮完成 COS 上传并使用 CDN 地址，不得再让用户另外发迁移命令；内置默认备用素材和本机识别审计文件不在该公开素材迁移范围。
 - 全量测试 33 个文件、589 项通过，生产构建通过；真实 CLI 缺 COS 的启动检查通过，未连接生产 COS、未修改站点内容。
+
+## 2026-10-11 后台默认入口改为 3000 与 Failed to fetch 根因
+
+- 后台两次报 `Failed to fetch` 的根因都不在识别代码：后台的登录、上传、识别请求由页面自身 origin 发出，Vite `4173` 一旦不在，页面里所有 `/api` 调用就变成 `Failed to fetch`。两次实测 `3000` 与 Ollama `11434` 都正常，`POST /api/login`、`GET /api/admin/score-recognition/batches`、`GET /api/admin/config` 与一次真实模型识别（约 12 秒出结果）全部通过。
+- 第一次根因是 Vite 崩溃：`EBUSY: resource busy or locked, watch 'server/data/site-config.json.bak.next'`。API 每次保存配置都会原子写这个临时文件，Vite 的文件监听在 Windows 上抛出未捕获的 `FSWatcher` error 直接终止 dev server。已在 `vite.config.js` 的 `server.watch.ignored` 加入 `**/server/data/**`、`**/server/storage/**`、`**/server/config/**`，并用 12 次原子写压测确认不再崩溃（提交 `5dcc7fd`）。
+- 第二次根因是 Vite 进程根本没在运行（`vite.err.log` 为 0 字节，无崩溃记录）。由代理会话用 `Start-Process` 拉起的 dev server 会随会话结束被回收，因此不要靠代理临时拉起 Vite 来维持后台可用。
+- 结论：日常后台统一用 `http://127.0.0.1:3000/admin`。`node server/index.js`（不带 `--dev`）在 3000 同时服务 `dist`、后台页面和 API，只要 API 进程活着后台就可用；Vite `4173` 降级为纯前台热更新开发入口，`node server/index.js --dev` 模式不服务 `dist`，此时只能走 4173。
+- 代价与前提：前台源码改动需要重新 `npm run build` 才会反映到 3000，且本地构建必须使用默认 base（不要带 `VITE_BASE_PATH`，那是 GitHub Pages 专用参数）。若误用 Pages 参数构建，`dist/index.html` 会引用 `/xingyu-racing-club/assets/...`，SPA 回退会把这些 JS 请求当成页面返回 `index.html`，后台表现为白屏。

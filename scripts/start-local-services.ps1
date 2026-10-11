@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 $rootDir = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $logDir = Join-Path $env:TEMP 'xingyu-local-logs'
@@ -45,3 +45,8 @@ if (-not (Test-PortListening 4173)) {
     -RedirectStandardError (Join-Path $logDir 'vite.err.log') | Out-Null
 }
 Wait-ForUrl 'http://127.0.0.1:4173/admin'
+
+Write-Host ''
+Write-Host '本机后台（日常默认）: http://127.0.0.1:3000/admin'
+Write-Host '前台热更新开发: http://127.0.0.1:4173/  （后台 http://127.0.0.1:4173/admin）'
+Write-Host "日志目录: $logDir"
