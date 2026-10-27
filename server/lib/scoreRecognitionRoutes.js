@@ -6,7 +6,7 @@ import { createScoreRecognitionAi } from './scoreRecognitionAi.js';
 import { createScoreRecognitionService } from './scoreRecognitionService.js';
 
 const SCORE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png']);
-const SCORE_RACE_TYPES = new Set(['team', 'ranked']);
+const SCORE_RACE_TYPES = new Set(['team', 'ranked', 'couple']);
 const SCREENSHOT_MAX_BYTES = 10 * 1024 * 1024;
 const SCREENSHOT_MAX_FILES = 20;
 

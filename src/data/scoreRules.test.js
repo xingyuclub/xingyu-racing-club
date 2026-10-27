@@ -9,6 +9,7 @@ import {
   extractHanCharacters,
   invalidateFollowingWeekTotals,
   normalizeNickname,
+  scoreCoupleRace,
   scoreRankedRace,
   scoreTeamRace,
 } from './scoreRules.js';
@@ -387,5 +388,21 @@ describe('assignMemberSlots', () => {
     expect(result[1].members.map((m) => m.slot)).toEqual([1, 1]);
     expect(result[2].members.map((m) => m.slot)).toEqual([2, 2]);
     expect(result[3].members[0]).toMatchObject({ id: '1', skipped: 'member-limit' });
+  });
+});
+
+describe('scoreCoupleRace', () => {
+  it('gives last place 2 points and each higher rank +1 for 4 participants', () => {
+    expect(scoreCoupleRace({ participantCount: 4, rank: 1 })).toBe(5);
+    expect(scoreCoupleRace({ participantCount: 4, rank: 2 })).toBe(4);
+    expect(scoreCoupleRace({ participantCount: 4, rank: 3 })).toBe(3);
+    expect(scoreCoupleRace({ participantCount: 4, rank: 4 })).toBe(2);
+  });
+
+  it('scales with participant count for other sizes', () => {
+    expect(scoreCoupleRace({ participantCount: 6, rank: 1 })).toBe(7);
+    expect(scoreCoupleRace({ participantCount: 6, rank: 6 })).toBe(2);
+    expect(scoreCoupleRace({ participantCount: 2, rank: 1 })).toBe(3);
+    expect(scoreCoupleRace({ participantCount: 2, rank: 2 })).toBe(2);
   });
 });

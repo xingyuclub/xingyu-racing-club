@@ -17,10 +17,10 @@ function normalizeGames(games) {
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const sum = (values) => values.reduce((total, value) => total + Number(value || 0), 0);
-export const SEASON_START_DATE = '2026-08-20';
+export const SEASON_START_DATE = '2026-10-22';
 const SEASON_END_DATE = '';
-export const PREVIOUS_SEASON_START_DATE = '2026-06-25';
-export const PREVIOUS_SEASON_END_DATE = '2026-08-19';
+export const PREVIOUS_SEASON_START_DATE = '2026-08-20';
+export const PREVIOUS_SEASON_END_DATE = '2026-10-21';
 export const DEFAULT_SECTION_TITLES = {
   featured: {
     eyebrow: 'XINGYU MASTERS',
@@ -236,7 +236,7 @@ export function createSeedConfig() {
 export function hydrateSiteData(rawConfig) {
   const config = clone(rawConfig);
   const scoreMembersById = new Map(config.scoreMembers.map((member) => [member.id, member]));
-  const { totals, seasonTotals, dailyDetail, weekMembers } = projectScores({
+  const { totals, seasonTotals, monthlyTotals, previousSeasonTotals, dailyDetail, weekMembers } = projectScores({
     dailyScores: config.dailyScores,
     weekendScores: config.weekendScores,
     roster: config.scoreMembers,
@@ -261,6 +261,7 @@ export function hydrateSiteData(rawConfig) {
       weekTotal: row.weekTotal,
       total: row.total,
       seasonPoints: row.seasonPoints,
+      monthlyPoints: row.monthlyPoints,
     })),
   }));
   const roster = config.roster;
@@ -268,12 +269,17 @@ export function hydrateSiteData(rawConfig) {
   const displayFeaturedMembers = roster.filter((member) => member.showInFeatured === true);
   const latestRound = dailyScores[dailyScores.length - 1];
   const latestDate = latestRound?.date || '';
+  const isInCurrentSeason = Boolean(latestDate) && latestDate >= SEASON_START_DATE;
+  const activeSeasonTotals = isInCurrentSeason ? seasonTotals : previousSeasonTotals;
+  const latestRowScores = new Map((latestRound?.rows || []).map((row) => [row.id, row.score ?? 0]));
   const leaderboard = (config.scoreMembers || [])
     .map((member, index) => ({
       id: member.id,
       name: scoreMembersById.get(member.id)?.name || '',
       points: totals.get(member.id) ?? 0,
-      seasonPoints: seasonTotals.get(member.id) ?? 0,
+      todayPoints: latestRowScores.get(member.id) ?? 0,
+      seasonPoints: activeSeasonTotals.get(member.id) ?? 0,
+      monthlyPoints: monthlyTotals.get(member.id) ?? 0,
       order: index,
     }))
     .sort(
@@ -295,6 +301,7 @@ export function hydrateSiteData(rawConfig) {
       .filter((album) => !album.password)
       .flatMap((album) => album.photos),
     leaderboard,
+    currentSeasonCode: isInCurrentSeason ? 'S55' : 'S54',
     latestScoreDate: latestDate,
     dailyScores,
   };

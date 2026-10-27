@@ -394,7 +394,7 @@ describe('App', () => {
     expect(featuredHeading).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '明星队员' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '车队动态' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: '星屿积分榜 S54赛季' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '星屿积分榜 S55赛季' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '相册空间' })).not.toBeInTheDocument();
   });
 
@@ -1309,7 +1309,7 @@ describe('App', () => {
     expect(container.querySelector('.leaderboard-season-search svg')).toBeInTheDocument();
     expect(screen.queryByText(/SEASON POINTS/)).not.toBeInTheDocument();
     expect(container.querySelector('.leader-week-score')).toHaveTextContent(/\d+分/);
-    expect(container.querySelector('.leaderboard-header')).toHaveTextContent('车手本周积分赛季总分');
+    expect(container.querySelector('.leaderboard-header')).toHaveTextContent('车手今日积分本月积分赛季总分');
     expect(container.querySelector('.leader-season-score')).toHaveTextContent(/\d+分/);
     expect(screen.queryByText('PTS')).not.toBeInTheDocument();
   });
@@ -1317,9 +1317,9 @@ describe('App', () => {
   it('sorts the leaderboard from high to low and defaults to season points', async () => {
     const user = userEvent.setup();
     const rows = [
-      { id: 'weekly', name: '本周第一', points: 30, seasonPoints: 40 },
-      { id: 'season', name: '赛季第一', points: 10, seasonPoints: 100 },
-      { id: 'second', name: '综合第二', points: 20, seasonPoints: 80 },
+      { id: 'today', name: '今日第一', todayPoints: 30, seasonPoints: 40 },
+      { id: 'season', name: '赛季第一', todayPoints: 10, seasonPoints: 100 },
+      { id: 'second', name: '综合第二', todayPoints: 20, seasonPoints: 80 },
     ];
     const { container } = render(<LeaderboardList rows={rows} limit={2} />);
     const visibleNames = () => [...container.querySelectorAll('.leader-identity strong')]
@@ -1328,10 +1328,10 @@ describe('App', () => {
     expect(visibleNames()).toEqual(['赛季第一', '综合第二']);
     expect(screen.getByRole('button', { name: '按赛季总分从高到低排序' })).toHaveAttribute('aria-pressed', 'true');
 
-    await user.click(screen.getByRole('button', { name: '按本周积分从高到低排序' }));
+    await user.click(screen.getByRole('button', { name: '按今日积分从高到低排序' }));
 
-    expect(visibleNames()).toEqual(['本周第一', '综合第二']);
-    expect(screen.getByRole('button', { name: '按本周积分从高到低排序' })).toHaveAttribute('aria-pressed', 'true');
+    expect(visibleNames()).toEqual(['今日第一', '综合第二']);
+    expect(screen.getByRole('button', { name: '按今日积分从高到低排序' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('opens the daily score page, filters a date, and shows member results', async () => {

@@ -218,6 +218,16 @@ export function ScoreRecognition({ config, initialBatchId, onCommitted }) {
             />
             排位赛
           </label>
+          <label>
+            <input
+              type="radio"
+              name="recognition-race-type"
+              value="couple"
+              checked={raceType === 'couple'}
+              onChange={() => setRaceType('couple')}
+            />
+            情侣赛
+          </label>
         </fieldset>
         <label className="score-recognition-multi">
           <input

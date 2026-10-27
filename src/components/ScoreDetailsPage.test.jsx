@@ -34,21 +34,39 @@ it('filters a date before showing the member result cards', async () => {
   expect(within(resultRegion).getByText('开黑赛')).toBeInTheDocument();
 });
 
+it('shows 情侣赛 label for dates in S55 and 开黑赛 for earlier dates', async () => {
+  const user = userEvent.setup();
+  render(<ScoreDetailsPage dailyScores={[
+    { ...dailyScores[0], date: '2026-10-22', weekday: '周四' },
+    ...dailyScores,
+  ]} onBack={vi.fn()} />);
+
+  await user.click(screen.getByRole('button', { name: '查看 2026年10月22日积分' }));
+  const s55Region = screen.getByRole('region', { name: '日期积分结果' });
+  expect(within(s55Region).getByText('情侣赛')).toBeInTheDocument();
+
+  await user.click(screen.getByRole('tab', { name: '2026年7月' }));
+  await user.click(screen.getByRole('button', { name: '查看 2026年7月24日积分' }));
+  const s54Region = screen.getByRole('region', { name: '日期积分结果' });
+  expect(within(s54Region).getByText('开黑赛')).toBeInTheDocument();
+  expect(within(s54Region).queryByText('情侣赛')).not.toBeInTheDocument();
+});
+
 it('sorts summary cards and expands one member detail at a time', async () => {
   const user = userEvent.setup();
   render(<ScoreDetailsPage dailyScores={dailyScores} onBack={vi.fn()} />);
 
   await user.click(screen.getByRole('button', { name: '查看 2026年7月24日积分' }));
-  await user.click(screen.getByRole('tab', { name: '得分' }));
+  await user.click(screen.getByRole('tab', { name: '今日得分' }));
 
   const rows = screen.getAllByTestId('score-query-row');
   expect(rows[0]).toHaveTextContent('乙');
   expect(rows[0]).toHaveTextContent('队内赛');
 
-  await user.click(screen.getByRole('tab', { name: '得分' }));
+  await user.click(screen.getByRole('tab', { name: '今日得分' }));
   expect(screen.getAllByTestId('score-query-row')[0]).toHaveTextContent('甲');
 
-  await user.click(screen.getByRole('tab', { name: '得分' }));
+  await user.click(screen.getByRole('tab', { name: '今日得分' }));
   expect(screen.getAllByTestId('score-query-row')[0]).toHaveTextContent('乙');
 
   const resortedRows = screen.getAllByTestId('score-query-row');

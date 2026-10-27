@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { BackButton } from './BackButton.jsx';
+import { SEASON_START_DATE } from '../data/siteConfig.js';
 
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 const SORT_OPTIONS = [
-  { key: 'total', label: '总分' },
-  { key: 'score', label: '得分' },
+  { key: 'total', label: '本周总分' },
+  { key: 'score', label: '今日得分' },
+  { key: 'monthlyPoints', label: '本月积分' },
   { key: 'seasonPoints', label: '赛季总分' },
 ];
 
@@ -195,7 +197,7 @@ export function ScoreDetailsPage({ dailyScores = [], onBack }) {
             <>
               <div className="score-query-result-head">
                 <div>
-                  <p className="score-query-kicker">已选比赛日</p>
+                  <p className="score-query-kicker">已选比赛日 · {selectedRecord.date >= SEASON_START_DATE ? 'S55' : 'S54'}</p>
                   <h1>{formatDateLabel(selectedRecord.date)} · {selectedRecord.weekday}</h1>
                   <small>{selectedRecordSummary ? `${countParticipants(selectedRecordSummary)} 人参与` : ''}</small>
                 </div>
@@ -251,6 +253,7 @@ export function ScoreDetailsPage({ dailyScores = [], onBack }) {
                         <span className="score-query-name">{row.name}</span>
                         <span className="score-query-value"><small>今日得分</small><strong>{row.score ?? '—'}</strong></span>
                         <span className="score-query-value"><small>本周总分</small><strong>{row.total ?? '—'}</strong></span>
+                        <span className="score-query-value"><small>本月积分</small><strong>{row.monthlyPoints ?? 0}</strong></span>
                         <span className="score-query-value"><small>赛季总分</small><strong>{row.seasonPoints ?? '—'}</strong></span>
                         <span className="score-query-toggle" aria-hidden="true">
                           {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
@@ -269,7 +272,7 @@ export function ScoreDetailsPage({ dailyScores = [], onBack }) {
                           )}
                           {openRace.length > 0 && (
                             <div className="score-query-detail-line">
-                              <span>开黑赛</span>
+                              <span>{selectedRecord.date >= SEASON_START_DATE ? '情侣赛' : '开黑赛'}</span>
                               <span className="score-query-detail-values">
                                 {openRace.map((value, raceIndex) => <span key={`open-${raceIndex}`}>{value ?? '—'}</span>)}
                               </span>

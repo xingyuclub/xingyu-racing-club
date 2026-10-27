@@ -312,7 +312,7 @@ describe('site configuration', () => {
     config.roster = [{ ...config.roster[0], id: 'roster-1', name: '后台名称' }];
     config.scoreMembers = [{ id: 'score-1', name: 'Excel名称', basePoints: 10, wins: 0 }];
     config.dailyScores = [{
-      date: '2026-08-20',
+      date: '2026-10-22',
       rows: [{ id: 'score-1', teamRace: [1, 0, 0], openRace: [0, 0, 0] }],
     }];
 
@@ -320,7 +320,7 @@ describe('site configuration', () => {
 
     expect(hydrated.roster[0].name).toBe('后台名称');
     expect(hydrated.leaderboard).toEqual([
-      { id: 'score-1', rank: 1, name: 'Excel名称', points: 1, seasonPoints: 1 },
+      { id: 'score-1', rank: 1, name: 'Excel名称', points: 1, todayPoints: 1, seasonPoints: 1, monthlyPoints: 1 },
     ]);
     expect(hydrated.dailyScores[0].rows[0].name).toBe('Excel名称');
   });
@@ -486,16 +486,16 @@ describe('site configuration', () => {
       { id: 'friday-player', name: '周五队员', basePoints: 0, wins: 0 },
     ];
     config.dailyScores = [
-      { date: '2026-08-20', rows: [{ id: 'thursday-player', teamRace: [3, 0, 0], openRace: [0, 0, 0] }] },
-      { date: '2026-08-21', rows: [{ id: 'friday-player', teamRace: [5, 0, 0], openRace: [0, 0, 0] }] },
+      { date: '2026-10-22', rows: [{ id: 'thursday-player', teamRace: [3, 0, 0], openRace: [0, 0, 0] }] },
+      { date: '2026-10-23', rows: [{ id: 'friday-player', teamRace: [5, 0, 0], openRace: [0, 0, 0] }] },
     ];
 
     const data = hydrateSiteData(config);
 
-    expect(data.latestScoreDate).toBe('2026-08-21');
+    expect(data.latestScoreDate).toBe('2026-10-23');
     expect(data.leaderboard).toEqual([
-      { id: 'friday-player', rank: 1, name: '周五队员', points: 5, seasonPoints: 5 },
-      { id: 'thursday-player', rank: 2, name: '周四队员', points: 3, seasonPoints: 3 },
+      { id: 'friday-player', rank: 1, name: '周五队员', points: 5, todayPoints: 5, seasonPoints: 5, monthlyPoints: 5 },
+      { id: 'thursday-player', rank: 2, name: '周四队员', points: 3, todayPoints: 0, seasonPoints: 3, monthlyPoints: 3 },
     ]);
   });
 
@@ -535,14 +535,14 @@ describe('site configuration', () => {
       { id: 'history-only', name: 'Excel历史人物', basePoints: 0, wins: 0 },
     ];
     config.dailyScores = [{
-      date: '2026-08-20',
+      date: '2026-10-22',
       rows: [
         { id: 'score-a', teamRace: [4, 0, 0], openRace: [0, 0, 0] },
         { id: 'score-b', teamRace: [6, 0, 0], openRace: [0, 0, 0] },
       ],
     }];
     config.weekendScores = [{
-      date: '2026-08-22',
+      date: '2026-10-24',
       rows: [
         { id: 'score-a', points: 50, score: 10, total: 50 },
         { id: 'score-b', points: 70, score: 20, total: 70 },
@@ -554,11 +554,11 @@ describe('site configuration', () => {
 
     // The weekend source total is the week's exact final score.
     expect(data.leaderboard).toEqual([
-      { id: 'history-only', rank: 1, name: 'Excel历史人物', points: 999, seasonPoints: 999 },
-      { id: 'score-b', rank: 2, name: '白榆', points: 70, seasonPoints: 26 },
-      { id: 'score-a', rank: 3, name: 'ˣʸ༩·青山', points: 50, seasonPoints: 14 },
+      { id: 'history-only', rank: 1, name: 'Excel历史人物', points: 999, todayPoints: 999, seasonPoints: 999, monthlyPoints: 999 },
+      { id: 'score-b', rank: 2, name: '白榆', points: 70, todayPoints: 20, seasonPoints: 26, monthlyPoints: 26 },
+      { id: 'score-a', rank: 3, name: 'ˣʸ༩·青山', points: 50, todayPoints: 10, seasonPoints: 14, monthlyPoints: 14 },
     ]);
-    expect(data.latestScoreDate).toBe('2026-08-22');
+    expect(data.latestScoreDate).toBe('2026-10-24');
   });
 
   it('calculates season points from the configured start date without a fixed end', () => {
@@ -566,10 +566,10 @@ describe('site configuration', () => {
     const member = { ...config.scoreMembers[0], basePoints: 0 };
     config.scoreMembers = [member];
     config.dailyScores = [
-      { date: '2026-08-19', rows: [{ id: member.id, teamRace: [10, 0, 0], openRace: [0, 0, 0], score: 10, total: 10 }] },
-      { date: '2026-08-20', rows: [{ id: member.id, teamRace: [2, 0, 0], openRace: [0, 0, 0], score: 2, total: 2 }] },
-      { date: '2026-08-21', rows: [{ id: member.id, teamRace: [3, 0, 0], openRace: [0, 0, 0], score: 3, total: 3 }] },
-      { date: '2026-08-22', rows: [{ id: member.id, teamRace: [20, 0, 0], openRace: [0, 0, 0], score: 20, total: 20 }] },
+      { date: '2026-10-21', rows: [{ id: member.id, teamRace: [10, 0, 0], openRace: [0, 0, 0], score: 10, total: 10 }] },
+      { date: '2026-10-22', rows: [{ id: member.id, teamRace: [2, 0, 0], openRace: [0, 0, 0], score: 2, total: 2 }] },
+      { date: '2026-10-23', rows: [{ id: member.id, teamRace: [3, 0, 0], openRace: [0, 0, 0], score: 3, total: 3 }] },
+      { date: '2026-10-24', rows: [{ id: member.id, teamRace: [20, 0, 0], openRace: [0, 0, 0], score: 20, total: 20 }] },
     ];
 
     expect(hydrateSiteData(config).leaderboard[0].seasonPoints).toBe(25);
@@ -580,15 +580,15 @@ describe('site configuration', () => {
     const member = { ...config.scoreMembers[0], basePoints: 0 };
     config.scoreMembers = [member];
     config.dailyScores = [
-      { date: '2026-08-18', rows: [{ id: member.id, teamRace: [4, 0, 0], openRace: [0, 0, 0] }] },
-      { date: '2026-08-20', rows: [{ id: member.id, teamRace: [6, 0, 0], openRace: [0, 0, 0] }] },
+      { date: '2026-08-19', rows: [{ id: member.id, teamRace: [4, 0, 0], openRace: [0, 0, 0] }] },
+      { date: '2026-10-21', rows: [{ id: member.id, teamRace: [6, 0, 0], openRace: [0, 0, 0] }] },
     ];
 
     const rowsByDate = new Map(
       hydrateSiteData(config).dailyScores.map((round) => [round.date, round.rows[0]]),
     );
-    expect(rowsByDate.get('2026-08-18').seasonPoints).toBe(4);
-    expect(rowsByDate.get('2026-08-20').seasonPoints).toBe(6);
+    expect(rowsByDate.get('2026-08-19').seasonPoints).toBe(0);
+    expect(rowsByDate.get('2026-10-21').seasonPoints).toBe(6);
   });
 });
 

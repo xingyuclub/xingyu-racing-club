@@ -14,7 +14,7 @@ const TARGET_SHEETS = new Map([
   ['S53-KW31', 4],
 ]);
 const GAME_HEADERS = new Set(['第一局', '第二局', '第三局']);
-const DETAIL_HEADERS = new Set(['队内赛', '开黑赛', '排位赛', '上周', '积分', '得分', '总分', ...GAME_HEADERS]);
+const DETAIL_HEADERS = new Set(['队内赛', '开黑赛', '排位赛', '情侣赛', '上周', '积分', '得分', '总分', ...GAME_HEADERS]);
 
 function cellValue(cell) {
   const value = cell.result ?? cell.value;
@@ -113,7 +113,7 @@ function findGameColumns(sheet, range, dayRow, headerEnd) {
     if (labels.includes('队内赛')) {
       columns.teamRace.push(column);
       hasRaceTypes = true;
-    } else if (labels.includes('开黑赛') || labels.includes('排位赛')) {
+    } else if (labels.includes('开黑赛') || labels.includes('排位赛') || labels.includes('情侣赛')) {
       columns.openRace.push(column);
       hasRaceTypes = true;
     } else {

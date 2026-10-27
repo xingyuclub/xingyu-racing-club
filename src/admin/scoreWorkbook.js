@@ -10,15 +10,21 @@ export const SCORE_HEADERS = [
   '队内赛1',
   '队内赛2',
   '队内赛3',
-  '开黑赛1',
-  '开黑赛2',
-  '开黑赛3',
+  '情侣赛1',
+  '情侣赛2',
+  '情侣赛3',
   '得分',
   '总分',
 ];
 export const BASE_HEADERS = ['队员编号', '队员昵称', '期初积分'];
 export const WEEKEND_SHEET_NAME = '周末手动积分';
 export const WEEKEND_HEADERS = ['周末日期', '队员编号', '队员昵称', '上周积分', '积分', '得分', '总分'];
+
+const HEADER_ALIASES = new Map([
+  ['情侣赛1', '开黑赛1'],
+  ['情侣赛2', '开黑赛2'],
+  ['情侣赛3', '开黑赛3'],
+]);
 
 const HEADER_ROW = 3;
 const DATA_ROW = 4;
@@ -282,7 +288,9 @@ export async function createScoreWorkbookBuffer(config, { template = false } = {
 
 const validateHeaders = (sheet, expected, details) => {
   expected.forEach((header, index) => {
-    if (cellText(sheet.getCell(HEADER_ROW, index + 1)) !== header) {
+    const actual = cellText(sheet.getCell(HEADER_ROW, index + 1));
+    const accepted = [header, HEADER_ALIASES.get(header)].filter(Boolean);
+    if (!accepted.includes(actual)) {
       details.push({
         sheet: sheet.name,
         row: HEADER_ROW,

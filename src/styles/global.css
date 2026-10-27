@@ -680,7 +680,7 @@ h2 {
   top: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 72px 72px;
+  grid-template-columns: minmax(0, 1fr) 72px 72px 72px;
   gap: 14px;
   align-items: center;
   min-height: 46px;
@@ -903,7 +903,7 @@ h2 {
   position: relative;
   min-height: 72px;
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 72px 72px;
+  grid-template-columns: 44px minmax(0, 1fr) 72px 72px 72px;
   gap: 14px;
   align-items: center;
   padding: 10px 12px 10px 0;
@@ -1420,7 +1420,7 @@ button:focus-visible {
   }
 
   .leader-row {
-    grid-template-columns: 70px minmax(0, 1fr) 72px 72px;
+    grid-template-columns: 70px minmax(0, 1fr) 72px 72px 72px;
     min-height: 78px;
     padding-right: 22px;
   }
@@ -2720,7 +2720,7 @@ button:focus-visible {
   width: 100%;
   min-height: 54px;
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) 50px 50px 56px 22px;
+  grid-template-columns: 32px minmax(0, 1fr) 48px 48px 48px 50px 22px;
   gap: 5px;
   align-items: center;
   padding: 8px 9px;

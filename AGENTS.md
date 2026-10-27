@@ -483,3 +483,16 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 第二次根因是 Vite 进程根本没在运行（`vite.err.log` 为 0 字节，无崩溃记录）。由代理会话用 `Start-Process` 拉起的 dev server 会随会话结束被回收，因此不要靠代理临时拉起 Vite 来维持后台可用。
 - 结论：日常后台统一用 `http://127.0.0.1:3000/admin`。`node server/index.js`（不带 `--dev`）在 3000 同时服务 `dist`、后台页面和 API，只要 API 进程活着后台就可用；Vite `4173` 降级为纯前台热更新开发入口，`node server/index.js --dev` 模式不服务 `dist`，此时只能走 4173。
 - 代价与前提：前台源码改动需要重新 `npm run build` 才会反映到 3000，且本地构建必须使用默认 base（不要带 `VITE_BASE_PATH`，那是 GitHub Pages 专用参数）。若误用 Pages 参数构建，`dist/index.html` 会引用 `/xingyu-racing-club/assets/...`，SPA 回退会把这些 JS 请求当成页面返回 `index.html`，后台表现为白屏。
+
+## 2026-10-27 S55 赛季重置与积分体系改造（已同步公网）
+
+- 赛季常量：`SEASON_START_DATE` 改为 `2026-10-22`，上一赛季为 `2026-08-20` 至 `2026-10-21`。排行榜、每日明细的赛季分值由最新数据日期自动判定归属（`hydrateSiteData.currentSeasonCode` 返回 S54/S55），10-21 及之前查 S54 累计，10-22 起算 S55，无需手工切换。
+- 本月积分（新增列）：自然月累计（`YYYY-MM`），每月 1 号重置；赛季起始月内以起始日分割（起始日之前归 `:prev` 周期），即 10 月的 S55 月度从 22 号起算。scoreLedger 新增 `monthlyTotals`/`monthlyPoints`，排行榜、每日明细、后台积分明细均已接入。
+- 本周窗口：赛季起始日强制开启新一周（`forceWeekReset`），10-22 的周总分只从 22 号累计，不带同日历周 10-19~21 的 S54 分数；08-20（S54 起点）同样处理。
+- S54 首周末基线修复：此前只重置“当前赛季”首周末基线，赛季起点改到 10-22 后，08-22 错误继承 08-15 的周末累计（龙腾因此出现 -244/-213）。现在上一赛季起始后的第一个周末同样基线归零，历史数据已全员复核：除喵酱 2026-09-13（周日 42 分，原始数据真实录入的下降，非计算错误）外无负分。
+- 排行榜列变更：原“本周积分”改为“今日积分”（`todayPoints`，最新比赛日当天得分，未上场为 0）；现列为今日积分 / 本月积分 / 赛季总分，本周列不再展示（`points` 字段保留仅作排序兜底）。
+- 情侣赛（识别管线）：新增赛型 `couple`，计分 `scoreCoupleRace = 参赛人数 - 名次 + 2`（4 人赛第 1 名 5 分、末名 2 分），仅情侣赛适用，队内赛/排位赛规则不变；分数写入 `openRace` 槽位。后台截图识别页新增“情侣赛”单选项，旧批次不受影响。
+- 开黑赛 → 情侣赛标签：按日期明细页、积分弹窗、后台编辑器均按所选日期 >= 2026-10-22 条件渲染“情侣赛”，之前显示“开黑赛”；`scoreWorkbook` 导出模板表头改为“情侣赛1/2/3”，导入校验通过 `HEADER_ALIASES` 兼容旧“开黑赛”表头（列位置不变）。
+- 后台积分明细：筛选日期从原生输入框改为自定义月历（周一起始、可翻月），有数据的日期下方显示圆点标记；表头“总分”改为“本周总分”。按日期查找页排序 tab“总分/得分”改为“本周总分/今日得分”。
+- 公网同步（本轮已完成）：push main 触发 GitHub Actions（`deploy-pages.yml`）以 `VITE_PUBLIC_ONLY=true` 构建部署静态页；新增 `scripts/publish-public-config.mjs`（`node scripts/publish-public-config.mjs`）手动重发水合配置到 COS——公网 `site-config.js` 是 hydrate 后数据（含派生榜字段），改派生逻辑后必须重发，否则公网缺新字段。COS 链接：`https://media.xn--0tr48cxwl51iluvqh7c.xn--fiqs8s/config/site-config.js`。
+- 验证：全量 33 文件 600 项测试通过；`npm run build` 通过（本机构建保持默认 base，公网 base 由 CI 注入）。

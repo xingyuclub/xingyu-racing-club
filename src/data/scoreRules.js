@@ -79,6 +79,11 @@ export function scoreRankedRace({ teamRanks }) {
   return scores;
 }
 
+// 情侣赛：N 人参赛，最后一名 2 分，每升一名 +1。
+export function scoreCoupleRace({ participantCount, rank }) {
+  return Math.max(participantCount - rank + 2, 0);
+}
+
 const DISCRIMINATOR_KEYS = ['score', 'attack', 'defense', 'assist'];
 
 function participantSignature(participant) {
@@ -128,7 +133,7 @@ export function invalidateFollowingWeekTotals(config, { date, id }) {
 
 // 为每个成员独立分配当天该类型的局次槽位；已满 3 局的成员标记跳过。
 export function assignMemberSlots({ rows, existingRows = [], type }) {
-  const field = type === 'ranked' ? 'openRace' : 'teamRace';
+  const field = type === 'ranked' || type === 'couple' ? 'openRace' : 'teamRace';
   const used = new Map();
   for (const row of existingRows) {
     const values = row[field] || [];

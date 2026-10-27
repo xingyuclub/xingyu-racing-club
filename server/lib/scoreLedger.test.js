@@ -51,6 +51,7 @@ describe('projectScores', () => {
       weekTotal: 100,
       total: 100,
       seasonPoints: 16,
+      monthlyPoints: 16,
     });
   });
 
@@ -287,4 +288,42 @@ describe('projectScores', () => {
 
     expect(dailyDetail[0].rows[0]).toMatchObject({ previousPoints: null, score: null });
   });
+});
+
+it('splits monthly totals at the season start within the same month', () => {
+  const { dailyDetail } = projectScores({
+    roster: [{ id: '1' }],
+    dailyScores: [
+      { date: '2026-10-10', rows: [{ id: '1', teamRace: [2, 0, 0], openRace: [0, 0, 0] }] },
+      { date: '2026-10-21', rows: [{ id: '1', teamRace: [4, 0, 0], openRace: [0, 0, 0] }] },
+      { date: '2026-10-22', rows: [{ id: '1', teamRace: [8, 0, 0], openRace: [0, 0, 0] }] },
+      { date: '2026-10-25', rows: [{ id: '1', teamRace: [3, 0, 0], openRace: [0, 0, 0] }] },
+    ],
+    seasonStartDate: '2026-10-22',
+  });
+  const monthlyByDate = new Map(dailyDetail.map((round) => [round.date, round.rows[0].monthlyPoints]));
+  expect(monthlyByDate.get('2026-10-10')).toBe(2);
+  expect(monthlyByDate.get('2026-10-21')).toBe(6);
+  expect(monthlyByDate.get('2026-10-22')).toBe(8);
+  expect(monthlyByDate.get('2026-10-25')).toBe(11);
+});
+it('restarts the week window at the season start even mid-calendar-week', () => {
+  const { dailyDetail, totals } = projectScores({
+    roster: [{ id: '1' }],
+    dailyScores: [
+      { date: '2026-10-19', rows: [{ id: '1', teamRace: [5, 0, 0], openRace: [0, 0, 0] }] },
+      { date: '2026-10-21', rows: [{ id: '1', teamRace: [2, 0, 0], openRace: [0, 0, 0] }] },
+      { date: '2026-10-22', rows: [{ id: '1', teamRace: [7, 0, 0], openRace: [0, 0, 0] }] },
+      { date: '2026-10-23', rows: [{ id: '1', teamRace: [4, 0, 0], openRace: [0, 0, 0] }] },
+    ],
+    seasonStartDate: '2026-10-22',
+    previousSeasonStartDate: '2026-08-20',
+    previousSeasonEndDate: '2026-10-21',
+  });
+  const totalByDate = new Map(dailyDetail.map((round) => [round.date, round.rows[0].total]));
+  expect(totalByDate.get('2026-10-19')).toBe(5);
+  expect(totalByDate.get('2026-10-21')).toBe(7);
+  expect(totalByDate.get('2026-10-22')).toBe(7);
+  expect(totalByDate.get('2026-10-23')).toBe(11);
+  expect(totals.get('1')).toBe(11);
 });

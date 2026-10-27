@@ -206,6 +206,7 @@ export default function App() {
           <LeaderboardPage
             rows={siteData.leaderboard}
             scoreDate={siteData.latestScoreDate}
+            seasonCode={siteData.currentSeasonCode}
             onOpenDetails={() => navigateToHash('score-details')}
           />
         </main>

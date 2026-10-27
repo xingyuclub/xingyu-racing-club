@@ -24,6 +24,14 @@ const weekKey = (dateKey) => {
 const hasWeekendValues = (row) =>
   ['previousPoints', 'points', 'score', 'total'].some((field) => numericValue(row[field]) != null);
 
+const monthCycleKey = (dateKey, seasonStartDate = '') => {
+  const month = dateKey.slice(0, 7);
+  if (seasonStartDate && month === seasonStartDate.slice(0, 7) && dateKey < seasonStartDate) {
+    return `${month}:prev`;
+  }
+  return month;
+};
+
 export function projectScores({
   dailyScores = [],
   weekendScores = [],
@@ -41,6 +49,8 @@ export function projectScores({
     seasonTotals.set(String(member.id), 0);
     previousSeasonTotals.set(String(member.id), 0);
   }
+  const monthlyTotals = new Map();
+  for (const member of roster) monthlyTotals.set(String(member.id), 0);
 
   const events = [
     ...(Array.isArray(dailyScores) ? dailyScores : []).map((round) => ({ ...round, kind: 'daily' })),
@@ -50,11 +60,16 @@ export function projectScores({
   const dailyDetail = [];
   let activeWeek = null;
   let weekTotals = new Map();
+  let activeMonthCycle = null;
   let saturdayPoints = new Map();
   let previousWeekendPoints = new Map();
   let weekMembers = new Set();
   let seasonStarted = false;
   let firstSeasonWeekend = false;
+  let currentSeasonWeekAnchored = false;
+  let previousSeasonWeekAnchored = false;
+  let previousSeasonStarted = false;
+  let firstPreviousSeasonWeekend = false;
 
   for (const event of events) {
     const isWeekend = event.kind === 'weekend';
@@ -71,16 +86,41 @@ export function projectScores({
         previousWeekendPoints = new Map();
       }
     }
-    const isFirstSeasonWeekend = isWeekend && isInSeason && firstSeasonWeekend;
+    if (isInPreviousSeason && !previousSeasonStarted) {
+      previousSeasonStarted = true;
+      // 上一赛季的起始周末同样重置基线（S54 起点之后的第一个周末）。
+      if (previousWeekendPoints.size > 0) {
+        firstPreviousSeasonWeekend = true;
+        previousWeekendPoints = new Map();
+      }
+    }
+    const isFirstSeasonWeekend = isWeekend && (isInSeason ? firstSeasonWeekend : false);
     if (isFirstSeasonWeekend) firstSeasonWeekend = false;
+    const isFirstPreviousSeasonWeekend = isWeekend && (isInPreviousSeason ? firstPreviousSeasonWeekend : false);
+    if (isFirstPreviousSeasonWeekend) firstPreviousSeasonWeekend = false;
+    let forceWeekReset = false;
+    if (isInSeason && !currentSeasonWeekAnchored) {
+      currentSeasonWeekAnchored = true;
+      forceWeekReset = true;
+    }
+    if (isInPreviousSeason && !previousSeasonWeekAnchored) {
+      previousSeasonWeekAnchored = true;
+      forceWeekReset = true;
+    }
     const eventWeek = weekKey(event.date);
-    if (activeWeek !== null && eventWeek !== activeWeek) {
+    if ((activeWeek !== null && eventWeek !== activeWeek) || forceWeekReset) {
       weekTotals = new Map();
       saturdayPoints = new Map();
       weekMembers = new Set();
       for (const memberId of totals.keys()) totals.set(memberId, 0);
     }
     activeWeek = eventWeek;
+
+    const eventMonthCycle = monthCycleKey(event.date, seasonStartDate);
+    if (activeMonthCycle !== null && eventMonthCycle !== activeMonthCycle) {
+      for (const memberId of monthlyTotals.keys()) monthlyTotals.set(memberId, 0);
+    }
+    activeMonthCycle = eventMonthCycle;
 
     const rows = event.rows.flatMap((row) => {
       if (isWeekend && !hasWeekendValues(row)) return [];
@@ -99,7 +139,7 @@ export function projectScores({
       const previousPoints = isSaturday
         ? (inheritedBaseline
           ? previousWeekendPoints.get(memberId)
-          : (isFirstSeasonWeekend && storedPreviousPoints == null ? 0 : storedPreviousPoints))
+          : ((isFirstSeasonWeekend || isFirstPreviousSeasonWeekend) && storedPreviousPoints == null ? 0 : storedPreviousPoints))
         : storedPreviousPoints;
       const weekendBaseline = isSaturday
         ? previousPoints
@@ -121,6 +161,7 @@ export function projectScores({
       if ((!seasonStartDate || event.date >= seasonStartDate) && (!seasonEndDate || event.date <= seasonEndDate)) {
         seasonTotals.set(memberId, (seasonTotals.get(memberId) || 0) + earnedScore);
       }
+      monthlyTotals.set(memberId, (monthlyTotals.get(memberId) || 0) + (score || 0));
       if (isInPreviousSeason) {
         previousSeasonTotals.set(memberId, (previousSeasonTotals.get(memberId) || 0) + earnedScore);
       }
@@ -141,6 +182,7 @@ export function projectScores({
         seasonPoints: isInSeason
           ? (seasonTotals.get(memberId) || 0)
           : (isInPreviousSeason ? (previousSeasonTotals.get(memberId) || 0) : 0),
+        monthlyPoints: monthlyTotals.get(memberId) || 0,
       }];
     });
 
@@ -162,11 +204,12 @@ export function projectScores({
           seasonPoints: isInSeason
             ? (seasonTotals.get(memberId) || 0)
             : (isInPreviousSeason ? (previousSeasonTotals.get(memberId) || 0) : 0),
+          monthlyPoints: monthlyTotals.get(memberId) || 0,
         });
       }
       dailyDetail.push({ date: event.date, weekday: formatWeekday(event.date), rows });
     }
   }
 
-  return { totals, seasonTotals, previousSeasonTotals, dailyDetail, weekMembers };
+  return { totals, seasonTotals, monthlyTotals, previousSeasonTotals, dailyDetail, weekMembers };
 }

@@ -182,11 +182,11 @@ it('inherits the previous weekend points when the next Saturday has no saved row
 
 it('pre-fills zero previous points for the first Saturday of the new season', () => {
   vi.useFakeTimers();
-  vi.setSystemTime(new Date('2026-08-22T12:00:00'));
+  vi.setSystemTime(new Date('2026-10-24T12:00:00'));
   const config = {
     ...baseConfig,
     weekendScores: [
-      { date: '2026-08-16', rows: [{ id: '1', points: 571 }] },
+      { date: '2026-10-18', rows: [{ id: '1', points: 571 }] },
     ],
   };
 
@@ -197,7 +197,7 @@ it('pre-fills zero previous points for the first Saturday of the new season', ()
     }
     render(<StatefulNewSeason />);
 
-    expect(screen.getByText('周六（2026-08-22）')).toBeInTheDocument();
+    expect(screen.getByText('周六（2026-10-24）')).toBeInTheDocument();
     const previousPoints = screen.getByLabelText('周六 青山 上周积分');
     expect(previousPoints).toHaveValue('0');
     expect(previousPoints).not.toHaveAttribute('readonly');

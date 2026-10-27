@@ -6,6 +6,7 @@ import {
   removeScoreMember as removeScoreMemberFromConfig,
 } from '../data/siteConfig.js';
 import { invalidateFollowingWeekTotals } from '../data/scoreRules.js';
+import { SEASON_START_DATE } from '../data/siteConfig.js';
 import {
   downloadScoreWorkbook,
   mergeScoreImport,
@@ -65,6 +66,33 @@ export function ScoreEditor({ config, onChange }) {
   }, [config.scoreMembers]);
   const [selectedDate, setSelectedDate] = useState(() => availableDates.at(-1) || '');
   const selectedIsWeekend = selectedDate && [0, 6].includes(dateWeekday(selectedDate));
+  const dataDateSet = useMemo(() => new Set(availableDates), [availableDates]);
+  const [calendarView, setCalendarView] = useState(() => {
+    const fallback = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
+    const base = availableDates.at(-1) || fallback;
+    const [year, month] = base.split('-').map(Number);
+    return { year, month };
+  });
+  const shiftCalendarMonth = (offset) => {
+    setCalendarView((current) => {
+      const next = new Date(current.year, current.month - 1 + offset, 1);
+      return { year: next.getFullYear(), month: next.getMonth() + 1 };
+    });
+  };
+  const calendarCells = useMemo(() => {
+    const { year, month } = calendarView;
+    const lead = (new Date(year, month - 1, 1).getDay() + 6) % 7;
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const cells = [];
+    for (let index = 0; index < lead; index += 1) {
+      cells.push({ blank: true, key: `blank-${index}` });
+    }
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const key = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      cells.push({ blank: false, key, day, hasData: dataDateSet.has(key) });
+    }
+    return cells;
+  }, [calendarView, dataDateSet]);
   const hydrated = useMemo(() => hydrateSiteData(config), [config]);
   const totals = useMemo(() => new Map(hydrated.dailyScores.flatMap((round) => round.rows.map((row) => [
       totalKey(round.date, row.id),
@@ -74,6 +102,7 @@ export function ScoreEditor({ config, onChange }) {
         score: row.score,
         total: row.total,
         seasonPoints: row.seasonPoints,
+        monthlyPoints: row.monthlyPoints,
         previousPointsInherited: row.previousPointsInherited,
       },
     ]))), [hydrated]);
@@ -110,12 +139,12 @@ export function ScoreEditor({ config, onChange }) {
     return withMissingMembers.slice().sort((left, right) => {
       const leftValue = left.weekend
         ? totals.get(totalKey(selectedDate, left.row.id))?.[field]
-        : field === 'score' || field === 'total' || field === 'seasonPoints'
+        : field === 'score' || field === 'total' || field === 'monthlyPoints' || field === 'seasonPoints'
           ? totals.get(totalKey(selectedDate, left.row.id))?.[field]
           : left.row[field.split(':')[0]]?.[Number(field.split(':')[1])] ?? null;
       const rightValue = right.weekend
         ? totals.get(totalKey(selectedDate, right.row.id))?.[field]
-        : field === 'score' || field === 'total' || field === 'seasonPoints'
+        : field === 'score' || field === 'total' || field === 'monthlyPoints' || field === 'seasonPoints'
           ? totals.get(totalKey(selectedDate, right.row.id))?.[field]
           : right.row[field.split(':')[0]]?.[Number(field.split(':')[1])] ?? null;
       const leftNumber = leftValue == null || leftValue === '' ? Number.NEGATIVE_INFINITY : Number(leftValue);
@@ -332,15 +361,35 @@ export function ScoreEditor({ config, onChange }) {
       )}
       {tab === 'scores' && <>
       <div className="score-editor-toolbar">
-        <label className="score-date-filter">
-          <span>筛选日期</span>
-          <input
-            type="date"
-            aria-label="筛选日期"
-            value={selectedDate}
-            onChange={(event) => setDate(event.target.value)}
-          />
-        </label>
+        <div className="score-date-filter">
+          <span className="score-date-filter-label">筛选日期</span>
+          <div className="score-date-calendar">
+            <div className="score-date-calendar-head">
+              <button type="button" aria-label="上一月" onClick={() => shiftCalendarMonth(-1)}>‹</button>
+              <strong>{calendarView.year}年{calendarView.month}月</strong>
+              <button type="button" aria-label="下一月" onClick={() => shiftCalendarMonth(1)}>›</button>
+            </div>
+            <div className="score-date-calendar-grid" aria-label="选择积分日期">
+              {['一', '二', '三', '四', '五', '六', '日'].map((label) => (
+                <span key={label} className="score-date-calendar-weekday">{label}</span>
+              ))}
+              {calendarCells.map((cell) => cell.blank ? (
+                <span key={cell.key} aria-hidden="true" />
+              ) : (
+                <button
+                  type="button"
+                  key={cell.key}
+                  className={`${cell.hasData ? 'has-data' : ''}${selectedDate === cell.key ? ' is-selected' : ''}`.trim()}
+                  aria-pressed={selectedDate === cell.key}
+                  aria-label={`选择 ${cell.key}${cell.hasData ? '（已有数据）' : ''}`}
+                  onClick={() => setDate(cell.key)}
+                >
+                  {cell.day}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
         <button type="button" disabled={busy} onClick={() => download(true)}>
           <Download aria-hidden="true" size={16} />
           下载模板
@@ -419,14 +468,18 @@ export function ScoreEditor({ config, onChange }) {
                 {dateWeekday(selectedDate) === 6 && <th><span className="score-table-header">上周积分{sortButton(`${weekendLabel(selectedDate)}上周积分`, 'previousPoints')}</span></th>}
                 <th><span className="score-table-header">积分{sortButton(`${weekendLabel(selectedDate)}积分`, 'points')}</span></th>
                 <th><span className="score-table-header">得分{sortButton(`${weekendLabel(selectedDate)}得分`, 'score')}</span></th>
-                <th><span className="score-table-header">总分{sortButton(`${weekendLabel(selectedDate)}总分`, 'total')}</span></th>
+                <th><span className="score-table-header">本周总分{sortButton(`${weekendLabel(selectedDate)}本周总分`, 'total')}</span></th>
+                <th><span className="score-table-header">本月积分{sortButton(`${weekendLabel(selectedDate)}本月积分`, 'monthlyPoints')}</span></th>
                 <th><span className="score-table-header">赛季积分{sortButton(`${weekendLabel(selectedDate)}赛季积分`, 'seasonPoints')}</span></th>
               </> : <>
-                {['队内赛1', '队内赛2', '队内赛3', '开黑赛1', '开黑赛2', '开黑赛3'].map((label, index) => (
+                {(selectedDate >= SEASON_START_DATE
+                  ? ['队内赛1', '队内赛2', '队内赛3', '情侣赛1', '情侣赛2', '情侣赛3']
+                  : ['队内赛1', '队内赛2', '队内赛3', '开黑赛1', '开黑赛2', '开黑赛3']).map((label, index) => (
                   <th key={label}><span className="score-table-header">{label}{sortButton(label, `${index < 3 ? 'teamRace' : 'openRace'}:${index % 3}`)}</span></th>
                 ))}
                 <th><span className="score-table-header">当日得分{sortButton('当日得分', 'score')}</span></th>
-                <th><span className="score-table-header">总分{sortButton('总分', 'total')}</span></th>
+                <th><span className="score-table-header">本周总分{sortButton('本周总分', 'total')}</span></th>
+                <th><span className="score-table-header">本月积分{sortButton('本月积分', 'monthlyPoints')}</span></th>
                 <th><span className="score-table-header">赛季积分{sortButton('赛季积分', 'seasonPoints')}</span></th>
               </>}
               <th><span className="sr-only">操作</span></th>
@@ -447,6 +500,7 @@ export function ScoreEditor({ config, onChange }) {
                     <td><input type="number" readOnly aria-label={`${dayLabel} ${name} 积分`} value={calculated.points ?? row.points ?? ''} /></td>
                     <td><input type="number" readOnly aria-label={`${dayLabel} ${name} 得分`} value={calculated.score ?? row.score ?? ''} /></td>
                     <td><input type="number" readOnly aria-label={`${dayLabel} ${name} 总分`} value={calculated.total ?? row.total ?? ''} /></td>
+                    <td className="score-derived">{calculated.monthlyPoints ?? 0}</td>
                     <td className="score-derived">{calculated.seasonPoints ?? 0}</td>
                     <td />
                   </tr>
@@ -463,6 +517,7 @@ export function ScoreEditor({ config, onChange }) {
                     {row.openRace.map((value, raceIndex) => <td key={`open-${raceIndex}`}>{value ?? '—'}</td>)}
                     <td className="score-derived">{calculated.score}</td>
                     <td className="score-derived">{calculated.total}</td>
+                    <td className="score-derived">{calculated.monthlyPoints ?? 0}</td>
                     <td className="score-derived">{calculated.seasonPoints ?? 0}</td>
                     <td />
                   </tr>
@@ -470,7 +525,7 @@ export function ScoreEditor({ config, onChange }) {
               }
               const raceGroups = [
                 ['队内赛', 'teamRace'],
-                ['开黑赛', 'openRace'],
+                [selectedDate >= SEASON_START_DATE ? '情侣赛' : '开黑赛', 'openRace'],
               ];
               return (
                 <tr key={`${row.date}-${row.id}-${rowIndex}`} data-testid="score-editor-row">
@@ -517,6 +572,7 @@ export function ScoreEditor({ config, onChange }) {
                   )))}
                   <td className="score-derived">{calculated.score}</td>
                   <td className="score-derived">{calculated.total}</td>
+                  <td className="score-derived">{calculated.monthlyPoints ?? 0}</td>
                   <td className="score-derived">{calculated.seasonPoints ?? 0}</td>
                   <td>
                     <button

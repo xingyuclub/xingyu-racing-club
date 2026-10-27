@@ -4,6 +4,7 @@ import {
   buildMemberMatcher,
   hasRaceDiscriminator,
   normalizeNickname,
+  scoreCoupleRace,
   scoreRankedRace,
   scoreTeamRace,
 } from '../../src/data/scoreRules.js';
@@ -175,6 +176,14 @@ function scoreRaces(races, raceType) {
     if (raceType === 'ranked') {
       const scores = scoreRankedRace({ teamRanks: members.map((item) => item.rank) });
       members.forEach((item, index) => { item.score = scores[index]; });
+    } else if (raceType === 'couple') {
+      const ranks = race.evidence
+        .filter((item) => Number.isInteger(item.rank) && item.rank > 0)
+        .map((item) => item.rank);
+      const participantCount = ranks.length ? Math.max(...ranks) : 0;
+      members.forEach((item) => {
+        item.score = scoreCoupleRace({ participantCount, rank: item.rank });
+      });
     } else {
       const ranks = race.evidence
         .filter((item) => Number.isInteger(item.rank) && item.rank > 0)

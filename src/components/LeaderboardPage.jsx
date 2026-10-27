@@ -1,7 +1,7 @@
 import { LeaderboardList } from './Leaderboard.jsx';
 import { useRevealOnScroll } from '../hooks/useRevealOnScroll.js';
 
-export function LeaderboardPage({ rows, scoreDate, onOpenDetails }) {
+export function LeaderboardPage({ rows, scoreDate, seasonCode, onOpenDetails }) {
   useRevealOnScroll(true);
 
   return (
@@ -10,6 +10,7 @@ export function LeaderboardPage({ rows, scoreDate, onOpenDetails }) {
         <LeaderboardList
           rows={rows}
           scoreDate={scoreDate}
+          seasonLabel={`${seasonCode || 'S55'}赛季`}
           onOpenDetails={onOpenDetails}
           titleId="leaderboard-page-title"
         />

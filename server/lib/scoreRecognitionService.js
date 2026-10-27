@@ -391,7 +391,7 @@ export function createScoreRecognitionService({
       round = { date: batch.date, rows: [] };
       next.dailyScores.push(round);
     }
-    const field = batch.raceType === 'ranked' ? 'openRace' : 'teamRace';
+    const field = batch.raceType === 'ranked' || batch.raceType === 'couple' ? 'openRace' : 'teamRace';
 
     for (const item of currentDraft.evidence) {
       if (item.duplicate || item.ignored || item.warning || item.slot === undefined) continue;

@@ -27,7 +27,7 @@ const getIsoWeek = (dateKey) => {
 const sortRows = (rows, sortKey) => [...rows].sort((left, right) => {
   const primaryDifference = Number(right[sortKey] || 0) - Number(left[sortKey] || 0);
   if (primaryDifference) return primaryDifference;
-  const secondaryKey = sortKey === 'seasonPoints' ? 'points' : 'seasonPoints';
+  const secondaryKey = sortKey === 'seasonPoints' ? 'todayPoints' : 'seasonPoints';
   return Number(right[secondaryKey] || 0) - Number(left[secondaryKey] || 0)
     || left.name.localeCompare(right.name);
 });
@@ -35,7 +35,7 @@ const sortRows = (rows, sortKey) => [...rows].sort((left, right) => {
 export function LeaderboardList({
   rows,
   limit,
-  seasonLabel = 'S54赛季',
+  seasonLabel = 'S55赛季',
   scoreDate = '',
   onOpenDetails,
   titleId,
@@ -76,7 +76,8 @@ export function LeaderboardList({
         <div className="leaderboard-header">
           <span className="leaderboard-nickname-header">车手</span>
           {[
-            ['points', '本周积分'],
+            ['todayPoints', '今日积分'],
+            ['monthlyPoints', '本月积分'],
             ['seasonPoints', '赛季总分'],
           ].map(([key, label]) => (
             <button
@@ -104,7 +105,11 @@ export function LeaderboardList({
               <strong>{row.name}</strong>
             </span>
             <span className="leader-score leader-week-score">
-              <strong>{row.points}</strong>
+              <strong>{row.todayPoints ?? 0}</strong>
+              <small>分</small>
+            </span>
+            <span className="leader-score leader-month-score">
+              <strong>{row.monthlyPoints ?? 0}</strong>
               <small>分</small>
             </span>
             <span className="leader-score leader-season-score">
@@ -125,7 +130,7 @@ export function Leaderboard({ rows, onOpenDetails, onOpenFull, scoreDate }) {
         <div className="section-heading-copy">
           <p className="eyebrow">SEASON POINTS</p>
           <h2 id="leaderboard-title">
-            星屿积分榜 <span className="leaderboard-season-label">S54赛季</span>
+            星屿积分榜 <span className="leaderboard-season-label">S55赛季</span>
           </h2>
           {scoreDate && <p className="leaderboard-date">截至 {formatDate(scoreDate)}</p>}
         </div>

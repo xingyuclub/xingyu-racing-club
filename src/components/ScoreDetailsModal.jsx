@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowDownUp, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, X } from 'lucide-react';
+import { SEASON_START_DATE } from '../data/siteConfig.js';
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -40,7 +41,7 @@ export function ScoreDetailsModal({ dailyScores = [], onClose }) {
   const selectedScore = selectedDate ? scoreByDate.get(selectedDate) : null;
   const isSaturday = selectedScore?.weekday === '周六';
   const isWeekend = isSaturday || selectedScore?.weekday === '周日';
-  const sortOptions = isWeekend ? ['points', 'score', 'total', 'seasonPoints'] : ['score', 'total', 'seasonPoints'];
+  const sortOptions = isWeekend ? ['points', 'score', 'total', 'monthlyPoints', 'seasonPoints'] : ['score', 'total', 'monthlyPoints', 'seasonPoints'];
   const activeSortKey = sortOptions.includes(sortKey) ? sortKey : 'total';
   const activeSortDirection = sortOptions.includes(sortKey) ? sortDirection : 'desc';
   const sortedRows = useMemo(() => {
@@ -206,7 +207,7 @@ export function ScoreDetailsModal({ dailyScores = [], onClose }) {
         {selectedScore && (
           <section className="daily-score-panel" aria-labelledby="daily-score-date">
             <h3 id="daily-score-date">
-              {formatDateLabel(selectedScore.date)} · {selectedScore.weekday}
+              {formatDateLabel(selectedScore.date)} · {selectedScore.weekday} · {selectedScore.date >= SEASON_START_DATE ? 'S55' : 'S54'}
             </h3>
             <div className="daily-score-table-wrap">
               {isWeekend ? (
@@ -221,6 +222,7 @@ export function ScoreDetailsModal({ dailyScores = [], onClose }) {
                       {renderSortableHeader('积分', 'points')}
                       {renderSortableHeader('得分', 'score')}
                       {renderSortableHeader('总分', 'total')}
+                      {renderSortableHeader('本月积分', 'monthlyPoints')}
                       {renderSortableHeader('赛季总分', 'seasonPoints')}
                     </tr>
                   </thead>
@@ -232,6 +234,7 @@ export function ScoreDetailsModal({ dailyScores = [], onClose }) {
                         <td>{displayScore(row.points)}</td>
                         <td>{displayScore(row.score)}</td>
                         <td>{displayScore(row.total)}</td>
+                        <td>{displayScore(row.monthlyPoints ?? 0)}</td>
                         <td className="daily-score-season-cell">{displayScore(row.seasonPoints)}</td>
                       </tr>
                     ))}
@@ -243,9 +246,10 @@ export function ScoreDetailsModal({ dailyScores = [], onClose }) {
                   <tr>
                     <th scope="col" rowSpan="2">队员</th>
                     <th scope="colgroup" colSpan="3">队内赛</th>
-                    <th scope="colgroup" colSpan="3">开黑赛</th>
+                    <th scope="colgroup" colSpan="3">{selectedScore.date >= SEASON_START_DATE ? '情侣赛' : '开黑赛'}</th>
                     {renderSortableHeader('得分', 'score', 2)}
                     {renderSortableHeader('总分', 'total', 2)}
+                    {renderSortableHeader('本月积分', 'monthlyPoints', 2)}
                     {renderSortableHeader('赛季总分', 'seasonPoints', 2)}
                   </tr>
                   <tr>
@@ -269,6 +273,7 @@ export function ScoreDetailsModal({ dailyScores = [], onClose }) {
                       ))}
                       <td>{displayScore(row.score)}</td>
                       <td>{displayScore(row.total)}</td>
+                      <td>{displayScore(row.monthlyPoints ?? 0)}</td>
                       <td className="daily-score-season-cell">{displayScore(row.seasonPoints)}</td>
                     </tr>
                   ))}

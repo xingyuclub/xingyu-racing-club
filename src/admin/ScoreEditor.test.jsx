@@ -18,13 +18,28 @@ vi.mock('./scoreWorkbook.js', () => ({
 }));
 
 const adminStyles = readFileSync('src/admin/admin.css', 'utf8');
+const expectSelectedDate = (dateKey) => {
+  expect(screen.getByRole('button', { name: new RegExp(`^选择 ${dateKey}`) })).toHaveAttribute('aria-pressed', 'true');
+};
+
+const selectCalendarDate = async (user, dateKey) => {
+  const [targetYear, targetMonth] = dateKey.split('-').map(Number);
+  for (let guard = 0; guard < 36; guard += 1) {
+    const heading = screen.getByText(/(\d{4})年(\d{1,2})月/).textContent;
+    const [, viewYear, viewMonth] = heading.match(/(\d+)年(\d+)月/).map(Number);
+    if (viewYear === targetYear && viewMonth === targetMonth) break;
+    const forward = viewYear * 12 + viewMonth < targetYear * 12 + targetMonth;
+    await user.click(screen.getByRole('button', { name: forward ? '下一月' : '上一月' }));
+  }
+  await user.click(screen.getByRole('button', { name: new RegExp(`^选择 ${dateKey}`) }));
+};
 
 const createConfig = () => {
   const config = createSeedConfig();
   config.roster = config.roster.slice(0, 2);
   config.scoreMembers = config.scoreMembers.slice(0, 2);
   config.dailyScores = [{
-    date: '2026-07-28',
+    date: '2026-10-23',
     rows: [{
       id: config.scoreMembers[0].id,
       teamRace: [1, 2, 3],
@@ -59,6 +74,7 @@ describe('ScoreEditor', () => {
     const config = createConfig();
     const onChange = vi.fn();
     render(<ScoreEditorHarness initialConfig={config} onChange={onChange} />);
+    expectSelectedDate('2026-10-23');
 
     expect(screen.getByTestId('score-editor-row')).toHaveTextContent('6');
     expect(screen.getByTestId('score-editor-row')).toHaveTextContent(
@@ -78,6 +94,7 @@ describe('ScoreEditor', () => {
     const config = createConfig();
     const onChange = vi.fn();
     render(<ScoreEditorHarness initialConfig={config} onChange={onChange} />);
+    expectSelectedDate('2026-10-23');
 
     const input = screen.getByLabelText('第1行队内赛1');
     expect(input).toHaveAttribute('type', 'text');
@@ -95,6 +112,7 @@ describe('ScoreEditor', () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(<ScoreEditorHarness initialConfig={createConfig()} onChange={onChange} />);
+    expectSelectedDate('2026-10-23');
 
     await user.clear(screen.getByLabelText('第1行日期'));
 
@@ -114,7 +132,7 @@ describe('ScoreEditor', () => {
       total: 20,
     });
     config.dailyScores.push({
-      date: '2026-07-29',
+      date: '2026-10-24',
       rows: [{
         id: config.scoreMembers[0].id,
         teamRace: [2, 0, 0],
@@ -125,9 +143,9 @@ describe('ScoreEditor', () => {
     });
     const onChange = vi.fn();
     render(<ScoreEditorHarness initialConfig={config} onChange={onChange} />);
+    expectSelectedDate('2026-10-24');
 
-    await user.clear(screen.getByLabelText('筛选日期'));
-    await user.type(screen.getByLabelText('筛选日期'), '2026-07-28');
+    await selectCalendarDate(user, '2026-10-23');
     const input = screen.getByLabelText('第1行队内赛1');
     await user.clear(input);
     await user.type(input, '5');
@@ -155,25 +173,23 @@ describe('ScoreEditor', () => {
     const user = userEvent.setup();
     const config = createConfig();
     config.dailyScores.push({
-      date: '2026-07-29',
+      date: '2026-10-29',
       rows: [{
         id: config.scoreMembers[1].id,
         teamRace: [4, 0, 0],
         openRace: [0, 0, 0],
       }],
     });
-
     render(<ScoreEditorHarness initialConfig={config} onChange={() => {}} />);
+    expectSelectedDate('2026-10-29');
 
-    expect(screen.getByLabelText('筛选日期')).toHaveValue('2026-07-29');
     expect(screen.getAllByTestId('score-editor-row')).toHaveLength(1);
     expect(within(screen.getByTestId('score-editor-row')).getByRole('option', {
       name: config.scoreMembers[1].name,
       selected: true,
     })).toBeInTheDocument();
 
-    await user.clear(screen.getByLabelText('筛选日期'));
-    await user.type(screen.getByLabelText('筛选日期'), '2026-07-28');
+    await selectCalendarDate(user, '2026-10-23');
 
     expect(screen.getAllByTestId('score-editor-row')).toHaveLength(1);
     expect(within(screen.getByTestId('score-editor-row')).getByRole('option', {
@@ -238,20 +254,19 @@ describe('ScoreEditor', () => {
     const user = userEvent.setup();
     const config = createConfig();
     config.weekendScores = [
-      { date: '2026-08-08', rows: [{ id: config.scoreMembers[0].id, previousPoints: 90, points: 100 }] },
-      { date: '2026-08-09', rows: [{ id: config.scoreMembers[0].id, points: 112 }] },
+      { date: '2026-10-31', rows: [{ id: config.scoreMembers[0].id, previousPoints: 90, points: 100 }] },
+      { date: '2026-11-01', rows: [{ id: config.scoreMembers[0].id, points: 112 }] },
     ];
 
     render(<ScoreEditor config={config} onChange={() => {}} />);
     const memberName = config.scoreMembers[0].name;
 
-    expect(screen.getByLabelText('筛选日期')).toHaveValue('2026-08-09');
+    expectSelectedDate('2026-11-01');
     expect(screen.getByTestId('score-editor-weekend-row')).toBeInTheDocument();
     expect(screen.getByLabelText(`周日 ${memberName} 得分`)).toHaveValue(12);
     expect(screen.getByLabelText(`周日 ${memberName} 得分`)).toHaveAttribute('readonly');
 
-    await user.clear(screen.getByLabelText('筛选日期'));
-    await user.type(screen.getByLabelText('筛选日期'), '2026-08-08');
+    await selectCalendarDate(user, '2026-10-31');
     expect(screen.getByLabelText(`周六 ${memberName} 上周积分`)).toHaveValue(90);
     expect(screen.getByLabelText(`周六 ${memberName} 总分`)).toHaveValue(10);
   });
@@ -267,6 +282,7 @@ describe('ScoreEditor', () => {
     const onChange = vi.fn();
 
     render(<ScoreEditorHarness initialConfig={config} onChange={onChange} />);
+    expectSelectedDate('2026-10-23');
     await user.click(screen.getByRole('button', { name: '按队内赛1从大到小排序' }));
 
     const sortedRows = screen.getAllByTestId('score-editor-row');
@@ -288,6 +304,7 @@ describe('ScoreEditor', () => {
     const onChange = vi.fn();
 
     render(<ScoreEditorHarness initialConfig={config} onChange={onChange} />);
+    expectSelectedDate('2026-10-23');
     await user.click(screen.getByRole('tab', { name: '积分队员' }));
 
     expect(screen.getByDisplayValue('积分人物甲')).toBeInTheDocument();
@@ -307,6 +324,7 @@ describe('ScoreEditor', () => {
     const onChange = vi.fn();
 
     render(<ScoreEditorHarness initialConfig={config} onChange={onChange} />);
+    expectSelectedDate('2026-10-23');
     await user.click(screen.getByRole('tab', { name: '积分队员' }));
     await user.click(screen.getByRole('button', { name: '新增积分队员' }));
 
@@ -334,6 +352,7 @@ describe('ScoreEditor', () => {
     const onChange = vi.fn();
 
     render(<ScoreEditorHarness initialConfig={config} onChange={onChange} />);
+    expectSelectedDate('2026-10-23');
     await user.click(screen.getByRole('tab', { name: '积分队员' }));
     await user.click(screen.getByRole('button', { name: '删除积分队员 1' }));
 
@@ -361,6 +380,7 @@ describe('ScoreEditor', () => {
     const onChange = vi.fn();
 
     render(<ScoreEditorHarness initialConfig={config} onChange={onChange} />);
+    expectSelectedDate('2026-10-23');
     await user.click(screen.getByRole('tab', { name: '积分队员' }));
 
     expect(screen.getByRole('button', { name: '上移积分队员 1' })).toBeDisabled();
@@ -411,7 +431,7 @@ describe('ScoreEditor', () => {
     const config = createConfig();
     const onChange = vi.fn();
     const imported = {
-      dailyScores: [{ date: '2026-07-29', rows: [config.dailyScores[0].rows[0]] }],
+      dailyScores: [{ date: '2026-10-24', rows: [config.dailyScores[0].rows[0]] }],
       basePointsById: new Map([[config.scoreMembers[0].id, 20]]),
       summary: { dates: 1, rows: 1, basePoints: 1 },
     };
