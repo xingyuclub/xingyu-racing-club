@@ -496,3 +496,9 @@ pm run build 通过；识别与历史迁移为纯函数与 ExcelJS 解析，不�
 - 后台积分明细：筛选日期从原生输入框改为自定义月历（周一起始、可翻月），有数据的日期下方显示圆点标记；表头“总分”改为“本周总分”。按日期查找页排序 tab“总分/得分”改为“本周总分/今日得分”。
 - 公网同步（本轮已完成）：push main 触发 GitHub Actions（`deploy-pages.yml`）以 `VITE_PUBLIC_ONLY=true` 构建部署静态页；新增 `scripts/publish-public-config.mjs`（`node scripts/publish-public-config.mjs`）手动重发水合配置到 COS——公网 `site-config.js` 是 hydrate 后数据（含派生榜字段），改派生逻辑后必须重发，否则公网缺新字段。COS 链接：`https://media.xn--0tr48cxwl51iluvqh7c.xn--fiqs8s/config/site-config.js`。
 - 验证：全量 33 文件 600 项测试通过；`npm run build` 通过（本机构建保持默认 base，公网 base 由 CI 注入）。
+
+## 2026-10-29 API 一键重启脚本
+
+- 后台 500/连接失败时优先执行 `npm run restart:api`（等价于 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/restart-api.ps1`）。脚本自动停掉 3000 端口旧进程、以 `node server/index.js` 重启（隐藏窗口），stdout/stderr 落地 `logs/api-3000.log` 与 `logs/api-3000.err.log`，并轮询 `/api/config` 做健康检查（30 秒超时，失败时打印错误日志尾部）。
+- 此前服务由代理会话用 `Start-Process` 裸拉起、无日志重定向，崩溃后无迹可查；本次 500 当天实际是进程整体退出（连接拒绝）。今后排查 500 先看 `logs/api-3000.err.log`。
+- 冷启动与热重启（已有进程）两条路径均已实测通过；API/后台/首页三端 200。

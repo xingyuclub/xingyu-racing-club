@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "start": "node server/index.js",
+    "restart:api": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/restart-api.ps1",
     "serve": "npm run build && npm run start",
     "media:smoke-test": "node scripts/test-cos-connection.js",
     "media:migrate:dry-run": "node scripts/migrate-media-to-cos.js",
